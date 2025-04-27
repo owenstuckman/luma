@@ -12,7 +12,7 @@
   </ul>
 
   <img src="image.png" alt="A descriptive alt text for the image" class="w-200" />
-<button class="mt-4 px-4 py-2 bg-yellow-500 text-white rounded" on:click={() => window.location.href='/form'}>
+<button class="mt-4 px-4 py-2 bg-yellow-500 text-white rounded" on:click={() => window.location.href='/apply'}>
   Go to Form Page
 </button>
 
