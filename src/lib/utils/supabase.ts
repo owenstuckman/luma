@@ -34,3 +34,15 @@ export const getRoleByID = async (id: number) => {
     console.log(data);
     return data;
 };
+
+export const sendApplication = async (row: object) => {
+    const { data, error } = await supabase
+        .from("applicants")
+        .insert(row);
+    if (error) {
+        console.error('Error sending application:', error);
+        throw new Error('Failed to send application to Supabase');
+    }
+    console.log(data);
+    return data;
+}
