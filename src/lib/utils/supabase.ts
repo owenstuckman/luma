@@ -31,5 +31,6 @@ export const getRoleByID = async (id: number) => {
         console.error('Error fetching data:', error);
         throw new Error('Failed to fetch data from Supabase');
     }
+    console.log(data);
     return data;
 };

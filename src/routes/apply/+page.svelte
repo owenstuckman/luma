@@ -8,7 +8,7 @@
         created_at: string; 
         name: string; 
         owner: string; 
-        questions: string; 
+        questions: object; 
         scheduled: boolean; 
         metadata: object; 
         schedule: object; 
