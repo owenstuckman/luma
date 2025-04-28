@@ -1,18 +1,26 @@
 <script lang="ts">
-    export let id: number; // Changed to accept only an id parameter
+    export let id: number; 
 
     import { onMount } from 'svelte';
-    import { getRoleByID } from '$lib/utils/supabase'; // Import the function to get job posting by ID
+    import { getRoleByID } from '$lib/utils/supabase'; 
 
-    let dataForm: { name: string; description: string; owner: string; questions: string[] } | null = null; // Initialize as an object or null
+    let dataForm: { name: string; description: string; owner: string; questions: object } | null = null;
+    let questionsJson: string | null = null; 
+    let questionsArray: string[] = [];
 
     onMount(async () => {
         if (id) {
             try {
                 const data = await getRoleByID(id);
-                dataForm = data[0]; // Assign the fetched data to dataForm
+                dataForm = data[0]; 
                 console.log(dataForm);
-                console.error('No data found for the given ID.');
+                if (dataForm) {
+                    questionsJson = JSON.stringify(dataForm.questions); 
+                    questionsArray = JSON.parse(questionsJson).questions;
+
+                } else {
+                    console.error('No data found for the given ID.');
+                }
             } catch (error) {
                 console.error('Failed to load job posting:', error);
             }
@@ -24,7 +32,12 @@
     {#if dataForm}
         <h2>{dataForm.name}</h2>
         <p>{dataForm.description} - {dataForm.owner}</p>
-        <p>{dataForm.questions.join(', ')}</p> <!-- Assuming questions is an array -->
+        <p>{questionsJson}</p>
+        <p>{questionsArray}</p>
+        <p>{#each  as }
+            
+        {/each}
+
     {:else}
         <p>Loading job posting...</p>
     {/if}
