@@ -1,8 +1,8 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import ApplicationForm from '$lib/components/applicationForm.svelte'; 
+	import ReviewApplicationForm from '$lib/components/reviewApplicationForm.svelte';
 
-    let id: number; // This will hold the role ID from the URL
+    let id: number;
 
     onMount(async () => {
         const urlParams = new URLSearchParams(window.location.search);
@@ -10,4 +10,4 @@
     });
 </script>
 
-<ApplicationForm {id} /> 
+    <ReviewApplicationForm {id} />

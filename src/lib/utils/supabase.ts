@@ -4,6 +4,7 @@ import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/publi
 /*
 
 Utility functions for supabase.
+- More or less all the db functions needed for the application 
 
  */
 
@@ -39,6 +40,34 @@ export const sendApplication = async (row: object) => {
     const { data, error } = await supabase
         .from("applicants")
         .insert(row);
+
+    if (error) {
+        console.error('Error sending application:', error);
+        throw new Error('Failed to send application to Supabase');
+    }
+    console.log(data);
+    return data;
+}
+
+export const getAllApplicants = async () => {
+    const { data, error } = await supabase
+        .from("applicants")
+        .select('*')
+
+    if (error) {
+        console.error('Error sending application:', error);
+        throw new Error('Failed to send application to Supabase');
+    }
+    console.log(data);
+    return data;
+}
+
+
+export const getApplicantData = async (id: number) => {
+    const { data, error } = await supabase
+        .from("applicants")
+        .select('*')
+        .eq('id', id)
     if (error) {
         console.error('Error sending application:', error);
         throw new Error('Failed to send application to Supabase');

@@ -11,6 +11,8 @@
         active_flag: boolean; 
         description: string;
     }[] = [];
+    
+    export let linkBase: string = '/apply/role'; // New parameter for link location
 </script>
 
 <div class="job-posting-cards">
@@ -18,7 +20,7 @@
         <div class="card">
             <h2 class="title">{posting.name}</h2>
             <p class="description">{posting.description}</p>
-            <a href={`/apply/role?id=${posting.id}`} class="apply-button">Apply Now</a>
+            <a href={`${linkBase}?id=${posting.id}`} class="apply-button">Apply Now</a> <!-- Updated link to use linkBase -->
         </div>
     {/each}
 </div>

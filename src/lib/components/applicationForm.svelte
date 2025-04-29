@@ -36,6 +36,7 @@
                 name: formData.name,
                 email: formData.email,
                 recruitInfo: {} as { [key: string]: string }, 
+                job: id,
             };
 
             questionsArray.forEach(question => {
