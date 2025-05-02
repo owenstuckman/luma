@@ -6,29 +6,10 @@
     import { goto } from '$app/navigation'; // Import the goto function for navigation
     import { writable } from 'svelte/store'; // Import writable for snackbar
 
-    let dataForm: { name: string; description: string; owner: string; questions: object } | null = null;
-    let questionsJson: string | null = null; 
-    let questionsArray: string[] = [];
+    export let dataForm: { name: string; description: string; owner: string; questions: object } | null = null; 
+    export let questionsArray: string[] = [];
     let formData: { name: string; email: string; [key: string]: string } = { name: '', email: '' };
     let snackbarMessage = writable<string | null>(null); // Snackbar message store
-
-    onMount(async () => {
-        if (id) {
-            try {
-                const data = await getRoleByID(id);
-                dataForm = data[0]; 
-                console.log(dataForm);
-                if (dataForm) {
-                    questionsJson = JSON.stringify(dataForm.questions); 
-                    questionsArray = JSON.parse(questionsJson).questions;
-                } else {
-                    console.error('No data found for the given ID.');
-                }
-            } catch (error) {
-                console.error('Failed to load job posting:', error);
-            }
-        }
-    });
 
     const handleSubmit = async () => {
         try {
