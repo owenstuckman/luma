@@ -75,3 +75,40 @@ export const getApplicantData = async (id: number) => {
     console.log(data);
     return data;
 }
+
+export const addComment = async (id: number, comment: string, email: string, decision: string) => {
+    // Fetch the current applicant data
+    const { data: applicantData, error: fetchError } = await supabase
+        .from("applicants")
+        .select('*')
+        .eq('id', id)
+        .single(); // Get a single applicant
+
+    if (fetchError) {
+        console.error('Error fetching applicant data:', fetchError);
+        throw new Error('Failed to fetch applicant data from Supabase');
+    }
+
+    // Prepare the new comment object
+    const newComment = {
+        email,
+        comment,
+        decision,
+    };
+
+    // Add the new comment to the existing comments array
+    const updatedComments = [...(applicantData.comments || []), newComment];
+
+    // Update the applicant with the new comments array
+    const { data, error } = await supabase
+        .from("applicants")
+        .update({ comments: updatedComments })
+        .eq('id', id);
+
+    if (error) {
+        console.error('Error updating applicant comments:', error);
+        throw new Error('Failed to update applicant comments in Supabase');
+    }
+    console.log(data);
+    return data;
+}
