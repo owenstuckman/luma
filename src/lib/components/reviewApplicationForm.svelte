@@ -1,43 +1,38 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
-    import { getApplicantData, addComment } from '$lib/utils/supabase'; // Import addComment
-    import { page } from '$app/stores';
+    import { addComment } from '$lib/utils/supabase';
 
-    let applicantData: any = null;
-    export let id: number; // This will hold the role ID from the URL
+    export let applicantData: {
+        id: number;
+        created_at: string;
+        name: string;
+        email: string;
+        metadata: object;
+        recruitInfo: object;
+        comments: object;
+        pass_screen: boolean;
+        accepted_role: boolean;
+        job: number;
+    }[] | null = null;
+    export let id: number;
 
-    let commentsArray: {id: number, email: string; comment: string; decision: string }[] = []; // Define the correct type for commentsArray
-    let newComment: string = ''; // Variable to hold the new comment input
-
-    onMount(async () => {
-        if (id) {
-            try {
-                applicantData = await getApplicantData(id);
-
-                commentsArray = applicantData[0].comments.comments; // Directly assign the comments array
-                console.log(applicantData);
-                console.log(commentsArray);
-            } catch (error) {
-                console.error('Failed to load applicant data:', error);
-            }
-        }
-    });
+    export let commentsArray: {id: number, email: string; comment: string; decision: string }[] = []; 
+    let newComment: string = '';
 
     const handleAddComment = async () => {
-        if (newComment.trim() === '') return; // Prevent adding empty comments
+        if (newComment.trim() === '' || !applicantData) return; // Check if applicantData is not null
         try {
-            const email = applicantData[0].email; // Use applicant's email for the comment
-            const decision = 'Pending'; // Default decision for new comments
-            await addComment(id, newComment, email, decision); // Call the addComment function
-            commentsArray.push({ id: Date.now(), email, comment: newComment, decision }); // Update local comments array
-            newComment = ''; // Clear the input field
+            const email = applicantData[0].email; // Accessing the first applicant's email
+            const decision = 'Pending';
+            await addComment(id, newComment, email, decision);
+            commentsArray.push({ id: Date.now(), email, comment: newComment, decision });
+            newComment = '';
         } catch (error) {
             console.error('Failed to add comment:', error);
         }
     };
 </script>
 
-{#if applicantData}
+{#if applicantData && applicantData.length > 0} <!-- Check if applicantData is not empty -->
     <div class="applicant-details p-4 border border-gray-300 rounded-lg bg-gray-100">
         <h2 class="text-xl font-semibold">Applicant Details</h2>
         <p><strong>Name:</strong> {applicantData[0].name}</p>
