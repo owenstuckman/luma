@@ -82,29 +82,35 @@ export const addComment = async (id: number, newID: number, comment: string, ema
         .from("applicants")
         .select('*')
         .eq('id', id)
-        .single(); // Get a single applicant
+        .single();
 
     if (fetchError) {
         console.error('Error fetching applicant data:', fetchError);
         throw new Error('Failed to fetch applicant data from Supabase');
     }
 
+    console.log(applicantData);
     // Prepare the new comment object
     const newComment = {
-        email,
-        comment,
-        decision,
+        id: newID, 
+        email: email,
+        comment: comment,
+        decision: decision,
     };
 
-    // Ensure comments is an array before adding the new comment
-    const existingComments = Array.isArray(applicantData.comments) ? applicantData.comments : [];
-    const updatedComments = [...existingComments, newComment];
+    // Convert existing comments to the desired JSON format
+    const existingComments = Array.isArray((applicantData.comments).comments) ? (applicantData.comments).comments : [];
+    const updatedComments = {
+        comments: [...existingComments, newComment]
+    };
+    console.log(updatedComments);
 
-    // Update the applicant with the new comments array
+    // Update the applicant with the new comments array using the correct JSON update syntax
     const { data, error } = await supabase
         .from("applicants")
         .update({ comments: updatedComments })
         .eq('id', id);
+
 
     if (error) {
         console.error('Error updating applicant comments:', error);
