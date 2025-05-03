@@ -4,6 +4,7 @@
     import { goto } from '$app/navigation';
 
     let applicants: { id: number; name: string; created_at: string }[] = [];
+    let searchQuery: string = ''; // New variable for search input
 
     onMount(async () => {
         try {
@@ -16,36 +17,25 @@
     const navigateToReview = (id: number) => {
         goto(`/private/review/candidate?id=${id}`);
     };
+
+    // Computed property to filter applicants based on search query
+    $: filteredApplicants = applicants.filter(applicant => 
+        applicant.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
 </script>
 
-<div class="applicant-cards">
-    {#each applicants as applicant}
-        <div class="card" on:click={() => navigateToReview(applicant.id)}>
-            <h2 class="applicant-name">{applicant.name}</h2>
-            <p class="submission-time">Submitted at: {new Date(applicant.created_at).toLocaleString()}</p>
+<input 
+    type="text" 
+    placeholder="Search by name..." 
+    bind:value={searchQuery} 
+    class="mb-4 w-full border border-gray-300 rounded p-2"
+/>
+
+<div class="flex flex-col gap-4">
+    {#each filteredApplicants as applicant}
+        <div class="border border-gray-300 rounded-lg p-4 shadow cursor-pointer" on:click={() => navigateToReview(applicant.id)}>
+            <h2 class="text-xl mb-2">{applicant.name}</h2>
+            <p class="text-sm text-gray-600">Submitted at: {new Date(applicant.created_at).toLocaleString()}</p>
         </div>
     {/each}
 </div>
-
-<style>
-    .applicant-cards {
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-    }
-    .card {
-        border: 1px solid #ccc;
-        border-radius: 8px;
-        padding: 1rem;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        cursor: pointer;
-    }
-    .applicant-name {
-        font-size: 1.5rem;
-        margin-bottom: 0.5rem;
-    }
-    .submission-time {
-        font-size: 0.9rem;
-        color: #555;
-    }
-</style>
