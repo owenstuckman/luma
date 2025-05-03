@@ -2,6 +2,7 @@
     import { onMount } from 'svelte';
 	import ReviewApplicationForm from '$lib/components/reviewApplicationForm.svelte';
     import { getApplicantData } from '$lib/utils/supabase';
+    import BackButton from '$lib/components/backButton.svelte';
 
     let id: number;
     let applicantData: any = null;
@@ -14,12 +15,14 @@
         if (id) {
             try {
                 applicantData = await getApplicantData(id);
-                commentsArray = applicantData[0].comments.comments; // Directly assign the comments array
+                commentsArray = applicantData[0].comments.comments;
+                console.log(commentsArray);
             } catch (error) {
                 console.error('Failed to load applicant data:', error);
             }
         }
+
     });
 </script>
-
-    <ReviewApplicationForm {id} {applicantData}/>
+    <BackButton></BackButton>
+    <ReviewApplicationForm {id} {applicantData} {commentsArray}/>

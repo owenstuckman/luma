@@ -3,6 +3,7 @@
     import JobPostingCards from '$lib/components/jobPostingCards.svelte';
     import { getActiveRoles } from '$lib/utils/supabase';
     import type { PageData } from './$types'; // Import the correct type for props
+    import BackButton from '$lib/components/backButton.svelte';
 
     export let data: PageData; // Declare the data prop
     const user = data.user; // Access user directly from data
@@ -41,6 +42,7 @@
     });
 </script>
 
+<BackButton></BackButton>
 <h1>Private page for user: {user?.email}</h1>
 <h1 class="text-center text-3xl pt-10 pb-10">Available Roles to Manage</h1>
 <JobPostingCards {jobPostings} linkBase="/private/review" />

@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { addComment } from '$lib/utils/supabase';
+    import { addComment, getCurrentUserName } from '$lib/utils/supabase';
 
     export let applicantData: {
         id: number;
@@ -19,12 +19,14 @@
     let newComment: string = '';
 
     const handleAddComment = async () => {
-        if (newComment.trim() === '' || !applicantData) return; // Check if applicantData is not null
+        if (newComment.trim() === '' || !applicantData || !commentsArray) return; // Check if applicantData and commentsArray are not null
         try {
-            const email = applicantData[0].email; // Accessing the first applicant's email
             const decision = 'Pending';
-            await addComment(id, newComment, email, decision);
-            commentsArray.push({ id: Date.now(), email, comment: newComment, decision });
+            const user = await getCurrentUserName();
+            let email = user.toString(); 
+            let newID = commentsArray.length > 0 ? commentsArray[commentsArray.length - 1].id + 1 : 1; // Ensure newID is set correctly
+            await addComment(id, newID, newComment, email, decision);
+            commentsArray.push({ id: newID, email: email, comment: newComment, decision: decision });
             newComment = '';
         } catch (error) {
             console.error('Failed to add comment:', error);
@@ -47,14 +49,18 @@
         </div>
         <p class="mt-4"><strong>Comments:</strong></p>
         <div class="comments-info mt-2 bg-gray-200 p-2 rounded">
-            <ul>
-                {#each commentsArray as comment}
-                    <li>
-                        <strong>{comment.email}</strong>: {comment.comment} <br>
-                        <em>Decision: {comment.decision}</em>
-                    </li>
-                {/each}
-            </ul>
+            {#if commentsArray && commentsArray.length > 0} <!-- Check if commentsArray is not empty -->
+                <ul>
+                    {#each commentsArray as comment}
+                        <li>
+                            <strong>{comment.email}</strong>: {comment.comment} <br>
+                            <em>Decision: {comment.decision}</em>
+                        </li>
+                    {/each}
+                </ul>
+            {:else}
+                <p>No comments available.</p> <!-- Message when there are no comments -->
+            {/if}
         </div>
         <div class="add-comment mt-4">
             <textarea bind:value={newComment} placeholder="Add a comment..." class="w-full h-16 border border-gray-300 rounded p-2"></textarea>
@@ -66,5 +72,5 @@
 {/if}
 
 <style>
-    /* Additional styles can be added here if needed */
+
 </style>

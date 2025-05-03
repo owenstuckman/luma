@@ -76,7 +76,7 @@ export const getApplicantData = async (id: number) => {
     return data;
 }
 
-export const addComment = async (id: number, comment: string, email: string, decision: string) => {
+export const addComment = async (id: number, newID: number, comment: string, email: string, decision: string) => {
     // Fetch the current applicant data
     const { data: applicantData, error: fetchError } = await supabase
         .from("applicants")
@@ -96,8 +96,9 @@ export const addComment = async (id: number, comment: string, email: string, dec
         decision,
     };
 
-    // Add the new comment to the existing comments array
-    const updatedComments = [...(applicantData.comments || []), newComment];
+    // Ensure comments is an array before adding the new comment
+    const existingComments = Array.isArray(applicantData.comments) ? applicantData.comments : [];
+    const updatedComments = [...existingComments, newComment];
 
     // Update the applicant with the new comments array
     const { data, error } = await supabase
@@ -111,4 +112,10 @@ export const addComment = async (id: number, comment: string, email: string, dec
     }
     console.log(data);
     return data;
+}
+
+export const getCurrentUserName = async () => {
+    const name = await supabase.auth.getUser.name.toString;
+    console.log(name);
+    return name.toString;
 }
