@@ -141,8 +141,13 @@ export const addComment = async (
     return data[0]; // Return the updated row
 }
 
-export const getCurrentUserName = async () => {
-    const name = await supabase.auth.getUser.name.toString;
-    console.log(name);
-    return name.toString;
-}
+export const getCurrentUserEmail = async () => {
+    const { data, error } = await supabase.auth.getUser();
+
+    if (error) {
+        console.error("Failed to fetch current user:", error);
+        return null;
+    }
+
+    return data?.user?.email || null;
+};

@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { addComment, getCurrentUserName } from '$lib/utils/supabase';
+    import { addComment, getCurrentUserEmail } from '$lib/utils/supabase';
 
     export let applicantData: {
         id: number;
@@ -22,12 +22,12 @@
         if (newComment.trim() === '' || !applicantData || !commentsArray) return; // Check if applicantData and commentsArray are not null
         try {
             const decision = 'Pending';
-            const user = await getCurrentUserName();
-            let email = user.toString(); 
+            const email = (await getCurrentUserEmail()) as string; 
             let newID = commentsArray.length > 0 ? commentsArray[commentsArray.length - 1].id + 1 : 1; // Ensure newID is set correctly
             await addComment(id, newID, newComment, email, decision);
             commentsArray.push({ id: newID, email: email, comment: newComment, decision: decision });
             newComment = '';
+            commentsArray = [...commentsArray]; // Trigger reactivity
         } catch (error) {
             console.error('Failed to add comment:', error);
         }
