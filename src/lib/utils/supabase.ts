@@ -76,48 +76,69 @@ export const getApplicantData = async (id: number) => {
     return data;
 }
 
-export const addComment = async (id: number, newID: number, comment: string, email: string, decision: string) => {
-    // Fetch the current applicant data
+export const addComment = async (
+    id: number,
+    newID: number,
+    comment: string,
+    email: string,
+    decision: string
+) => {
+    // Step 1: Fetch existing applicant by ID
     const { data: applicantData, error: fetchError } = await supabase
         .from("applicants")
-        .select('*')
-        .eq('id', id)
-        .single();
+        .select("*")
+        .eq("id", id)
+        .limit(1);
 
     if (fetchError) {
-        console.error('Error fetching applicant data:', fetchError);
-        throw new Error('Failed to fetch applicant data from Supabase');
+        console.error("Error fetching applicant:", fetchError);
+        throw new Error("Failed to fetch applicant");
     }
 
-    console.log(applicantData);
-    // Prepare the new comment object
+    if (!applicantData || applicantData.length === 0) {
+        console.warn("No applicant found with ID:", id);
+        throw new Error(`No applicant found with ID: ${id}`);
+    }
+
+    const currentComments = Array.isArray(applicantData[0].comments)
+        ? applicantData[0].comments
+        : [];
+
     const newComment = {
-        id: newID, 
+        id: newID,
         email: email,
         comment: comment,
         decision: decision,
     };
 
-    // Convert existing comments to the desired JSON format
-    const existingComments = Array.isArray((applicantData.comments).comments) ? (applicantData.comments).comments : [];
+
+    const existingComments = Array.isArray(applicantData[0].comments.comments) ? applicantData[0].comments.comments : [];
     const updatedComments = {
         comments: [...existingComments, newComment]
     };
-    console.log(updatedComments);
 
-    // Update the applicant with the new comments array using the correct JSON update syntax
-    const { data, error } = await supabase
+    // Ensure the updatedComments is formatted correctly as a JSON object
+    const jsonFormattedComments = JSON.stringify(updatedComments);
+
+    console.log(jsonFormattedComments);
+
+    const { data, error: updateError } = await supabase
         .from("applicants")
-        .update({ comments: updatedComments })
-        .eq('id', id);
+        .update({ comments: JSON.parse(jsonFormattedComments)}) // Parse back to object for Supabase
+        .eq("id", id)
+        .select();
 
-
-    if (error) {
-        console.error('Error updating applicant comments:', error);
-        throw new Error('Failed to update applicant comments in Supabase');
+    if (updateError) {
+        console.error("Error updating comments:", updateError);
+        throw new Error("Failed to update comments");
     }
-    console.log(data);
-    return data;
+
+    if (!data) {
+        console.warn("Update succeeded but no rows returned");
+        return null;
+    }
+
+    return data[0]; // Return the updated row
 }
 
 export const getCurrentUserName = async () => {
