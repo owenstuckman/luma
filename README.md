@@ -1,18 +1,3 @@
-# sv
-
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
-
-## Creating a project
-
-If you're seeing this, you've probably already done this step. Congrats!
-
-```bash
-# create a new project in the current directory
-npx sv create
-
-# create a new project in my-app
-npx sv create my-app
-```
 
 ## Developing
 
@@ -24,6 +9,11 @@ npm run dev
 # or start the server and open the app in a new browser tab
 npm run dev -- --open
 ```
+### Supabase
+
+For security purposes, since I want to continue with this project, I am not including the anonkey and url.
+
+However, it is attached to the assignment / email me, and add it to .env.local to run any database functionalities, as otherwise things won't populate.
 
 ## Building
 
