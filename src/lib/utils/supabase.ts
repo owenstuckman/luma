@@ -81,7 +81,7 @@ export const addComment = async (
     newID: number,
     comment: string,
     email: string,
-    decision: string
+    decision: string,
 ) => {
     // Step 1: Fetch existing applicant by ID
     const { data: applicantData, error: fetchError } = await supabase
@@ -109,6 +109,7 @@ export const addComment = async (
         email: email,
         comment: comment,
         decision: decision,
+
     };
 
 

@@ -17,16 +17,17 @@
 
     export let commentsArray: {id: number, email: string; comment: string; decision: string }[] = []; 
     let newComment: string = '';
+    let newStatus: string = 'Pending'; // New status variable
 
     const handleAddComment = async () => {
         if (newComment.trim() === '' || !applicantData || !commentsArray) return; // Check if applicantData and commentsArray are not null
         try {
-            const decision = 'Pending';
             const email = (await getCurrentUserEmail()) as string; 
             let newID = commentsArray.length > 0 ? commentsArray[commentsArray.length - 1].id + 1 : 1; // Ensure newID is set correctly
-            await addComment(id, newID, newComment, email, decision);
-            commentsArray.push({ id: newID, email: email, comment: newComment, decision: decision });
+            await addComment(id, newID, newComment, email, newStatus); // Submit newStatus instead of hardcoded 'Pending'
+            commentsArray.push({ id: newID, email: email, comment: newComment, decision: newStatus }); // Use newStatus
             newComment = '';
+            newStatus = 'Pending'; // Reset status after submission
             commentsArray = [...commentsArray]; // Trigger reactivity
         } catch (error) {
             console.error('Failed to add comment:', error);
@@ -64,6 +65,11 @@
         </div>
         <div class="add-comment mt-4">
             <textarea bind:value={newComment} placeholder="Add a comment..." class="w-full h-16 border border-gray-300 rounded p-2"></textarea>
+            <select bind:value={newStatus} class="mt-2 border border-gray-300 rounded p-2">
+                <option value="Pending">pending</option>
+                <option value="Approved">accepted</option>
+                <option value="Rejected">denied</option>
+            </select>
             <button on:click={handleAddComment} class="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Add Comment</button>
         </div>
     </div>
