@@ -152,3 +152,45 @@ export const getCurrentUserEmail = async () => {
 
     return data?.user?.email || null;
 };
+
+/*
+
+- [ ] get all interviews for a set candidate
+
+
+For algo 
+- [ ] add an interview 
+*/
+
+
+export const createInterview = async (interviewData: {
+    time: string;
+    location: string;
+    type: string;
+    comments: string;
+    job: string;
+    applicant: string;
+    interviewer: string;
+}) => {
+    const { data, error } = await supabase
+        .from("interviews") // Assuming the table name is "interviews"
+        .insert([
+            {
+                created_at: new Date().toISOString(), // Current timestamp
+                time: interviewData.time,
+                location: interviewData.location,
+                type: interviewData.type,
+                comments: interviewData.comments,
+                job: interviewData.job,
+                applicant: interviewData.applicant,
+                interviewer: interviewData.interviewer
+            }
+        ]);
+
+    if (error) {
+        console.error('Error creating interview:', error);
+        throw new Error('Failed to create interview in Supabase');
+    }
+    console.log(data);
+    return data;
+}
