@@ -12,7 +12,6 @@
         const urlParams = new URLSearchParams(window.location.search);
         id = Number(urlParams.get('id'));
 
-
         if (id) {
             try {
                 const data = await getRoleByID(id);
