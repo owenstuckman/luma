@@ -34,3 +34,11 @@ Rather than having candidates be given interview slots, we consider their availa
 Hence, I built out software to schedule everyone based on their availability, both candidate and interviewers. 
 
 The current production version is private in the Archimedes github org, and built out to fit the specific branding and design of the organization, and this public starting point serves as a way to build out your own custom ATS software.
+
+# Internal Notes
+
+Go to src for all of the actual website code. 
+
+Go to the algo folder for running any algo.
+
+Otherwise look at the supabase for the backend/db. 
