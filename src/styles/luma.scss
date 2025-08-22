@@ -1,0 +1,268 @@
+@use '../styles/col.scss' as *;
+$font-family-base: 'Inter', system-ui, -apple-system, BlinkMacSystemFont,
+  'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !default;
+
+@import 'bootstrap/scss/bootstrap';
+
+// text
+p {
+  font-weight: 400;
+}
+.p2 {
+  color: $light-tertiary;
+  font-size: 12px;
+  font-weight: 500;
+  margin-top: -5px;
+  line-height: 1.1;
+}
+h1 {
+  font-weight: 900;
+  color: $dark-primary;
+}
+h2 {
+  font-weight: 700;
+  color: white;
+}
+h3 {
+  font-weight: 700;
+  font-size: 12px;
+  color: white;
+  margin: 0;
+}
+h4 {
+  font-weight: 900;
+  color: $dark-primary;
+  font-size: 32px;
+  text-align: center;
+  margin-top: 5px;
+  margin-bottom: 15px;
+}
+h5 {
+  font-weight: 700;
+  color: $dark-primary;
+  font-size: 16px;
+  margin-bottom: 15px;
+}
+a {
+  color: $default;
+  text-decoration: none;
+}
+.underline {
+  border-bottom: 1px solid currentColor;
+  line-height: 110%;
+}
+
+// layout and content
+.layout {
+  display: grid;
+  grid-template-rows: 45px 1fr;
+  grid-template-columns: 205px 1fr;
+  grid-template-areas:
+    "navbar navbar"
+    "sidebar content";
+  height: 100vh;
+}
+.content {
+  grid-area: content;
+  display: flex;
+  flex-direction: column;
+  justify-content: start;
+  align-items: center;
+  padding: 20px;
+  background-color: $light-secondary;
+  overflow-y: auto;
+}
+.content-left {
+  grid-area: content;
+  display: flex;
+  flex-direction: column;
+  justify-content: start;
+  align-items: start;
+  padding: 20px 30px;
+  background-color: $light-secondary;
+  overflow-y: auto;
+}
+
+// button: primary
+.btn-primary {
+  background-color: transparent;
+  border: 2px solid $yellow-primary;
+  border-radius: 999px;
+  font-weight: 600;
+  color: $yellow-primary;
+}
+.btn-primary:hover {
+  background-color: $yellow-primary;
+  border-color: $yellow-primary;
+  color: $dark-primary;
+}
+.btn-primary:active {
+  background-color: $yellow-secondary !important;
+  border-color: $yellow-secondary !important;
+  color: $dark-primary !important;
+}
+
+// button: secondary
+.btn-secondary {
+  background-color: transparent;
+  border: none;
+  border-radius: 5px;
+  font-weight: 600;
+  font-size: 12px;
+  color: white;
+}
+.btn-secondary:hover {
+  background-color: $dark-secondary;
+}
+.btn-secondary:active {
+  background-color: $dark-secondary !important;
+}
+
+// button: tertiary
+.btn-tertiary {
+  background-color: $yellow-primary;
+  box-shadow: 0 0px 12px rgba(0, 0, 0, 0.1);
+  border: none;
+  border-radius: 5px;
+  font-weight: 600;
+  font-size: 12px;
+}
+.btn-tertiary:hover {
+  background-color: $yellow-secondary;
+  color: black;
+}
+.btn-tertiary:active {
+  background-color: $yellow-secondary !important;
+  color: black !important;
+}
+
+// button: quaternary
+.btn-quaternary {
+  background-color: white;
+  border: 1px #ced4da solid;
+  border-radius: 5px;
+  font-weight: 400;
+  font-size: 16px;
+}
+.btn-quaternary:hover {
+  background-color: $light-secondary;
+  border: 1px #ced4da solid;
+}
+.btn-quaternary:focus {
+  background-color: $light-secondary !important;
+  box-shadow: 0 0 0 0.25rem rgba(255, 200, 0, 0.25) !important;
+  border-color: $yellow-primary !important;
+  outline: none !important;
+}
+
+// dropdown
+.dropdown-toggle {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+}
+.dropdown-toggle::after {
+  margin-left: 0.75rem;
+}
+.dropdown-toggle.show {
+  background-color: inherit;
+  border-color: inherit;
+}
+.dropdown-item {
+  font-weight: 500;
+  font-size: 12px;
+}
+.dropdown-item:active {
+  background-color: $light-secondary;
+  color: $default;
+}
+.dropdown-menu {
+  border: none;
+  box-shadow: 0 0px 12px rgba(0, 0, 0, 0.15);
+}
+
+// form stuff
+.form-check {
+  display: flex;
+  align-items: center;
+  line-height: 1.25;
+  margin-bottom: 10px;
+}
+.form-check-input {
+  margin-right: 10px;
+  margin-top: 0;
+}
+.form-check-input:focus {
+  box-shadow: 0 0 0 0.25rem rgba(255, 200, 0, 0.25);
+  border-color: $yellow-primary;
+  outline: none;
+}
+.form-check-input:checked {
+  background-color: $yellow-primary;
+  border-color: $yellow-primary;
+}
+.form-check-input:hover {
+  border-color: $yellow-primary;
+}
+.form-control:focus {
+  box-shadow: 0 0 0 0.25rem rgba(255, 200, 0, 0.25);
+  border-color: $yellow-primary;
+  outline: none;  
+}
+.form-control::placeholder {
+  color: $light-tertiary;
+}
+
+// images
+.logo-large {
+  max-height: 90px;
+}
+.logo-small {
+  max-height: 40px;
+}
+
+// card
+.card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 500px;
+  padding: 20px 20px 10px 20px;
+  margin-top: 10px;
+  margin-bottom: 10px;
+  background-color: white;
+  border: none;
+  border-radius: 5px;
+  box-shadow: 0 0px 12px rgba(0, 0, 0, 0.1);
+}
+
+// misc
+.pointer {
+  cursor: pointer;
+}
+
+// responsiveness
+@media (max-width: 799px) {
+  .hide-on-small {
+    display: none !important;
+  }
+  .widen-on-small {
+    width: 60vw !important;
+    border-radius: 10px !important;
+  }
+  .layout {
+    display: grid;
+    grid-template-rows: 45px 1fr;
+    grid-template-columns: 205px 1fr;
+    grid-template-areas:
+      "navbar navbar"
+      "content content";
+    height: 100vh;
+  }
+@media (max-width: 499px) {
+  .hide-on-tiny {
+    display: none !important;
+  }
+}
+}
