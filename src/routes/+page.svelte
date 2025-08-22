@@ -1,24 +1,78 @@
-<script>
-    let { data } = $props()
-    let { colors } = $derived(data)
-</script>
-
-<div class="flex flex-col items-center justify-center h-screen bg-black text-white">
-  <h1 class="text-3xl font-bold mb-4">Welcome to LUMA!</h1>
-  <ul class="list-disc list-inside mb-4">
-    {#each colors as color}
-      <li class="text-lg">{color.name}</li>
-    {/each} 
-  </ul>
-
-  <img src="image.png" alt="A descriptive alt text for the image" class="w-200" />
-  <button class="mt-4 px-4 py-2 bg-yellow-500 text-white rounded" onclick={() => window.location.href='/apply'}>
-    Applicant Portal
-  </button>
-
-  <div class="my-4 border-t-10 border-white-300" style="height: 1px; background-color: white;"></div>
-
-  <button class="mt-4 px-4 py-2 bg-blue-500 text-white rounded" onclick={() => window.location.href='/auth'}>
-    Recruiter Portal
-  </button>
+<div class="login-screen">
+  <div class="login-left hide-on-small">
+    <img src="/images/ui/logo.png" alt="LUMA logo" class="logo-large" style="margin-bottom: 15px;">
+    <h1>Welcome!</h1>
+    <p style="font-weight: 600">LUMA is a custom software built by Archimedes to streamline your recruiting experience.</p>
+  </div>
+  <div class="login-right widen-on-small">
+    <div class="login-top-right">
+      <h2>Get Started</h2>
+      <a href="/applicant/1_verification">
+        <button class="btn btn-primary">I'm an Applicant</button>
+      </a>
+      <a href="/recruiter">
+        <button class="btn btn-primary">I'm a Recruiter</button>
+      </a>
+    </div>
+    <div class="login-bottom-right">
+      <a href="/admin" class="underline" style="color: white;">I'm an Admin</a>
+    </div>
+  </div>
 </div>
+
+<style lang="scss">
+  @use '../styles/col.scss' as *;
+
+  .login-screen {
+    display: flex;
+    background: #FFC800;
+    background: linear-gradient(90deg, rgba(255, 153, 0, 1) 0%, rgba(255, 200, 0, 1) 100%);
+    justify-content: center;
+    align-items: center;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  .login-left {
+    display: flex;
+    flex-direction: column;
+    background-image: url('/images/ui/stairs_yellow.png');
+    background-size: cover;
+    border-radius: 10px 0 0 10px;
+    width: 35vw;
+    height: 55vh;
+    padding: 30px;
+    justify-content: left;
+    align-items: start;
+    box-shadow: 0 0px 12px rgba(0, 0, 0, 0.1);
+    overflow-y: auto;
+  }
+
+  .login-right {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    background-color: $dark-primary;
+    border-radius: 0 10px 10px 0;
+    width: 25vw;
+    height: 55vh;
+    padding: 30px;
+    overflow-y: auto;
+  }
+
+  .login-top-right {
+    display: flex;
+    flex-direction: column;
+    text-align: center;
+    justify-items: center;
+    align-items: center;
+    gap: 15px;
+  }
+
+  .login-bottom-right {
+    display: flex;
+    justify-content: center;
+    align-items: end;
+    margin-top: 50px;
+  }
+</style>

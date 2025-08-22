@@ -2,7 +2,10 @@
 	import { invalidate } from '$app/navigation'
 	import { onMount } from 'svelte'
 
-	import '../global.css';
+
+  import '../styles/luma.scss';
+
+
   
 	let { data, children } = $props()
 	let { session, supabase } = $derived(data)
