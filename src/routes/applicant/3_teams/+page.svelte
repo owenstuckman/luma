@@ -9,6 +9,22 @@ let isJuvo: string[] = [];
 let isInfi: string[] = [];
 let isTerra: string[] = [];
 
+const changeAstra = (newAstra: string) => {
+  localStorage.setItem('isAstra', newAstra);
+}
+
+const changeJuvo = (newJuvo: string) => {
+  localStorage.setItem('isJuvo', newJuvo);
+}
+
+const changeInfi = (newInfi: string) => {
+  localStorage.setItem('isInfi', newInfi)
+}
+
+const changeTerra = (newTerra: string) => {
+  localStorage.setItem('isTerra', newTerra);
+}
+
 </script>
 
 <div class="layout">
@@ -26,6 +42,8 @@ let isTerra: string[] = [];
       imageSrc="/images/placeholder.jpg"
       imageAlt="Team Astra"
       name="AstraCard"
+      bind:selected={isAstra}
+      on:change={() => changeAstra(isAstra[0])}
 
     />
 
@@ -39,6 +57,8 @@ let isTerra: string[] = [];
       imageSrc="/images/placeholder.jpg"
       imageAlt="Team Juvo"
       name="JuvoCard"
+      bind:selected={isJuvo}
+      on:change={() => changeJuvo(isJuvo[0])}
     />
 
     <CheckboxImage
@@ -51,6 +71,8 @@ let isTerra: string[] = [];
       imageSrc="/images/placeholder.jpg"
       imageAlt="Team Infinitum"
       name="Infinitum Card"
+      bind:selected={isInfi}
+      on:change={() => changeInfi(isInfi[0])}
     />
 
     <CheckboxImage
@@ -63,6 +85,8 @@ let isTerra: string[] = [];
       imageSrc="/images/placeholder.jpg"
       imageAlt="Team Terra"
       name="TerraCard"
+      bind:selected={isTerra}
+      on:change={() => changeTerra(isTerra[0])}
     />
 
     <Footer backNav="/applicant/2_personal" nextNav="/applicant/4_availability"/>

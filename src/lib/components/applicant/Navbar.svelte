@@ -4,7 +4,7 @@
       <a href="/"><img src="/images/ui/logo_white.png" alt="LUMA logo" style="height: 30px; width: auto;"></a>
     </div>
     <div class="navbar-year">
-        <button class="btn btn-secondary" type="button" id="dropdownYear" data-bs-toggle="dropdown" aria-expanded="false" style="width: 145px;" on:click={() => localStorage.clear()}>
+        <button class="btn btn-secondary" type="button" id="dropdownYear" data-bs-toggle="dropdown" aria-expanded="false" style="width: 145px;" on:click={() => {localStorage.clear(); location.reload()}}>
           Reset Form
         </button>
     </div>

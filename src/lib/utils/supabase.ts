@@ -36,10 +36,42 @@ export const getRoleByID = async (id: number) => {
     return data;
 };
 
+/*
+            const applicationData = {
+                name: formData.name,
+                email: formData.email,
+                recruitInfo: {} as { [key: string]: string }, 
+                job: id,
+            };
+*/
+
 export const sendApplication = async (row: object) => {
     const { data, error } = await supabase
         .from("applicants")
         .insert(row);
+
+    if (error) {
+        console.error('Error sending application:', error);
+        throw new Error('Failed to send application to Supabase');
+    }
+    console.log(data);
+    return data;
+
+
+}
+
+// pretty much hardcoded sending applications for this cycle.... can fix later 🤷
+export const sendApplicationFall2025 = async (name: string, email: string, recruitInfo: { [key: string]: string }, job: 1) => {
+    const applicationData = {
+        name,
+        email,
+        recruitInfo,
+        job,
+    };
+
+    const { data, error } = await supabase
+        .from("applicants")
+        .insert(applicationData);
 
     if (error) {
         console.error('Error sending application:', error);
@@ -173,7 +205,7 @@ export const createInterview = async (interviewData: {
     interviewer: string;
 }) => {
     const { data, error } = await supabase
-        .from("interviews") // Assuming the table name is "interviews"
+        .from("interviews") 
         .insert([
             {
                 created_at: new Date().toISOString(), // Current timestamp
