@@ -7,25 +7,18 @@
 
   let freshmenVal: string = localStorage.getItem('isFreshmen') || "";  
   let freshmenArr: string[] = freshmenVal.split(",")
-
   const handleFreshmanChange = (freshmanNew: string[]) => {
     localStorage.setItem('isFreshmen', freshmanNew[0]);
-    freshmenArr = freshmanNew;
-    freshmenVal = freshmenArr[0];
   };
 
   let isEighteen : string = localStorage.getItem('isEighteen') || "";
-
   const handleEighteenChange = (eighteenNew: string) => {
     localStorage.setItem('isEighteen', eighteenNew);
-    isEighteen = eighteenNew;
   }
 
   let isCitizen : string = localStorage.getItem('isCitizen') || "";
-
   const handleCitizen = (citizenNew: string) => {
     localStorage.setItem('isCitizen', citizenNew);
-    isCitizen = citizenNew;
   }
 
 </script>

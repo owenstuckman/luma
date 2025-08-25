@@ -1,13 +1,21 @@
-<script>
-  export let title = "";
-  export let subtitle = "";
-  export let placeholder = "";
-  export let options = [""];
+<script lang="ts">
+  import { createEventDispatcher } from 'svelte';
 
-  let selected = "";
-  const selectOption = (option = "") => {
+  export let title: string = "";
+  export let subtitle: string = "";
+  export let placeholder: string = "";
+  export let options: string[] = [""];
+  export let selected: string = "";
+
+  const dispatch = createEventDispatcher();
+
+  const selectOption = (option: string) => {
     selected = option;
+    dispatch('change', selected);
   };
+
+  // Watch for changes in the selected value
+  $: dispatch('change', selected);
 </script>
 
 <div class="card p-3">
@@ -27,7 +35,7 @@
       {#each options as option}
         <li>
           <a 
-            href="/"
+            href="#"
             class="dropdown-item"
             on:click|preventDefault={() => selectOption(option)}
           >
