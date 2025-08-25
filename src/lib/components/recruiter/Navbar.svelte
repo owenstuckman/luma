@@ -11,8 +11,8 @@
 
         <ul class="dropdown-menu dropdown-menu-start" aria-labelledby="dropdownYear">
           <li><a class="dropdown-item" href="/">Fall 2025</a></li>
-          <li><a class="dropdown-item" href="/">Fall 2024</a></li>
-          <li><a class="dropdown-item" href="/">Fall 2023</a></li>
+          <li><a class="dropdown-item" href="https://www.archimedesvt.org/luma">Fall 2024</a></li>
+          <li><a class="dropdown-item" href="https://www.archimedesvt.org/luma">Fall 2023</a></li>
           <li><hr class="dropdown-divider"></li>
           <li><a class="dropdown-item" href="/">View All</a></li>
         </ul>

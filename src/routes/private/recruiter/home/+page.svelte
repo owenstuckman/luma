@@ -10,6 +10,8 @@
 <div class="layout">
   <div class="content-left">
     <h4 style="text-align: left;">Hello,  {user?.email}</h4>
+
+    <p>Utilize the navbar to the left to navigate around luma.</p>
   </div>
 
   <Navbar/>

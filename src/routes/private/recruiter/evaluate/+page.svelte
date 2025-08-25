@@ -9,6 +9,6 @@
   </div>
 
   <Navbar/>
-
   <Sidebar currentStep={5}/>
+
 </div>

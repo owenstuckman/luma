@@ -15,7 +15,7 @@
     });
 
     const navigateToReview = (id: number) => {
-        goto(`/private/review/candidate?id=${id}`);
+        goto(`/private/recruiter/review/candidate?id=${id}`);
     };
 
     // Computed property to filter applicants based on search query
@@ -24,17 +24,19 @@
     );
 </script>
 
-<input 
-    type="text" 
-    placeholder="Search by name..." 
-    bind:value={searchQuery} 
-    class="mb-4 w-full border border-gray-300 rounded p-2"
-/>
+<div class="mb-4">
+    <input 
+        type="text" 
+        placeholder="Search by name..." 
+        bind:value={searchQuery} 
+        class="w-full border border-gray-300 rounded p-2"
+    />
+</div>
 
-<div class="flex flex-col gap-4">
+<div class="grid grid-cols-3 gap-4">
     {#each filteredApplicants as applicant}
         <div class="border border-gray-300 rounded-lg p-4 shadow cursor-pointer" on:click={() => navigateToReview(applicant.id)}>
-            <h2 class="text-xl mb-2">{applicant.name}</h2>
+            <h2 class="text-sm mb-2 text-black">{applicant.name}</h2>
             <p class="text-sm text-gray-600">Submitted at: {new Date(applicant.created_at).toLocaleString()}</p>
         </div>
     {/each}

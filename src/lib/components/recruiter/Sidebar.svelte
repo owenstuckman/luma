@@ -31,7 +31,6 @@
         <ul class="list-unstyled sidebar-submenu">
           <li><a href="/private/recruiter/schedule/my_schedule" class:submenu-selected={currentStep === 2}>My Schedule</a></li>
           <li><a href="/private/recruiter/schedule/full_schedule" class:submenu-selected={currentStep === 3}>Full Schedule</a></li>
-          <li><a href="/private/recruiter/schedule/auto_generate" class:submenu-selected={currentStep === 4}>Schedule Generator</a></li>
         </ul>
       </div>
     </li>

@@ -24,7 +24,7 @@
 </div>
 
 <style lang="scss">
-  @use '../../../styles/col.scss' as *;
+  @use '../../../../styles/col.scss' as *;
 
   .login-screen {
     display: flex;
