@@ -6,13 +6,13 @@
 <div class="sidebar hide-on-small">
   <ul class="list-unstyled">
     <li>
-      <a href="/recruiter/home" class="btn btn-secondary btn-sidebar" class:sidebar-selected={currentStep === 0}>
+      <a href="/private/recruiter/home" class="btn btn-secondary btn-sidebar" class:sidebar-selected={currentStep === 0}>
         <i class="fi fi-br-home"></i>
         Home
       </a>
     </li>
     <li>
-      <a href="/recruiter/review" class="btn btn-secondary btn-sidebar" class:sidebar-selected={currentStep === 1}>
+      <a href="/private/recruiter/review" class="btn btn-secondary btn-sidebar" class:sidebar-selected={currentStep === 1}>
         <i class="fi fi-br-assessment-alt"></i>
         Review
       </a>
@@ -29,20 +29,20 @@
       </a>
       <div class={collapse} id="submenuSchedule">
         <ul class="list-unstyled sidebar-submenu">
-          <li><a href="/recruiter/schedule/my_schedule" class:submenu-selected={currentStep === 2}>My Schedule</a></li>
-          <li><a href="/recruiter/schedule/full_schedule" class:submenu-selected={currentStep === 3}>Full Schedule</a></li>
-          <li><a href="/recruiter/schedule/auto_generate" class:submenu-selected={currentStep === 4}>Schedule Generator</a></li>
+          <li><a href="/private/recruiter/schedule/my_schedule" class:submenu-selected={currentStep === 2}>My Schedule</a></li>
+          <li><a href="/private/recruiter/schedule/full_schedule" class:submenu-selected={currentStep === 3}>Full Schedule</a></li>
+          <li><a href="/private/recruiter/schedule/auto_generate" class:submenu-selected={currentStep === 4}>Schedule Generator</a></li>
         </ul>
       </div>
     </li>
     <li>
-      <a href="/recruiter/evaluate" class="btn btn-secondary btn-sidebar" class:sidebar-selected={currentStep === 5}>
+      <a href="/private/recruiter/evaluate" class="btn btn-secondary btn-sidebar" class:sidebar-selected={currentStep === 5}>
         <i class="fi fi-br-tachometer-fast"></i>
         Evaluate
       </a>
     </li>
     <li>
-      <a href="/recruiter/settings" class="btn btn-secondary btn-sidebar" class:sidebar-selected={currentStep === 6}>
+      <a href="/private/recruiter/settings" class="btn btn-secondary btn-sidebar" class:sidebar-selected={currentStep === 6}>
         <i class="fi fi-br-lightbulb-setting"></i>
         Settings
       </a>

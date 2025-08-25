@@ -10,7 +10,7 @@
       <a href="/applicant/1_verification">
         <button class="btn btn-primary">I'm an Applicant</button>
       </a>
-      <a href="/recruiter">
+      <a href="/auth">
         <button class="btn btn-primary">I'm a Recruiter</button>
       </a>
     </div>
