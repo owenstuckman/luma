@@ -1,8 +1,14 @@
-<script>
+<script lang='ts'>
   import Sidebar from "$lib/components/applicant/Sidebar.svelte";
   import Navbar from "$lib/components/applicant/Navbar.svelte";
   import Footer from "$lib/components/applicant/Footer.svelte";
   import CheckboxImage from "$lib/components/card/CheckboxImage.svelte";
+
+let isAstra: string[] = [];
+let isJuvo: string[] = [];
+let isInfi: string[] = [];
+let isTerra: string[] = [];
+
 </script>
 
 <div class="layout">
@@ -20,6 +26,7 @@
       imageSrc="/images/placeholder.jpg"
       imageAlt="Team Astra"
       name="AstraCard"
+
     />
 
     <CheckboxImage

@@ -30,7 +30,7 @@
       class="form-control"
       id={id1}
       placeholder={placeholder1}
-      bind:group={selected}
+      bind:value={selected}
       on:change={() => dispatch('change', selected)}
     />
     <input
@@ -38,7 +38,7 @@
       class="form-control"
       id={id2}
       placeholder={placeholder2}
-      bind:group={selected2}
+      bind:value={selected2}
       on:change={() => dispatch('change', selected2)}
     />
   </div>

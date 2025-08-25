@@ -1,13 +1,3 @@
-<script>
-  import { onMount } from 'svelte';
-
-  onMount(() => {
-    localStorage.clear();
-    console.log('Cleared localstorage!')
-  });
-
-</script>
-
 <div class="login-screen">
   <div class="login-left hide-on-small">
     <img src="/images/ui/logo.png" alt="LUMA logo" class="logo-large" style="margin-bottom: 15px;">

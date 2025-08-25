@@ -8,7 +8,7 @@
   <div class="content">
     <h4>Review Your Application</h4>
 
-    <Footer backNav="/applicant/5_free_response" nextNav="/applicant/7_submit" nextText="Submit"/>
+    <Footer backNav="/applicant/5_free_response" nextNav="/applicant/7_submit" nextText="Go To Submit"/>
   </div>
 
   <Navbar/>

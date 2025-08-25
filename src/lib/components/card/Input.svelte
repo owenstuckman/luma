@@ -5,7 +5,7 @@
   export let subtitle: string = "";
   export let placeholder: string = "";
   export let id: string = "";
-  let value: string = "";
+  export let value: string = "";
 
   const dispatch = createEventDispatcher();
 

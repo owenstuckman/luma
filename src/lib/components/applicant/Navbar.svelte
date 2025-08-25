@@ -4,18 +4,16 @@
       <a href="/"><img src="/images/ui/logo_white.png" alt="LUMA logo" style="height: 30px; width: auto;"></a>
     </div>
     <div class="navbar-year">
-      <div class="dropdown">
-        <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownYear" data-bs-toggle="dropdown" aria-expanded="false" style="width: 145px;">
-          Saved
+        <button class="btn btn-secondary" type="button" id="dropdownYear" data-bs-toggle="dropdown" aria-expanded="false" style="width: 145px;" on:click={() => localStorage.clear()}>
+          Reset Form
         </button>
-
-        <ul class="dropdown-menu dropdown-menu-start" aria-labelledby="dropdownYear">
-          <li><a class="dropdown-item" href="/">Save Now</a></li>
-          <li><hr class="dropdown-divider"></li>
-          <li><a class="dropdown-item" href="/">Reset Form</a></li>
-        </ul>
-      </div>
     </div>
+    <div class="navbar-year">
+      <button class="btn btn-secondary" type="button" id="dropdownYear" data-bs-toggle="dropdown" aria-expanded="false" style="width: 145px;" on:click={() => window.history.back()}>
+        Back
+      </button>
+  </div>
+
   </div>
 
   <div class="navbar-search">
