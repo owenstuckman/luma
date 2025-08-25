@@ -4,7 +4,6 @@
   import Footer from "$lib/components/applicant/Footer.svelte";
   import Radio from "$lib/components/card/Radio.svelte";
   import Checkbox from "$lib/components/card/Checkbox.svelte";
-	import { Value } from "sass";
 
   let freshmenVal: string = localStorage.getItem('isFreshmen') || "";  
   let freshmenArr: string[] = freshmenVal.split(",")
@@ -13,9 +12,21 @@
     localStorage.setItem('isFreshmen', freshmanNew[0]);
     freshmenArr = freshmanNew;
     freshmenVal = freshmenArr[0];
-    console.log(freshmenVal);
-    console.log('test');
   };
+
+  let isEighteen : string = localStorage.getItem('isEighteen') || "";
+
+  const handleEighteenChange = (eighteenNew: string) => {
+    localStorage.setItem('isEighteen', eighteenNew);
+    isEighteen = eighteenNew;
+  }
+
+  let isCitizen : string = localStorage.getItem('isCitizen') || "";
+
+  const handleCitizen = (citizenNew: string) => {
+    localStorage.setItem('isCitizen', citizenNew);
+    isCitizen = citizenNew;
+  }
 
 </script>
 
@@ -36,6 +47,8 @@
       subtitle="If no, you will be ineligible to apply for Infinitum per competition requirements."
       options={["Yes","No"]}
       name="verifyAge"
+      bind:selected={isEighteen}
+      on:change={() => handleEighteenChange(isEighteen)}
     />
 
     <Radio
@@ -43,6 +56,8 @@
       subtitle="If not a US citizen or green card holder, you will be ineligible to apply for Astra per competition requirements."
       options={["US Citizen","Legal Permanent Resident with Green Card","Not a US Citizen"]}
       name="citizenship"
+      bind:selected={isCitizen}
+      on:change={() => handleCitizen(isCitizen)}
     />
 
     <Footer nextNav="/applicant/2_personal"/>

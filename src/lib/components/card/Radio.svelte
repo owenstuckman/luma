@@ -1,11 +1,20 @@
 <script>
+  import { createEventDispatcher } from 'svelte';
+
   export let title = "";
   export let subtitle = "";
   export let options = [""];
   export let name = "";
   export let other = "";
-  let selected = "";
+  export let selected = "";
   let selectedId = "";
+
+  const dispatch = createEventDispatcher();
+
+  // Watch for changes in the selected value
+  $: {
+    dispatch('change', selected);
+  }
 </script>
 
 <div class="card">
@@ -20,7 +29,10 @@
         id={name+i}
         value={option}
         bind:group={selected}
-        on:change={() => selectedId = name+i}
+        on:change={() => {
+          selectedId = name + i;
+          dispatch('change', selected);
+        }}
       />
       <label class="form-check-label pointer" for={name + i}>
         {option}
