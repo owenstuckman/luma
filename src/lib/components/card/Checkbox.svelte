@@ -1,9 +1,18 @@
-<script>
+<script lang='ts'>
+  import { createEventDispatcher } from 'svelte';
+
   export let title = "";
   export let subtitle = "";
   export let options = [""];
   export let name = "";
-  let selected = [];
+  export let selected: string[] = [];
+
+  const dispatch = createEventDispatcher();
+
+  // Watch for changes in the selected array
+  $: {
+    dispatch('change', selected);
+  }
 </script>
 
 <div class="card">
@@ -18,6 +27,7 @@
         id={name + i}
         value={option}
         bind:group={selected}
+        on:change={() => dispatch('change', selected)} 
       />
       <label class="form-check-label" for={"checkbox-" + i}>
         {option}
