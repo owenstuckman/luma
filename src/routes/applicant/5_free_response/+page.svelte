@@ -4,25 +4,25 @@
   import Footer from "$lib/components/applicant/Footer.svelte";
   import InputArea from "$lib/components/card/InputArea.svelte";
 
-  let groupProjects: string = localStorage.getItem('groupProjects') || "";
-  let valuableMember: string = localStorage.getItem('valuableMember') || "";
-  let extraContext: string = localStorage.getItem('extraContext') || "";
-  let absenceExcuse: string = localStorage.getItem('absenceExcuse') || "";
+  let groupProjects: string = localStorage.getItem("What are some of your past group projects? How did you function in a team setting?") || "";
+  let valuableMember: string = localStorage.getItem("What would make you a valuable member to one of our design teams?") || "";
+  let extraContext: string = localStorage.getItem("Is there anything else we should know or consider?") || "";
+  let absenceExcuse: string = localStorage.getItem("The email associated with this application is not in our interest meeting attendance records. Please provide a brief reason for your absence.") || "";
 
   const changeGroupProjects = (newProjects: string) => {
-    localStorage.setItem('groupProjects', newProjects);
+    localStorage.setItem("What are some of your past group projects? How did you function in a team setting?", newProjects);
   }
 
   const changeValuableMember = (newMember: string) => {
-    localStorage.setItem('valuableMember', newMember);
+    localStorage.setItem("What would make you a valuable member to one of our design teams?", newMember);
   }
 
   const changeContext = (newContext: string) => {
-    localStorage.setItem('extraContext', newContext);
+    localStorage.setItem("Is there anything else we should know or consider?", newContext);
   }
 
   const changeAbsence = (newAbsense: string) => {
-    localStorage.setItem('absenceExcuse', absenceExcuse);
+    localStorage.setItem("The email associated with this application is not in our interest meeting attendance records. Please provide a brief reason for your absence.", absenceExcuse);
   }
 </script>
 
