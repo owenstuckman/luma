@@ -5,20 +5,20 @@
   import Radio from "$lib/components/card/Radio.svelte";
   import Checkbox from "$lib/components/card/Checkbox.svelte";
 
-  let freshmenVal: string = localStorage.getItem('isFreshmen') || "";  
+  let freshmenVal: string = localStorage.getItem('Are you a freshman?') || "";  
   let freshmenArr: string[] = freshmenVal.split(",")
   const handleFreshmanChange = (freshmanNew: string[]) => {
-    localStorage.setItem('isFreshmen', freshmanNew[0]);
+    localStorage.setItem('Are you a freshman?', freshmanNew[0]);
   };
 
-  let isEighteen : string = localStorage.getItem('isEighteen') || "";
+  let isEighteen : string = localStorage.getItem('Are you eighteen?') || "";
   const handleEighteenChange = (eighteenNew: string) => {
-    localStorage.setItem('isEighteen', eighteenNew);
+    localStorage.setItem('Are you eighteen?', eighteenNew);
   }
 
-  let isCitizen : string = localStorage.getItem('isCitizen') || "";
+  let isCitizen : string = localStorage.getItem('Are you a US citizen?') || "";
   const handleCitizen = (citizenNew: string) => {
-    localStorage.setItem('isCitizen', citizenNew);
+    localStorage.setItem('Are you a US citizen?', citizenNew);
   }
 
 </script>

@@ -10,19 +10,19 @@ let isInfi: string[] = [];
 let isTerra: string[] = [];
 
 const changeAstra = (newAstra: string) => {
-  localStorage.setItem('isAstra', newAstra);
+  localStorage.setItem('Astra', newAstra);
 }
 
 const changeJuvo = (newJuvo: string) => {
-  localStorage.setItem('isJuvo', newJuvo);
+  localStorage.setItem('Juvo', newJuvo);
 }
 
 const changeInfi = (newInfi: string) => {
-  localStorage.setItem('isInfi', newInfi)
+  localStorage.setItem('Infi', newInfi)
 }
 
 const changeTerra = (newTerra: string) => {
-  localStorage.setItem('isTerra', newTerra);
+  localStorage.setItem('Terra', newTerra);
 }
 
 </script>
