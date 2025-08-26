@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-	import ReviewApplicationForm from '$lib/components/reviewApplicationForm.svelte';
+	import ReviewApplicationForm from '$lib/components/ApplicantInfoComments.svelte';
     import { getApplicantData } from '$lib/utils/supabase';
     import BackButton from '$lib/components/backButton.svelte';
 

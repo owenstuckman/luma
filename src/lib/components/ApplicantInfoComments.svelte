@@ -36,7 +36,7 @@
 </script>
 
 {#if applicantData && applicantData.length > 0} <!-- Check if applicantData is not empty -->
-    <div class="applicant-details p-4 border border-gray-300 rounded-lg bg-gray-100">
+    <div class="applicant-details p-4 border border-gray-300 rounded-lg bg-gray-100 text-black">
         <h2 class="text-xl font-semibold">Applicant Details</h2>
         <p><strong>Name:</strong> {applicantData[0].name}</p>
         <p><strong>Email:</strong> {applicantData[0].email}</p>
