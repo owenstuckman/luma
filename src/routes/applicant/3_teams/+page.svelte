@@ -39,7 +39,7 @@ const changeTerra = (newTerra: string) => {
       linkName="Read more"
       linkURL="https://www.archimedesvt.org/design-teams"
       options={["I'm interested"]}
-      imageSrc="/images/placeholder.jpg"
+      imageSrc="/images/team/astra.jpg"
       imageAlt="Team Astra"
       name="AstraCard"
       bind:selected={isAstra}
@@ -54,7 +54,7 @@ const changeTerra = (newTerra: string) => {
       linkName="Read more"
       linkURL="https://www.archimedesvt.org/design-teams"
       options={["I'm interested"]}
-      imageSrc="/images/placeholder.jpg"
+      imageSrc="/images/team/juvo2.png"
       imageAlt="Team Juvo"
       name="JuvoCard"
       bind:selected={isJuvo}
@@ -68,7 +68,7 @@ const changeTerra = (newTerra: string) => {
       linkName="Read more"
       linkURL="https://www.archimedesvt.org/design-teams"
       options={["I'm interested"]}
-      imageSrc="/images/placeholder.jpg"
+      imageSrc="/images/team/infi.png"
       imageAlt="Team Infinitum"
       name="Infinitum Card"
       bind:selected={isInfi}
@@ -82,7 +82,7 @@ const changeTerra = (newTerra: string) => {
       linkName="Read more"
       linkURL="https://www.archimedesvt.org/design-teams"
       options={["I'm interested"]}
-      imageSrc="/images/placeholder.jpg"
+      imageSrc="/images/team/terra.png"
       imageAlt="Team Terra"
       name="TerraCard"
       bind:selected={isTerra}

@@ -22,7 +22,7 @@
         }
       });
 
-      const job = 1; // Assuming job ID is 1 for this example
+      const job = 1; // hardcoded the id 
 
       await sendApplicationFall2025(`${firstName} ${lastName}`, email, recruitInfo, job); 
       console.log('Application submitted successfully');
