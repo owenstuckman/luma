@@ -2,11 +2,11 @@
 	import { invalidate } from '$app/navigation'
 	import { onMount } from 'svelte'
 
+	export const prerender = true;
+	export const trailingSlash = "always";
 
-  import '../styles/luma.scss';
+  	import '../styles/luma.scss';
 
-
-  
 	let { data, children } = $props()
 	let { session, supabase } = $derived(data)
   
