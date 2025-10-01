@@ -23,7 +23,6 @@ npm run build
 
 You can preview the production build with `npm run preview`.
 
-> To deploy the app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
 
 # Background
 
@@ -35,10 +34,15 @@ Hence, I built out software to schedule everyone based on their availability, bo
 
 The current production version is private in the Archimedes github org, and built out to fit the specific branding and design of the organization, and this public starting point serves as a way to build out your own custom ATS software.
 
-# Internal Notes
+**Was used by archimedes recruitment in the Fall 2025 recruitment season to process *400+* applicants and passed *200+* applicants to interview rounds. This included a group and individual interview stage, scheduling *250+* interviews.
+
+# Internal Notes / TODO
 
 Go to src for all of the actual website code. 
-
 Go to the algo folder for running any algo.
-
 Otherwise look at the supabase for the backend/db. 
+
+- [ ] write long term docs
+- [ ] generalize the local scheduling
+- [ ] enable cron jobs for scheduling
+- [ ] enhanced admin view 
