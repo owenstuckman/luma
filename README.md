@@ -29,12 +29,13 @@ You can preview the production build with `npm run preview`.
 The original motivation for the project is from a design team I am involved with at Virginia Tech called the Archimedes Society. This design team provides opportunities for freshman to be involved in design teams and engineering projects early on in their college careers. 
 One of the difficulties in running an organization like this is recruiting, and it takes a non traditional approach towards scheduling interviews.
 Rather than having candidates be given interview slots, we consider their availability first. There are softwares like calendly which can do this, the issue is we want it to be blind, as there is a group interview. 
+Overall, an existing product did not exist, and other design teams don't deal with the scale we do, so they can handle this style of interview schedulign by hand. With 400+ applicants getting narrowed down to ~30 people, we have the lowest acceptance rate of a design team on campus and also are the most competitive.
 
 Hence, I built out software to schedule everyone based on their availability, both candidate and interviewers. 
 
 The current production version is private in the Archimedes github org, and built out to fit the specific branding and design of the organization, and this public starting point serves as a way to build out your own custom ATS software.
 
-**Was used by archimedes recruitment in the Fall 2025 recruitment season to process *400+* applicants and passed *200+* applicants to interview rounds. This included a group and individual interview stage, scheduling *250+* interviews.
+**Was used by archimedes recruitment in the Fall 2025 recruitment season to process *400+* applicants and passed *200+* applicants to interview rounds. This included a group and individual interview stage, scheduling *250+* interviews.**
 
 # Internal Notes / TODO
 
