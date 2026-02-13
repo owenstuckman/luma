@@ -1,23 +1,28 @@
+<script>
+  import { page } from '$app/stores';
+  import { supabase } from '$lib/utils/supabase';
+  import { goto } from '$app/navigation';
+
+  $: slug = $page.params.slug || '';
+
+  const logout = async () => {
+    await supabase.auth.signOut();
+    goto('/');
+  };
+</script>
+
 <div class="navbar">
-  <div class=navbar-left>
+  <div class="navbar-left">
     <div class="navbar-logo">
       <a href="/"><img src="/images/ui/logo_white.png" alt="LUMA logo" style="height: 30px; width: auto;"></a>
     </div>
-    <div class="navbar-year">
-      <div class="dropdown">
-        <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownYear" data-bs-toggle="dropdown" aria-expanded="false" style="width: 145px;">
-          Fall 2025
-        </button>
-
-        <ul class="dropdown-menu dropdown-menu-start" aria-labelledby="dropdownYear">
-          <li><a class="dropdown-item" href="/">Fall 2025</a></li>
-          <li><a class="dropdown-item" href="https://www.archimedesvt.org/luma">Fall 2024</a></li>
-          <li><a class="dropdown-item" href="https://www.archimedesvt.org/luma">Fall 2023</a></li>
-          <li><hr class="dropdown-divider"></li>
-          <li><a class="dropdown-item" href="/">View All</a></li>
-        </ul>
+    {#if slug}
+      <div class="navbar-year">
+        <a href="/private" class="btn btn-secondary" style="width: 145px; font-size: 11px;">
+          Switch Org
+        </a>
       </div>
-    </div>
+    {/if}
   </div>
 
   <div class="navbar-search">
@@ -25,7 +30,9 @@
   </div>
 
   <div class="navbar-right">
-
+    <button class="btn btn-secondary" style="font-size: 11px; margin-right: 10px;" on:click={logout}>
+      Logout
+    </button>
   </div>
 </div>
 
@@ -63,5 +70,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+  .navbar-right {
+    display: flex;
+    align-items: center;
   }
 </style>

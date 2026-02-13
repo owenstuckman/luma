@@ -1,18 +1,24 @@
 <script>
+  import { page } from '$app/stores';
+
   export let currentStep = 0;
   export let collapse = "collapse";
+
+  // Derive slug from current URL if in org-scoped route
+  $: slug = $page.params.slug || '';
+  $: base = slug ? `/private/${slug}` : '/private/recruiter';
 </script>
 
 <div class="sidebar hide-on-small">
   <ul class="list-unstyled">
     <li>
-      <a href="/private/recruiter/home" class="btn btn-secondary btn-sidebar" class:sidebar-selected={currentStep === 0}>
+      <a href="{base}/{slug ? 'dashboard' : 'home'}" class="btn btn-secondary btn-sidebar" class:sidebar-selected={currentStep === 0}>
         <i class="fi fi-br-home"></i>
         Home
       </a>
     </li>
     <li>
-      <a href="/private/recruiter/review" class="btn btn-secondary btn-sidebar" class:sidebar-selected={currentStep === 1}>
+      <a href="{base}/review" class="btn btn-secondary btn-sidebar" class:sidebar-selected={currentStep === 1}>
         <i class="fi fi-br-assessment-alt"></i>
         Review
       </a>
@@ -29,19 +35,19 @@
       </a>
       <div class={collapse} id="submenuSchedule">
         <ul class="list-unstyled sidebar-submenu">
-          <li><a href="/private/recruiter/schedule/my_schedule" class:submenu-selected={currentStep === 2}>My Schedule</a></li>
-          <li><a href="/private/recruiter/schedule/full_schedule" class:submenu-selected={currentStep === 3}>Full Schedule</a></li>
+          <li><a href="{base}/schedule/{slug ? 'my' : 'my_schedule'}" class:submenu-selected={currentStep === 2}>My Schedule</a></li>
+          <li><a href="{base}/schedule/{slug ? 'full' : 'full_schedule'}" class:submenu-selected={currentStep === 3}>Full Schedule</a></li>
         </ul>
       </div>
     </li>
     <li>
-      <a href="/private/recruiter/evaluate" class="btn btn-secondary btn-sidebar" class:sidebar-selected={currentStep === 5}>
+      <a href="{base}/evaluate" class="btn btn-secondary btn-sidebar" class:sidebar-selected={currentStep === 5}>
         <i class="fi fi-br-tachometer-fast"></i>
         Evaluate
       </a>
     </li>
     <li>
-      <a href="/private/recruiter/settings" class="btn btn-secondary btn-sidebar" class:sidebar-selected={currentStep === 6}>
+      <a href="{base}/settings" class="btn btn-secondary btn-sidebar" class:sidebar-selected={currentStep === 6}>
         <i class="fi fi-br-lightbulb-setting"></i>
         Settings
       </a>
@@ -51,7 +57,7 @@
 
 <style lang="scss">
   @use '../../../styles/col.scss' as *;
-  
+
   .sidebar {
     grid-area: sidebar;
     display: flex;
