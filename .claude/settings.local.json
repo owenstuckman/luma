@@ -6,7 +6,14 @@
       "mcp__supabase__apply_migration",
       "Bash(npm run check:*)",
       "Bash(npm run build:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "WebSearch",
+      "WebFetch(domain:schedule-x.dev)",
+      "Bash(npm ls:*)",
+      "Bash(npx vite build)",
+      "Bash(curl:*)",
+      "Bash(find:*)",
+      "mcp__supabase__list_migrations"
     ]
   },
   "enableAllProjectMcpServers": true,

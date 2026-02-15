@@ -10,13 +10,27 @@
   let applicants: Applicant[] = [];
   let searchQuery = '';
   let statusFilter = 'all';
+  let sortBy: 'date' | 'name' | 'status' = 'date';
   let orgId: number | null = null;
+
+  // Bulk selection
+  let selectedIds: Set<number> = new Set();
+  let selectMode = false;
+  let bulkStatus = 'pending';
+  let bulkUpdating = false;
 
   $: slug = $page.params.slug;
 
   $: filteredApplicants = applicants
     .filter(a => statusFilter === 'all' || a.status === statusFilter)
-    .filter(a => a.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    .filter(a => a.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    .sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      if (sortBy === 'status') return a.status.localeCompare(b.status);
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+
+  $: allSelected = filteredApplicants.length > 0 && filteredApplicants.every(a => selectedIds.has(a.id));
 
   onMount(async () => {
     const { data: orgData } = await supabase
@@ -27,19 +41,88 @@
 
     if (!orgData) return;
     orgId = orgData.id;
+    await loadApplicants();
+  });
 
+  async function loadApplicants() {
+    if (!orgId) return;
     const { data } = await supabase
       .from('applicants')
       .select('*')
-      .eq('org_id', orgData.id)
+      .eq('org_id', orgId)
       .order('created_at', { ascending: false });
-
     applicants = data || [];
-  });
+  }
 
   const navigateToReview = (id: number) => {
+    if (selectMode) return;
     goto(`/private/${slug}/review/candidate?id=${id}`);
   };
+
+  function toggleSelect(id: number) {
+    if (selectedIds.has(id)) {
+      selectedIds.delete(id);
+    } else {
+      selectedIds.add(id);
+    }
+    selectedIds = new Set(selectedIds);
+  }
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      selectedIds = new Set();
+    } else {
+      selectedIds = new Set(filteredApplicants.map(a => a.id));
+    }
+  }
+
+  function exitSelectMode() {
+    selectMode = false;
+    selectedIds = new Set();
+  }
+
+  async function bulkUpdateStatus() {
+    if (selectedIds.size === 0) return;
+    bulkUpdating = true;
+
+    const ids = Array.from(selectedIds);
+    const { error } = await supabase
+      .from('applicants')
+      .update({ status: bulkStatus })
+      .in('id', ids);
+
+    if (error) {
+      console.error('Bulk update failed:', error);
+    } else {
+      await loadApplicants();
+      selectedIds = new Set();
+    }
+    bulkUpdating = false;
+  }
+
+  function exportCSV() {
+    const targets = selectMode && selectedIds.size > 0
+      ? filteredApplicants.filter(a => selectedIds.has(a.id))
+      : filteredApplicants;
+
+    const headers = ['Name', 'Email', 'Status', 'Applied', 'Job ID'];
+    const rows = targets.map(a => [
+      `"${a.name}"`,
+      `"${a.email}"`,
+      a.status,
+      new Date(a.created_at).toLocaleDateString(),
+      a.job ?? '',
+    ]);
+
+    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `applicants-${slug}-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
 
   function getStatusColor(status: string) {
     switch (status) {
@@ -62,21 +145,82 @@
         placeholder="Search by name..."
         bind:value={searchQuery}
         class="form-control"
-        style="max-width: 300px;"
+        style="max-width: 250px;"
       />
-      <select bind:value={statusFilter} class="form-control" style="max-width: 180px;">
+      <select bind:value={statusFilter} class="form-control" style="max-width: 150px;">
         <option value="all">All Statuses</option>
         <option value="pending">Pending</option>
         <option value="interview">Interview</option>
         <option value="accepted">Accepted</option>
         <option value="denied">Denied</option>
       </select>
+      <select bind:value={sortBy} class="form-control" style="max-width: 140px;">
+        <option value="date">Sort: Date</option>
+        <option value="name">Sort: Name</option>
+        <option value="status">Sort: Status</option>
+      </select>
       <span class="result-count">{filteredApplicants.length} applicants</span>
+      <div class="filter-actions">
+        {#if !selectMode}
+          <button class="btn btn-quaternary btn-sm" on:click={() => selectMode = true}>
+            Select
+          </button>
+        {:else}
+          <button class="btn btn-quaternary btn-sm" on:click={exitSelectMode}>
+            Cancel
+          </button>
+        {/if}
+        <button class="btn btn-quaternary btn-sm" on:click={exportCSV} title="Export to CSV">
+          <i class="fi fi-br-download"></i> CSV
+        </button>
+      </div>
     </div>
+
+    <!-- Bulk action bar -->
+    {#if selectMode}
+      <div class="bulk-bar">
+        <label class="bulk-select-all">
+          <input type="checkbox" checked={allSelected} on:change={toggleSelectAll} />
+          Select all ({filteredApplicants.length})
+        </label>
+        <span class="bulk-count">{selectedIds.size} selected</span>
+        <div class="bulk-actions">
+          <select bind:value={bulkStatus} class="form-control" style="max-width: 140px; font-size: 12px;">
+            <option value="pending">Set Pending</option>
+            <option value="interview">Set Interview</option>
+            <option value="accepted">Set Accepted</option>
+            <option value="denied">Set Denied</option>
+          </select>
+          <button
+            class="btn btn-tertiary btn-sm"
+            on:click={bulkUpdateStatus}
+            disabled={selectedIds.size === 0 || bulkUpdating}
+          >
+            {bulkUpdating ? 'Updating...' : 'Apply'}
+          </button>
+        </div>
+      </div>
+    {/if}
 
     <div class="applicant-grid">
       {#each filteredApplicants as applicant}
-        <div class="applicant-card" on:click={() => navigateToReview(applicant.id)} on:keydown={() => {}} role="button" tabindex="0">
+        <div
+          class="applicant-card"
+          class:card-selected={selectedIds.has(applicant.id)}
+          on:click={() => selectMode ? toggleSelect(applicant.id) : navigateToReview(applicant.id)}
+          on:keydown={() => {}}
+          role="button"
+          tabindex="0"
+        >
+          {#if selectMode}
+            <div class="card-checkbox">
+              <input
+                type="checkbox"
+                checked={selectedIds.has(applicant.id)}
+                on:click|stopPropagation={() => toggleSelect(applicant.id)}
+              />
+            </div>
+          {/if}
           <div class="applicant-card-top">
             <span class="applicant-name">{applicant.name}</span>
             <span class="status-badge" style="background-color: {getStatusColor(applicant.status)};">
@@ -103,9 +247,9 @@
 
   .filter-bar {
     display: flex;
-    gap: 12px;
+    gap: 10px;
     align-items: center;
-    margin-bottom: 20px;
+    margin-bottom: 15px;
     flex-wrap: wrap;
   }
   .result-count {
@@ -113,6 +257,47 @@
     color: $light-tertiary;
     font-weight: 500;
   }
+  .filter-actions {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+  }
+  .btn-sm {
+    font-size: 11px !important;
+    padding: 4px 10px !important;
+  }
+
+  .bulk-bar {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 10px 16px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 0px 12px rgba(0, 0, 0, 0.08);
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+  }
+  .bulk-select-all {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .bulk-count {
+    font-size: 12px;
+    color: $light-tertiary;
+    font-weight: 500;
+  }
+  .bulk-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-left: auto;
+  }
+
   .applicant-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
@@ -125,10 +310,19 @@
     box-shadow: 0 0px 12px rgba(0, 0, 0, 0.08);
     cursor: pointer;
     transition: box-shadow 0.2s ease, transform 0.2s ease;
+    position: relative;
   }
   .applicant-card:hover {
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
     transform: translateY(-1px);
+  }
+  .card-selected {
+    outline: 2px solid $yellow-primary;
+  }
+  .card-checkbox {
+    position: absolute;
+    top: 10px;
+    right: 10px;
   }
   .applicant-card-top {
     display: flex;

@@ -1,21 +1,10 @@
 <script>
-    let { data, children } = $props()
-    let { supabase } = $derived(data)
-  
-    const logout = async () => {
-      const { error } = await supabase.auth.signOut()
-      if (error) {
-        console.error(error)
-      }
-    }
-  </script>
-  
-  <header>
-    <nav>
-      <a href="/">Home</a>
-    </nav>
-    <button onclick={logout}>Logout</button>
-  </header>
-  <main>
-    {@render children()}
-  </main>
+  /**
+   * This layout exists to wrap all /private/* routes.
+   * The [slug]/+layout.svelte handles org auth checks.
+   * The hooks.server.ts auth guard ensures users are logged in.
+   */
+  let { children } = $props()
+</script>
+
+{@render children()}

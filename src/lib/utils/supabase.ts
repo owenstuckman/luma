@@ -1,6 +1,6 @@
 import { createBrowserClient } from '@supabase/ssr';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
-import type { Organization, OrgMember, JobPosting, Applicant } from '$lib/types';
+import type { Organization, OrgMember, JobPosting, Applicant, Interview } from '$lib/types';
 
 const supabase = createBrowserClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY);
 
@@ -166,6 +166,33 @@ export const updateJobPosting = async (id: number, updates: Partial<JobPosting>)
 	return data as JobPosting;
 };
 
+export const deleteJobPosting = async (id: number) => {
+	const { error } = await supabase
+		.from('job_posting')
+		.delete()
+		.eq('id', id);
+
+	if (error) {
+		console.error('Error deleting job posting:', error);
+		throw new Error(error.message);
+	}
+};
+
+export const toggleJobPostingActive = async (id: number, active: boolean) => {
+	const { data, error } = await supabase
+		.from('job_posting')
+		.update({ active_flg: active })
+		.eq('id', id)
+		.select()
+		.single();
+
+	if (error) {
+		console.error('Error toggling job posting:', error);
+		throw new Error(error.message);
+	}
+	return data as JobPosting;
+};
+
 // ============================================
 // Applicant functions
 // ============================================
@@ -303,6 +330,62 @@ export const getCurrentUser = async () => {
 // Interview functions
 // ============================================
 
+export const getInterviewsByOrg = async (orgId: number) => {
+	const { data, error } = await supabase
+		.from('interviews')
+		.select('*')
+		.eq('org_id', orgId)
+		.order('startTime', { ascending: true });
+
+	if (error) {
+		console.error('Error fetching interviews:', error);
+		return [];
+	}
+	return data as Interview[];
+};
+
+export const getInterviewsByInterviewer = async (orgId: number, email: string) => {
+	const { data, error } = await supabase
+		.from('interviews')
+		.select('*')
+		.eq('org_id', orgId)
+		.eq('interviewer', email)
+		.order('startTime', { ascending: true });
+
+	if (error) {
+		console.error('Error fetching interviews:', error);
+		return [];
+	}
+	return data as Interview[];
+};
+
+export const updateInterview = async (id: number, updates: Partial<Interview>) => {
+	const { data, error } = await supabase
+		.from('interviews')
+		.update(updates)
+		.eq('id', id)
+		.select()
+		.single();
+
+	if (error) {
+		console.error('Error updating interview:', error);
+		throw new Error('Failed to update interview');
+	}
+	return data as Interview;
+};
+
+export const deleteInterview = async (id: number) => {
+	const { error } = await supabase
+		.from('interviews')
+		.delete()
+		.eq('id', id);
+
+	if (error) {
+		console.error('Error deleting interview:', error);
+		throw new Error('Failed to delete interview');
+	}
+};
+
 export const createInterview = async (interviewData: {
 	startTime: string;
 	endTime?: string;
@@ -340,6 +423,65 @@ export const getOrgMembers = async (orgId: number) => {
 		return [];
 	}
 	return data as OrgMember[];
+};
+
+export const getOrgMembersWithEmail = async (orgId: number) => {
+	const { data, error } = await supabase.rpc('get_org_members_with_email', {
+		target_org_id: orgId,
+	});
+
+	if (error) {
+		console.error('Error fetching members with email:', error);
+		return [];
+	}
+	return data as (OrgMember & { email: string })[];
+};
+
+export const inviteMemberByEmail = async (orgId: number, email: string, role: string = 'recruiter') => {
+	const { data, error } = await supabase.rpc('invite_member_by_email', {
+		target_org_id: orgId,
+		target_email: email,
+		target_role: role,
+	});
+
+	if (error) {
+		throw new Error(error.message);
+	}
+	if (data?.error) {
+		throw new Error(data.error);
+	}
+	return data;
+};
+
+export const removeMember = async (orgId: number, userId: string) => {
+	const { data, error } = await supabase.rpc('remove_org_member', {
+		target_org_id: orgId,
+		target_user_id: userId,
+	});
+
+	if (error) {
+		throw new Error(error.message);
+	}
+	if (data?.error) {
+		throw new Error(data.error);
+	}
+	return data;
+};
+
+export const updateMemberRole = async (orgId: number, userId: string, role: string) => {
+	const { data, error } = await supabase.rpc('update_member_role', {
+		target_org_id: orgId,
+		target_user_id: userId,
+		new_role: role,
+	});
+
+	if (error) {
+		throw new Error(error.message);
+	}
+	if (data?.error) {
+		throw new Error(data.error);
+	}
+	return data;
 };
 
 export { supabase };

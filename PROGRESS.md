@@ -28,21 +28,22 @@
 - [x] Super-admin page at `/admin` — login, org listing with stats
 - [x] Org admin settings at `/private/[slug]/settings` — name, slug, colors, member list
 - [x] Role-based access — only admin+ can edit settings
-- [ ] Job posting CRUD (create/edit from dashboard) — needs form builder UI
-- [ ] Invite members by email (currently shows user IDs)
+- [x] Job posting CRUD at `/private/[slug]/settings/jobs` — list, create, toggle active, delete
+- [x] Form builder UI at `/private/[slug]/settings/jobs/[job_id]` — visual step/question editor, reorder, all question types
+- [x] Invite members by email — uses `invite_member_by_email` DB function, shows emails, role change, remove
+- [x] Member management DB functions — `get_org_members_with_email`, `remove_org_member`, `update_member_role`
 
-## Phase 4: Recruiter Dashboard — MOSTLY DONE
+## Phase 4: Recruiter Dashboard — DONE
 - [x] Dashboard home — `/private/[slug]/dashboard` with stat cards (total, pending, interview, accepted)
 - [x] Quick links to review, schedule, settings
 - [x] Review page — `/private/[slug]/review` with search, status filter, applicant grid cards with status badges
 - [x] Candidate detail — `/private/[slug]/review/candidate` with split layout (info + comments), status change dropdown
 - [x] Recruiter Sidebar — auto-detects org slug from URL, links adapt
 - [x] Recruiter Navbar — logout button, "Switch Org" link
-- [x] Schedule pages (my/full) — shell pages ready for calendar integration
-- [x] Evaluate page — shell page ready for scoring UI
-- [ ] Bulk actions on review page (mass status update, CSV export)
-- [ ] Calendar integration with @schedule-x on schedule pages
-- [ ] Evaluation form with rating/scoring on evaluate page
+- [x] Bulk actions on review page — multi-select, bulk status update, CSV export, sort by date/name/status
+- [x] Calendar integration — @schedule-x on My Schedule (filtered by your interviews) and Full Schedule (all org interviews, filter by interviewer)
+- [x] Evaluation form — star rating, recommendation (Strong Yes → Strong No), strengths/weaknesses/notes, saved to interview comments JSON
+- [x] Existing data migration — Archimedes Society org created, all 241 applicants + 890 interviews + 30 interviewers assigned
 
 ## Phase 5: Self-Hosting & Docs — NOT STARTED
 - [ ] Migration files in `supabase/migrations/`
@@ -69,6 +70,9 @@
 - `src/routes/private/[slug]/evaluate/+page.svelte` — evaluate
 - `src/routes/private/[slug]/settings/+page.svelte` — org settings
 
+- `src/routes/private/[slug]/settings/jobs/+page.svelte` — job posting management (list, create, toggle, delete)
+- `src/routes/private/[slug]/settings/jobs/[job_id]/+page.svelte` — form builder UI
+
 ## Files Modified
 - `src/lib/utils/supabase.ts` — added org functions, kept backward-compatible
 - `src/lib/components/recruiter/Sidebar.svelte` — auto-detects slug, adapts links
@@ -87,3 +91,5 @@
 ## Database Migrations Applied
 1. `create_org_role_enum_and_organizations` — enum, tables, org_id columns, indexes
 2. `overhaul_rls_policies` — helper functions + org-scoped policies for all tables
+3. `add_invite_member_function` — `invite_member_by_email`, `get_org_members_with_email`, `remove_org_member`, `update_member_role` DB functions
+4. `migrate_existing_data_to_archimedes_org` — creates Archimedes Society org, assigns all 241 applicants, 1 job posting, 890 interviews, 30 interviewers; adds 29 org members from matched interviewer emails
