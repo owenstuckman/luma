@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { supabase } from '$lib/utils/supabase';
+  import { supabase, isPlatformAdmin } from '$lib/utils/supabase';
   import type { Organization } from '$lib/types';
 
   let authenticated = false;
@@ -17,10 +17,8 @@
     const { data } = await supabase.auth.getUser();
     if (data?.user) {
       authenticated = true;
-      // For now, any authenticated user can view admin
-      // TODO: add a platform_admins table or check user metadata
-      isAdmin = true;
-      await loadOrgs();
+      isAdmin = await isPlatformAdmin();
+      if (isAdmin) await loadOrgs();
     }
     loading = false;
   });
@@ -33,7 +31,11 @@
       return;
     }
     authenticated = true;
-    isAdmin = true;
+    isAdmin = await isPlatformAdmin();
+    if (!isAdmin) {
+      loginError = 'You do not have platform admin access.';
+      return;
+    }
     await loadOrgs();
   }
 
@@ -69,7 +71,7 @@
       <h2 style="color: white;">Loading...</h2>
     </div>
   </div>
-{:else if !authenticated}
+{:else if !authenticated || (authenticated && !isAdmin)}
   <div class="admin-screen">
     <div class="admin-login">
       <h2 style="color: white;">Admin Login</h2>

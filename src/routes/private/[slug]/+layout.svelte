@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { supabase } from '$lib/utils/supabase';
+  import { supabase, isPlatformAdmin } from '$lib/utils/supabase';
   import type { Organization, OrgMember } from '$lib/types';
 
   let { children } = $props();
@@ -49,12 +49,18 @@
       }
 
       if (!memberData) {
-        error = 'You are not a member of this organization.';
-        loading = false;
-        return;
+        // Allow platform admins to access any org
+        const platformAdmin = await isPlatformAdmin();
+        if (!platformAdmin) {
+          error = 'You are not a member of this organization.';
+          loading = false;
+          return;
+        }
+        // Platform admins get owner-level access
+        membership = { id: 0, created_at: '', org_id: orgData.id, user_id: userData.user.id, role: 'owner' };
+      } else {
+        membership = memberData;
       }
-
-      membership = memberData;
       loading = false;
     } catch (err) {
       console.error('Layout error:', err);

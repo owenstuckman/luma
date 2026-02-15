@@ -4,15 +4,14 @@
   export let currentStep = 0;
   export let collapse = "collapse";
 
-  // Derive slug from current URL if in org-scoped route
   $: slug = $page.params.slug || '';
-  $: base = slug ? `/private/${slug}` : '/private/recruiter';
+  $: base = `/private/${slug}`;
 </script>
 
 <div class="sidebar hide-on-small">
   <ul class="list-unstyled">
     <li>
-      <a href="{base}/{slug ? 'dashboard' : 'home'}" class="btn btn-secondary btn-sidebar" class:sidebar-selected={currentStep === 0}>
+      <a href="{base}/dashboard" class="btn btn-secondary btn-sidebar" class:sidebar-selected={currentStep === 0}>
         <i class="fi fi-br-home"></i>
         Home
       </a>
@@ -35,8 +34,8 @@
       </a>
       <div class={collapse} id="submenuSchedule">
         <ul class="list-unstyled sidebar-submenu">
-          <li><a href="{base}/schedule/{slug ? 'my' : 'my_schedule'}" class:submenu-selected={currentStep === 2}>My Schedule</a></li>
-          <li><a href="{base}/schedule/{slug ? 'full' : 'full_schedule'}" class:submenu-selected={currentStep === 3}>Full Schedule</a></li>
+          <li><a href="{base}/schedule/my" class:submenu-selected={currentStep === 2}>My Schedule</a></li>
+          <li><a href="{base}/schedule/full" class:submenu-selected={currentStep === 3}>Full Schedule</a></li>
         </ul>
       </div>
     </li>

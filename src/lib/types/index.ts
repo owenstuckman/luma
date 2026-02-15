@@ -109,4 +109,10 @@ export interface FormQuestion {
 	imageAlt?: string;
 	linkName?: string;
 	linkURL?: string;
+	// For availability
+	startDate?: string;
+	endDate?: string;
+	dayStart?: string;
+	dayEnd?: string;
+	stepMinutes?: number;
 }

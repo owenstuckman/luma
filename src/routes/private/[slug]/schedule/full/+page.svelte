@@ -83,7 +83,7 @@
     if (!orgData) { loading = false; return; }
     orgId = orgData.id;
 
-    interviews = await getInterviewsByOrg(orgId);
+    interviews = await getInterviewsByOrg(orgId!);
     buildCalendar(interviews);
     loading = false;
   });

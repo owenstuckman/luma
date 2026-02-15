@@ -209,19 +209,6 @@ export const sendApplication = async (row: object) => {
 	return data;
 };
 
-export const sendApplicationFall2025 = async (name: string, email: string, recruitInfo: { [key: string]: string }, job: 1) => {
-	const applicationData = { name, email, recruitInfo, job };
-
-	const { data, error } = await supabase
-		.from('applicants')
-		.insert(applicationData);
-
-	if (error) {
-		console.error('Error sending application:', error);
-		throw new Error('Failed to send application to Supabase');
-	}
-	return data;
-};
 
 export const getAllApplicants = async (orgId?: number) => {
 	let query = supabase.from('applicants').select('*');
@@ -324,6 +311,12 @@ export const getCurrentUser = async () => {
 	const { data, error } = await supabase.auth.getUser();
 	if (error) return null;
 	return data?.user || null;
+};
+
+export const isPlatformAdmin = async (): Promise<boolean> => {
+	const { data, error } = await supabase.rpc('is_platform_admin');
+	if (error) return false;
+	return data === true;
 };
 
 // ============================================

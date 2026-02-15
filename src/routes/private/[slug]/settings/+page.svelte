@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
-  import { supabase } from '$lib/utils/supabase';
+  import { supabase, isPlatformAdmin } from '$lib/utils/supabase';
   import { getOrgMembersWithEmail, inviteMemberByEmail, removeMember, updateMemberRole } from '$lib/utils/supabase';
   import Sidebar from '$lib/components/recruiter/Sidebar.svelte';
   import Navbar from '$lib/components/recruiter/Navbar.svelte';
@@ -51,8 +51,14 @@
         .select('*')
         .eq('org_id', orgData.id)
         .eq('user_id', userData.user.id)
-        .single();
-      userRole = memberData?.role || '';
+        .maybeSingle();
+      if (memberData) {
+        userRole = memberData.role;
+      } else {
+        // Platform admins get owner-level access even if not an org member
+        const platformAdmin = await isPlatformAdmin();
+        if (platformAdmin) userRole = 'owner';
+      }
     }
 
     await loadMembers();

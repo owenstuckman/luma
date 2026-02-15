@@ -45,12 +45,15 @@
 - [x] Evaluation form — star rating, recommendation (Strong Yes → Strong No), strengths/weaknesses/notes, saved to interview comments JSON
 - [x] Existing data migration — Archimedes Society org created, all 241 applicants + 890 interviews + 30 interviewers assigned
 
-## Phase 5: Self-Hosting & Docs — NOT STARTED
-- [ ] Migration files in `supabase/migrations/`
-- [ ] Setup script (`npm run setup`)
-- [ ] README overhaul with one-click deploy button
-- [ ] Docker support
-- [ ] Documentation (setup guide, customization guide, architecture guide)
+## Phase 5: Self-Hosting & Docs — DONE
+- [x] Migration files in `supabase/migrations/` (4 SQL files in order)
+- [x] Setup script (`npm run setup`) — guided CLI configuration
+- [x] `env.example` — template for environment variables
+- [x] README overhaul — features, quick start, tech stack, project structure, deployment guide
+- [x] Usage documentation at `docs/usage.md` — routes, workflows, DB schema, migration guide
+- [x] Cleaned up old `/private/recruiter/*` routes (superseded by `/private/[slug]/*`)
+- [x] Removed 6 unused legacy components
+- [x] Docker support — Dockerfile, docker-compose.yml, .dockerignore, adapter-node via `ADAPTER=node`
 
 ---
 
@@ -73,6 +76,12 @@
 - `src/routes/private/[slug]/settings/jobs/+page.svelte` — job posting management (list, create, toggle, delete)
 - `src/routes/private/[slug]/settings/jobs/[job_id]/+page.svelte` — form builder UI
 
+## Phase 6: Polish & Security
+- [x] Admin panel security — `platform_admins` table + `is_platform_admin()` function, admin page checks before granting access
+- [x] Availability question type — QuestionRenderer now renders AvailabilityGrid for `availability` type questions
+- [x] Removed deprecated `sendApplicationFall2025` function from supabase.ts
+- [x] Fixed esbuild version mismatch + Vercel adapter Node.js runtime
+
 ## Files Modified
 - `src/lib/utils/supabase.ts` — added org functions, kept backward-compatible
 - `src/lib/components/recruiter/Sidebar.svelte` — auto-detects slug, adapts links
@@ -87,9 +96,17 @@
 
 ## Files Removed
 - `src/routes/applicant/*` — all 7 hardcoded steps + success page
+- `src/routes/private/recruiter/*` — all 9 old hardcoded recruiter pages (superseded by `[slug]` routes)
+- `src/lib/components/applicantCard.svelte` — unused legacy component
+- `src/lib/components/ApplicantInfo.svelte` — unused legacy component
+- `src/lib/components/ApplicantInfoComments.svelte` — unused legacy component
+- `src/lib/components/applicationForm.svelte` — unused legacy component
+- `src/lib/components/backButton.svelte` — unused legacy component
+- `src/lib/components/jobPostingCards.svelte` — unused legacy component
 
 ## Database Migrations Applied
 1. `create_org_role_enum_and_organizations` — enum, tables, org_id columns, indexes
 2. `overhaul_rls_policies` — helper functions + org-scoped policies for all tables
 3. `add_invite_member_function` — `invite_member_by_email`, `get_org_members_with_email`, `remove_org_member`, `update_member_role` DB functions
 4. `migrate_existing_data_to_archimedes_org` — creates Archimedes Society org, assigns all 241 applicants, 1 job posting, 890 interviews, 30 interviewers; adds 29 org members from matched interviewer emails
+5. `add_platform_admins_table` — platform_admins table, RLS policy, `is_platform_admin()` helper function

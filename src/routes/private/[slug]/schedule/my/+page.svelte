@@ -46,7 +46,7 @@
     userEmail = (await getCurrentUserEmail()) || '';
     if (!userEmail) { loading = false; return; }
 
-    interviews = await getInterviewsByInterviewer(orgId, userEmail);
+    interviews = await getInterviewsByInterviewer(orgId!, userEmail);
 
     const events = interviews.map(iv => ({
       id: String(iv.id),
