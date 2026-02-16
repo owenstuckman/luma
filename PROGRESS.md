@@ -82,6 +82,24 @@
 - [x] Removed deprecated `sendApplicationFall2025` function from supabase.ts
 - [x] Fixed esbuild version mismatch + Vercel adapter Node.js runtime
 
+## Phase 7: Admin Panel Expansion — DONE
+- [x] Tabbed sidebar layout — Overview, Organizations, Users, Job Postings, Admins tabs
+- [x] Organization CRUD — create (with owner email + colors), edit (name/slug/colors), delete (type-to-confirm)
+- [x] Transfer org ownership — reassigns owner_id, demotes old owner to admin
+- [x] Platform admin management — add/remove platform admins by email, self-removal protection
+- [x] Global user directory — list all auth users, search by email, view last sign-in
+- [x] User membership management — view/add/remove org memberships, change roles from admin panel
+- [x] Cross-org job posting oversight — list all jobs across orgs, filter by org/status, toggle active, delete
+- [x] Enhanced overview stats — orgs, members, applicants, job postings, active jobs, registered users
+- [x] Cross-org applicant search — search by name/email, filter by org/status, expandable detail view with recruitInfo
+- [x] Bulk applicant actions — multi-select, bulk status update, bulk delete, CSV export
+- [x] Platform analytics dashboard — applicant status breakdown bars, applicants-per-day bar chart (30 days), orgs ranked by size, recent applications + sign-ups activity feed
+- [x] Platform settings — platform name, default colors, maintenance mode toggle with custom message
+- [x] Maintenance mode — blocks public application forms with "Applications Closed" screen when enabled
+- [x] Migration 00007 — platform_settings table, platform_activity_log table, 20+ RPC functions, platform admin RLS policies
+- [x] New types — AdminUser, PlatformAdmin, AdminJobPosting, UserMembership, AdminApplicant, PlatformSettings, AdminAnalytics
+- [x] 20+ supabase utility functions for admin operations
+
 ## Files Modified
 - `src/lib/utils/supabase.ts` — added org functions, kept backward-compatible
 - `src/lib/components/recruiter/Sidebar.svelte` — auto-detects slug, adapts links
@@ -110,3 +128,5 @@
 3. `add_invite_member_function` — `invite_member_by_email`, `get_org_members_with_email`, `remove_org_member`, `update_member_role` DB functions
 4. `migrate_existing_data_to_archimedes_org` — creates Archimedes Society org, assigns all 241 applicants, 1 job posting, 890 interviews, 30 interviewers; adds 29 org members from matched interviewer emails
 5. `add_platform_admins_table` — platform_admins table, RLS policy, `is_platform_admin()` helper function
+6. `fix_function_search_paths` — adds `SET search_path = public` to all security definer functions
+7. `admin_panel` — platform_settings + activity_log tables, 12 admin RPC functions, platform admin RLS policies on all tables

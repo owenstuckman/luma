@@ -1,6 +1,6 @@
 import { createBrowserClient } from '@supabase/ssr';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
-import type { Organization, OrgMember, JobPosting, Applicant, Interview } from '$lib/types';
+import type { Organization, OrgMember, JobPosting, Applicant, Interview, AdminUser, PlatformAdmin, AdminJobPosting, UserMembership, AdminApplicant, PlatformSettings, AdminAnalytics } from '$lib/types';
 
 const supabase = createBrowserClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY);
 
@@ -475,6 +475,222 @@ export const updateMemberRole = async (orgId: number, userId: string, role: stri
 		throw new Error(data.error);
 	}
 	return data;
+};
+
+// ============================================
+// Platform Admin functions
+// ============================================
+
+export const getAllUsersAdmin = async (): Promise<AdminUser[]> => {
+	const { data, error } = await supabase.rpc('get_all_users_admin');
+	if (error) {
+		console.error('Error fetching users:', error);
+		return [];
+	}
+	return data as AdminUser[];
+};
+
+export const getPlatformAdmins = async (): Promise<PlatformAdmin[]> => {
+	const { data, error } = await supabase.rpc('get_platform_admins');
+	if (error) {
+		console.error('Error fetching platform admins:', error);
+		return [];
+	}
+	return data as PlatformAdmin[];
+};
+
+export const addPlatformAdminByEmail = async (email: string) => {
+	const { data, error } = await supabase.rpc('add_platform_admin_by_email', {
+		target_email: email,
+	});
+	if (error) throw new Error(error.message);
+	if (data?.error) throw new Error(data.error);
+	return data;
+};
+
+export const removePlatformAdminById = async (userId: string) => {
+	const { data, error } = await supabase.rpc('remove_platform_admin', {
+		target_user_id: userId,
+	});
+	if (error) throw new Error(error.message);
+	if (data?.error) throw new Error(data.error);
+	return data;
+};
+
+export const adminCreateOrganization = async (
+	name: string, slug: string, ownerEmail: string,
+	primaryColor: string = '#ffc800', secondaryColor: string = '#0F1112'
+) => {
+	const { data, error } = await supabase.rpc('admin_create_organization', {
+		org_name: name,
+		org_slug: slug,
+		owner_email: ownerEmail,
+		p_color: primaryColor,
+		s_color: secondaryColor,
+	});
+	if (error) throw new Error(error.message);
+	if (data?.error) throw new Error(data.error);
+	return data;
+};
+
+export const adminDeleteOrganization = async (orgId: number) => {
+	const { data, error } = await supabase.rpc('admin_delete_organization', {
+		target_org_id: orgId,
+	});
+	if (error) throw new Error(error.message);
+	if (data?.error) throw new Error(data.error);
+	return data;
+};
+
+export const adminUpdateOrganization = async (
+	orgId: number,
+	updates: { name?: string; slug?: string; primary_color?: string; secondary_color?: string }
+) => {
+	const { data, error } = await supabase.rpc('admin_update_organization', {
+		target_org_id: orgId,
+		new_name: updates.name || null,
+		new_slug: updates.slug || null,
+		new_primary_color: updates.primary_color || null,
+		new_secondary_color: updates.secondary_color || null,
+	});
+	if (error) throw new Error(error.message);
+	if (data?.error) throw new Error(data.error);
+	return data;
+};
+
+export const adminTransferOwnership = async (orgId: number, newOwnerEmail: string) => {
+	const { data, error } = await supabase.rpc('admin_transfer_ownership', {
+		target_org_id: orgId,
+		new_owner_email: newOwnerEmail,
+	});
+	if (error) throw new Error(error.message);
+	if (data?.error) throw new Error(data.error);
+	return data;
+};
+
+export const getAllJobPostingsAdmin = async (): Promise<AdminJobPosting[]> => {
+	const { data, error } = await supabase.rpc('get_all_job_postings_admin');
+	if (error) {
+		console.error('Error fetching admin job postings:', error);
+		return [];
+	}
+	return data as AdminJobPosting[];
+};
+
+export const getUserMembershipsAdmin = async (userId: string): Promise<UserMembership[]> => {
+	const { data, error } = await supabase.rpc('get_user_memberships_admin', {
+		target_user_id: userId,
+	});
+	if (error) {
+		console.error('Error fetching user memberships:', error);
+		return [];
+	}
+	return data as UserMembership[];
+};
+
+export const adminAddUserToOrg = async (orgId: number, email: string, role: string = 'recruiter') => {
+	const { data, error } = await supabase.rpc('admin_add_user_to_org', {
+		target_org_id: orgId,
+		target_email: email,
+		target_role: role,
+	});
+	if (error) throw new Error(error.message);
+	if (data?.error) throw new Error(data.error);
+	return data;
+};
+
+export const adminRemoveUserFromOrg = async (orgId: number, userId: string) => {
+	const { data, error } = await supabase.rpc('admin_remove_user_from_org', {
+		target_org_id: orgId,
+		target_user_id: userId,
+	});
+	if (error) throw new Error(error.message);
+	if (data?.error) throw new Error(data.error);
+	return data;
+};
+
+export const adminChangeUserRole = async (orgId: number, userId: string, role: string) => {
+	const { data, error } = await supabase.rpc('admin_change_user_role', {
+		target_org_id: orgId,
+		target_user_id: userId,
+		new_role: role,
+	});
+	if (error) throw new Error(error.message);
+	if (data?.error) throw new Error(data.error);
+	return data;
+};
+
+// ============================================
+// Admin: Applicant functions
+// ============================================
+
+export const getAllApplicantsAdmin = async (): Promise<AdminApplicant[]> => {
+	const { data, error } = await supabase.rpc('get_all_applicants_admin');
+	if (error) {
+		console.error('Error fetching admin applicants:', error);
+		return [];
+	}
+	return data as AdminApplicant[];
+};
+
+export const adminBulkUpdateStatus = async (ids: number[], status: string) => {
+	const { data, error } = await supabase.rpc('admin_bulk_update_applicant_status', {
+		applicant_ids: ids,
+		new_status: status,
+	});
+	if (error) throw new Error(error.message);
+	if (data?.error) throw new Error(data.error);
+	return data;
+};
+
+export const adminBulkDeleteApplicants = async (ids: number[]) => {
+	const { data, error } = await supabase.rpc('admin_bulk_delete_applicants', {
+		applicant_ids: ids,
+	});
+	if (error) throw new Error(error.message);
+	if (data?.error) throw new Error(data.error);
+	return data;
+};
+
+// ============================================
+// Admin: Platform settings
+// ============================================
+
+export const getPlatformSettings = async (): Promise<PlatformSettings> => {
+	const { data, error } = await supabase.rpc('get_platform_settings');
+	if (error) {
+		console.error('Error fetching platform settings:', error);
+		return {};
+	}
+	return (data || {}) as PlatformSettings;
+};
+
+export const updatePlatformSettings = async (settings: PlatformSettings) => {
+	const { data, error } = await supabase.rpc('update_platform_settings', {
+		new_settings: settings,
+	});
+	if (error) throw new Error(error.message);
+	if (data?.error) throw new Error(data.error);
+	return data;
+};
+
+// ============================================
+// Admin: Analytics
+// ============================================
+
+export const getAdminAnalytics = async (): Promise<AdminAnalytics | null> => {
+	const { data, error } = await supabase.rpc('get_admin_analytics');
+	if (error) {
+		console.error('Error fetching analytics:', error);
+		return null;
+	}
+	return data as AdminAnalytics;
+};
+
+export const isMaintenanceMode = async (): Promise<boolean> => {
+	const { data, error } = await supabase.rpc('is_maintenance_mode');
+	if (error) return false;
+	return data === true;
 };
 
 export { supabase };

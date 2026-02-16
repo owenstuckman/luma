@@ -116,3 +116,73 @@ export interface FormQuestion {
 	dayEnd?: string;
 	stepMinutes?: number;
 }
+
+// Admin panel types
+export interface AdminUser {
+	id: string;
+	email: string;
+	created_at: string;
+	last_sign_in_at: string | null;
+}
+
+export interface PlatformAdmin {
+	id: number;
+	user_id: string;
+	email: string;
+	created_at: string;
+}
+
+export interface AdminJobPosting {
+	id: number;
+	created_at: string;
+	name: string;
+	description: string | null;
+	active_flg: boolean;
+	org_id: number | null;
+	org_name: string | null;
+	org_slug: string | null;
+	applicant_count: number;
+}
+
+export interface UserMembership {
+	org_id: number;
+	org_name: string;
+	org_slug: string;
+	role: OrgRole;
+}
+
+export interface AdminApplicant {
+	id: number;
+	created_at: string;
+	name: string;
+	email: string;
+	status: string;
+	job: number | null;
+	org_id: number | null;
+	org_name: string | null;
+	org_slug: string | null;
+	job_name: string | null;
+	recruitInfo: Record<string, string> | null;
+}
+
+export interface PlatformSettings {
+	platform_name?: string;
+	default_primary_color?: string;
+	default_secondary_color?: string;
+	maintenance_mode?: boolean;
+	maintenance_message?: string;
+}
+
+export interface AdminAnalytics {
+	total_orgs: number;
+	total_users: number;
+	total_applicants: number;
+	total_interviews: number;
+	total_jobs: number;
+	active_jobs: number;
+	applicants_by_status: Record<string, number> | null;
+	recent_applicants: { id: number; name: string; email: string; created_at: string; status: string; org_name: string | null; job_name: string | null }[] | null;
+	recent_users: { id: string; email: string; created_at: string }[] | null;
+	orgs_by_size: { id: number; name: string; slug: string; primary_color: string; member_count: number }[] | null;
+	applicants_last_30_days: { day: string; count: number }[] | null;
+}

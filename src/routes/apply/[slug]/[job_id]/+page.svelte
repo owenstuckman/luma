@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { supabase } from '$lib/utils/supabase';
+  import { supabase, isMaintenanceMode } from '$lib/utils/supabase';
   import { sendApplication } from '$lib/utils/supabase';
   import type { Organization, JobPosting, FormStep } from '$lib/types';
   import QuestionRenderer from '$lib/components/QuestionRenderer.svelte';
@@ -13,6 +13,7 @@
   let currentStep = 0;
   let loading = true;
   let error = '';
+  let maintenanceMode = false;
   let submitting = false;
   let submitError = '';
 
@@ -29,6 +30,10 @@
   $: storagePrefix = job ? `job_${job.id}` : '';
 
   onMount(async () => {
+    // Check maintenance mode
+    maintenanceMode = await isMaintenanceMode();
+    if (maintenanceMode) { loading = false; return; }
+
     const slug = $page.params.slug;
     const jobId = Number($page.params.job_id);
 
@@ -142,6 +147,14 @@
 
 {#if loading}
   <div class="loading-screen"><p>Loading application...</p></div>
+{:else if maintenanceMode}
+  <div class="loading-screen">
+    <div class="error-card">
+      <h2 style="color: white;">Applications Closed</h2>
+      <p style="color: #878fa1; margin-top: 8px;">Applications are currently closed for maintenance. Please check back later.</p>
+      <a href="/" style="margin-top: 16px;"><button class="btn btn-primary">Back to Home</button></a>
+    </div>
+  </div>
 {:else if error}
   <div class="loading-screen">
     <div class="error-card">
