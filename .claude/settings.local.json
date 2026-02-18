@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__supabase__list_tables",
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__apply_migration",
+      "Bash(npm run check:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm install:*)",
+      "WebSearch",
+      "WebFetch(domain:schedule-x.dev)",
+      "Bash(npm ls:*)",
+      "Bash(npx vite build)",
+      "Bash(curl:*)",
+      "Bash(find:*)",
+      "mcp__supabase__list_migrations",
+      "Bash(npx svelte-check:*)",
+      "Bash(# Force remove the corrupted node_modules on Windows filesystem rm -rf node_modules # Some files may fail due to Windows locks - try again sleep 1 rm -rf node_modules 2>&1)",
+      "mcp__supabase__get_advisors",
+      "Bash(npm rebuild:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "supabase"
+  ]
+}

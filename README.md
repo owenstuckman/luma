@@ -1,49 +1,135 @@
-## Developing
+# LUMA
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+Open-source Applicant Tracking System built with SvelteKit and Supabase. Multi-tenant — run multiple organizations from a single deployment.
+
+Originally built for Virginia Tech's Archimedes Society, where it processed **400+ applicants** and scheduled **250+ interviews** in Fall 2025.
+
+## Features
+
+- **Multi-org support** — each organization gets its own portal, forms, and recruiter dashboard
+- **Dynamic application forms** — build custom multi-step forms with a visual editor (text, radio, checkbox, dropdown, availability grid, and more)
+- **Recruiter dashboard** — review applicants, filter/search/sort, bulk status updates, CSV export
+- **Interview scheduling** — calendar views (day/week/month) for personal and team schedules
+- **Post-interview evaluations** — star ratings, recommendations, strengths/weaknesses notes
+- **Team management** — invite members by email, assign roles (Owner, Admin, Recruiter, Viewer)
+- **Role-based access** — RLS policies enforce org-scoped data isolation at the database level
+
+## Quick Start
 
 ```bash
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
+git clone https://github.com/your-repo/luma.git
+cd luma
+npm install
+npm run setup          # guided configuration
+npm run dev            # start at localhost:5173
 ```
 
-### Supabase
+Or manually:
+1. Copy `env.example` to `.env.local` and fill in your [Supabase](https://supabase.com) project credentials
+2. Run the SQL migrations from `supabase/migrations/` in your Supabase SQL Editor (in order)
+3. Configure auth redirect URLs in Supabase dashboard (Authentication → URL Configuration)
+4. `npm run dev`
 
-For security purposes, I am not including the anonkey and url.
+Then:
+1. Go to `/auth` and create an account
+2. Go to `/register` and create your organization
+3. Go to Settings → Manage Postings → create a job → build the form
+4. Share `/apply/your-slug` with applicants
 
-## Building
+## Tech Stack
 
-To create a production version of your app:
+| Layer | Technology |
+|---|---|
+| Framework | SvelteKit 2 + Svelte 5 |
+| Language | TypeScript |
+| Database | Supabase (Postgres + Auth + RLS) |
+| Styling | Bootstrap 5 + SCSS |
+| Calendar | Schedule-X |
+| Deployment | Vercel (or any Node host) |
 
-```bash
-npm run build
+## Project Structure
+
+```
+src/
+├── lib/
+│   ├── components/
+│   │   ├── applicant/    # Applicant flow UI (Navbar, Sidebar, Footer)
+│   │   ├── recruiter/    # Recruiter dashboard UI (Navbar, Sidebar)
+│   │   └── card/         # Reusable form input components
+│   ├── types/            # Shared TypeScript interfaces
+│   └── utils/            # Supabase client + query functions
+├── routes/
+│   ├── apply/[slug]/     # Public application forms
+│   ├── auth/             # Login / signup
+│   ├── register/         # Create new organization
+│   ├── admin/            # Super-admin panel
+│   └── private/[slug]/   # Authenticated recruiter pages
+│       ├── dashboard/
+│       ├── review/
+│       ├── schedule/
+│       ├── evaluate/
+│       └── settings/
+├── styles/               # SCSS (Bootstrap theme + color tokens)
+supabase/
+└── migrations/           # SQL migration files (run in order)
 ```
 
-You can preview the production build with `npm run preview`.
+## Database
 
+Six core tables, all scoped by `org_id`:
 
-# Background
+| Table | Purpose |
+|---|---|
+| `organizations` | Org profiles (name, slug, colors, owner) |
+| `org_members` | User-org membership with roles |
+| `job_posting` | Job listings with dynamic form schemas (JSON) |
+| `applicants` | Submitted applications with responses (JSON) |
+| `interviewers` | People conducting interviews |
+| `interviews` | Scheduled interviews with evaluations |
 
-The original motivation for the project is from a design team I am involved with at Virginia Tech called the Archimedes Society. This design team provides opportunities for freshman to be involved in design teams and engineering projects early on in their college careers. 
-One of the difficulties in running an organization like this is recruiting, and it takes a non traditional approach towards scheduling interviews.
-Rather than having candidates be given interview slots, we consider their availability first. There are softwares like calendly which can do this, the issue is we want it to be blind, as there is a group interview. 
-Overall, an existing product did not exist, and other design teams don't deal with the scale we do, so they can handle this style of interview schedulign by hand. With 400+ applicants getting narrowed down to ~30 people, we have the lowest acceptance rate of a design team on campus and also are the most competitive.
+Row-Level Security enforces data isolation — users can only see data from orgs they belong to.
 
-Hence, I built out software to schedule everyone based on their availability, both candidate and interviewers. 
+## Roles
 
-The current production version is private in the Archimedes github org, and built out to fit the specific branding and design of the organization, and this public starting point serves as a way to build out your own custom ATS software.
+| Role | Review | Manage Jobs | Manage Members |
+|---|---|---|---|
+| Viewer | Read-only | No | No |
+| Recruiter | Yes + comment | No | No |
+| Admin | Yes | Yes | Yes |
+| Owner | Yes | Yes | Yes (cannot be removed) |
 
-**Was used by archimedes recruitment in the Fall 2025 recruitment season to process *400+* applicants and passed *200+* applicants to interview rounds. This included a group and individual interview stage, scheduling *250+* interviews.**
+## Commands
 
-# Internal Notes / TODO
+| Command | Purpose |
+|---|---|
+| `npm run dev` | Start dev server |
+| `npm run build` | Production build |
+| `npm run setup` | Guided first-time setup |
+| `npm run check` | TypeScript type-check |
+| `npm run lint` | Prettier + ESLint |
+| `npm run format` | Auto-format |
 
-Go to src for all of the actual website code. 
-Go to the algo folder for running any algo.
-Otherwise look at the supabase for the backend/db. 
+## Deploying
 
-- [ ] write long term docs
-- [ ] generalize the local scheduling
-- [ ] enable cron jobs for scheduling
-- [ ] enhanced admin view 
+### Vercel (recommended)
+
+1. Push to GitHub
+2. Import in Vercel
+3. Set environment variables (`PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY`)
+4. Deploy
+
+### Self-hosted
+
+Any Node.js host works. Build with `npm run build`, then serve the output. Set the same environment variables.
+
+## Migrating Existing Data
+
+If you have data from before multi-tenancy (records with `org_id = NULL`), see the migration guide in [docs/usage.md](docs/usage.md#migrating-existing-data).
+
+## Documentation
+
+- [Usage Guide](docs/usage.md) — routes, workflows, database schema, RPC functions
+
+## License
+
+MIT
