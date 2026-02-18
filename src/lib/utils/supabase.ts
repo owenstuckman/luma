@@ -1,6 +1,6 @@
 import { createBrowserClient } from '@supabase/ssr';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
-import type { Organization, OrgMember, JobPosting, Applicant, Interview, AdminUser, PlatformAdmin, AdminJobPosting, UserMembership, AdminApplicant, PlatformSettings, AdminAnalytics } from '$lib/types';
+import type { Organization, OrgMember, JobPosting, Applicant, Interview, AdminUser, PlatformAdmin, AdminJobPosting, UserMembership, AdminApplicant, PlatformSettings, AdminAnalytics, SchedulingConfigRow, InterviewerAvailability } from '$lib/types';
 
 const supabase = createBrowserClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY);
 
@@ -621,6 +621,31 @@ export const adminChangeUserRole = async (orgId: number, userId: string, role: s
 };
 
 // ============================================
+// Admin: Job Posting functions
+// ============================================
+
+export const adminCreateJobPosting = async (posting: {
+	name: string;
+	description: string;
+	owner: string;
+	org_id: number;
+	questions: object;
+	schedule: object;
+}) => {
+	const { data, error } = await supabase.rpc('admin_create_job_posting', {
+		job_name: posting.name,
+		job_description: posting.description,
+		job_owner: posting.owner,
+		job_org_id: posting.org_id,
+		job_questions: posting.questions,
+		job_schedule: posting.schedule,
+	});
+	if (error) throw new Error(error.message);
+	if (data?.error) throw new Error(data.error);
+	return data;
+};
+
+// ============================================
 // Admin: Applicant functions
 // ============================================
 
@@ -691,6 +716,154 @@ export const isMaintenanceMode = async (): Promise<boolean> => {
 	const { data, error } = await supabase.rpc('is_maintenance_mode');
 	if (error) return false;
 	return data === true;
+};
+
+// ============================================
+// Scheduling functions
+// ============================================
+
+export const getSchedulingConfig = async (orgId: number, jobId?: number): Promise<SchedulingConfigRow | null> => {
+	let query = supabase
+		.from('scheduling_config')
+		.select('*')
+		.eq('org_id', orgId);
+
+	if (jobId) {
+		query = query.eq('job_id', jobId);
+	} else {
+		query = query.is('job_id', null);
+	}
+
+	const { data, error } = await query.single();
+	if (error) return null;
+	return data as SchedulingConfigRow;
+};
+
+export const upsertSchedulingConfig = async (
+	orgId: number,
+	algorithmId: string,
+	config: Record<string, unknown>,
+	jobId?: number
+) => {
+	const row: Record<string, unknown> = {
+		org_id: orgId,
+		algorithm_id: algorithmId,
+		config,
+		job_id: jobId || null
+	};
+
+	const { data, error } = await supabase
+		.from('scheduling_config')
+		.upsert(row, { onConflict: 'org_id,job_id' })
+		.select()
+		.single();
+
+	if (error) throw new Error(error.message);
+	return data as SchedulingConfigRow;
+};
+
+export const bulkCreateInterviews = async (
+	interviews: {
+		startTime: string;
+		endTime: string;
+		location: string;
+		type: string;
+		job: number;
+		applicant: string;
+		interviewer: string;
+		org_id: number;
+		source: string;
+	}[]
+) => {
+	const { data, error } = await supabase
+		.from('interviews')
+		.insert(interviews)
+		.select();
+
+	if (error) throw new Error(error.message);
+	return data;
+};
+
+export const clearAutoScheduledInterviews = async (orgId: number, jobId?: number) => {
+	let query = supabase
+		.from('interviews')
+		.delete()
+		.eq('org_id', orgId)
+		.eq('source', 'auto');
+
+	if (jobId) {
+		query = query.eq('job', jobId);
+	}
+
+	const { error } = await query;
+	if (error) throw new Error(error.message);
+};
+
+export const getInterviewerAvailability = async (orgId: number): Promise<InterviewerAvailability[]> => {
+	const { data, error } = await supabase
+		.from('interviewer_availability')
+		.select('*')
+		.eq('org_id', orgId)
+		.order('date', { ascending: true });
+
+	if (error) {
+		console.error('Error fetching interviewer availability:', error);
+		return [];
+	}
+	return data as InterviewerAvailability[];
+};
+
+export const getMyInterviewerAvailability = async (orgId: number): Promise<InterviewerAvailability[]> => {
+	const { data: userData } = await supabase.auth.getUser();
+	if (!userData?.user) return [];
+
+	const { data, error } = await supabase
+		.from('interviewer_availability')
+		.select('*')
+		.eq('org_id', orgId)
+		.eq('user_id', userData.user.id)
+		.order('date', { ascending: true });
+
+	if (error) {
+		console.error('Error fetching my availability:', error);
+		return [];
+	}
+	return data as InterviewerAvailability[];
+};
+
+export const saveInterviewerAvailability = async (
+	orgId: number,
+	ranges: { date: string; start_time: string; end_time: string; timezone: string }[]
+) => {
+	const { data: userData } = await supabase.auth.getUser();
+	if (!userData?.user) throw new Error('Not authenticated');
+
+	// Delete existing availability for this user in this org
+	await supabase
+		.from('interviewer_availability')
+		.delete()
+		.eq('org_id', orgId)
+		.eq('user_id', userData.user.id);
+
+	if (ranges.length === 0) return [];
+
+	const rows = ranges.map(r => ({
+		org_id: orgId,
+		user_id: userData.user.id,
+		email: userData.user.email || '',
+		date: r.date,
+		start_time: r.start_time,
+		end_time: r.end_time,
+		timezone: r.timezone
+	}));
+
+	const { data, error } = await supabase
+		.from('interviewer_availability')
+		.insert(rows)
+		.select();
+
+	if (error) throw new Error(error.message);
+	return data;
 };
 
 export { supabase };

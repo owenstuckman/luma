@@ -8,12 +8,17 @@
     adminRemoveUserFromOrg, adminChangeUserRole, toggleJobPostingActive,
     deleteJobPosting, getAllApplicantsAdmin, adminBulkUpdateStatus,
     adminBulkDeleteApplicants, getPlatformSettings, updatePlatformSettings,
-    getAdminAnalytics
+    getAdminAnalytics, adminCreateJobPosting, getActiveRoles,
+    getAllApplicants, getInterviewerAvailability, getInterviewsByOrg,
+    bulkCreateInterviews, clearAutoScheduledInterviews,
+    upsertSchedulingConfig, getSchedulingConfig
   } from '$lib/utils/supabase';
   import type {
     Organization, AdminUser, PlatformAdmin, AdminJobPosting, UserMembership,
-    OrgRole, AdminApplicant, PlatformSettings, AdminAnalytics
+    OrgRole, AdminApplicant, PlatformSettings, AdminAnalytics, JobPosting, Interview
   } from '$lib/types';
+  import { algorithms, getAlgorithm } from '$lib/scheduling/registry';
+  import type { SchedulerInput, SchedulerOutput, ProposedInterview, TimeRange } from '$lib/scheduling/types';
 
   // Auth state
   let authenticated = false;
@@ -24,7 +29,7 @@
   let loginError = '';
 
   // Tab state
-  type TabId = 'overview' | 'orgs' | 'users' | 'jobs' | 'applicants' | 'settings' | 'admins';
+  type TabId = 'overview' | 'orgs' | 'users' | 'jobs' | 'applicants' | 'scheduling' | 'settings' | 'admins';
   let activeTab: TabId = 'overview';
 
   // Data
@@ -34,6 +39,8 @@
   let jobPostings: AdminJobPosting[] = [];
   let applicants: AdminApplicant[] = [];
   let analytics: AdminAnalytics | null = null;
+  let analyticsLoaded = false;
+  let analyticsError = '';
   let platformSettings: PlatformSettings = {};
 
   // Org create form
@@ -81,6 +88,15 @@
   let jobOrgFilter = '';
   let jobStatusFilter: 'all' | 'active' | 'inactive' = 'all';
 
+  // Job create form
+  let showCreateJob = false;
+  let newJobName = '';
+  let newJobDescription = '';
+  let newJobOrgId = '';
+  let jobCreateError = '';
+  let jobCreateSuccess = '';
+  let jobCreating = false;
+
   // Applicant state
   let appSearch = '';
   let appOrgFilter = '';
@@ -96,6 +112,25 @@
   let settingsError = '';
   let settingsSuccess = '';
   let editSettings: PlatformSettings = {};
+
+  // Scheduling state
+  let schedOrgId: number | null = null;
+  let schedJobId: number | null = null;
+  let schedJobs: JobPosting[] = [];
+  let schedAlgorithmId = 'greedy-first-available';
+  let schedConfig: Record<string, unknown> = {
+    slotDurationMinutes: 30,
+    breakBetweenMinutes: 10,
+    maxInterviewsPerInterviewer: 0,
+    interviewType: 'individual',
+    location: ''
+  };
+  let schedPreview: SchedulerOutput | null = null;
+  let schedPreviewing = false;
+  let schedApplying = false;
+  let schedClearing = false;
+  let schedError = '';
+  let schedSuccess = '';
 
   $: filteredUsers = users.filter(u =>
     u.email?.toLowerCase().includes(userSearch.toLowerCase())
@@ -148,7 +183,13 @@
   }
 
   async function loadAllData() {
-    await Promise.all([loadOrgs(), loadUsers(), loadAdmins(), loadJobs(), loadApplicants(), loadAnalytics(), loadSettings()]);
+    const results = await Promise.allSettled([loadOrgs(), loadUsers(), loadAdmins(), loadJobs(), loadApplicants(), loadAnalytics(), loadSettings()]);
+    results.forEach((r, i) => {
+      if (r.status === 'rejected') {
+        const names = ['orgs', 'users', 'admins', 'jobs', 'applicants', 'analytics', 'settings'];
+        console.error(`Failed to load ${names[i]}:`, r.reason);
+      }
+    });
   }
 
   async function loadOrgs() {
@@ -178,7 +219,17 @@
   async function loadAdmins() { platformAdmins = await getPlatformAdmins(); }
   async function loadJobs() { jobPostings = await getAllJobPostingsAdmin(); }
   async function loadApplicants() { applicants = await getAllApplicantsAdmin(); }
-  async function loadAnalytics() { analytics = await getAdminAnalytics(); }
+  async function loadAnalytics() {
+    analyticsError = '';
+    try {
+      analytics = await getAdminAnalytics();
+      if (!analytics) analyticsError = 'Failed to load analytics data. The database function may not exist yet.';
+    } catch (e: any) {
+      analyticsError = e.message || 'Failed to load analytics';
+      analytics = null;
+    }
+    analyticsLoaded = true;
+  }
   async function loadSettings() {
     platformSettings = await getPlatformSettings();
     editSettings = { ...platformSettings };
@@ -291,6 +342,28 @@
     if (!confirm('Delete this job posting? This cannot be undone.')) return;
     try { await deleteJobPosting(jobId); await loadJobs(); } catch (e: any) { console.error(e); }
   }
+  async function createJob() {
+    jobCreateError = ''; jobCreateSuccess = '';
+    if (!newJobName.trim() || !newJobOrgId) { jobCreateError = 'Name and organization are required.'; return; }
+    jobCreating = true;
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const ownerEmail = userData?.user?.email || '';
+      await adminCreateJobPosting({
+        name: newJobName,
+        description: newJobDescription,
+        owner: ownerEmail,
+        org_id: parseInt(newJobOrgId),
+        questions: { steps: [] },
+        schedule: {},
+      });
+      jobCreateSuccess = `Created "${newJobName}" successfully.`;
+      newJobName = ''; newJobDescription = ''; newJobOrgId = '';
+      showCreateJob = false;
+      await loadJobs();
+    } catch (e: any) { jobCreateError = e.message; }
+    jobCreating = false;
+  }
 
   // Applicant actions
   function toggleApplicantSelect(id: number) {
@@ -386,9 +459,168 @@
     }
   }
 
+  // Scheduling functions
+  async function onSchedOrgChange() {
+    schedJobs = [];
+    schedJobId = null;
+    schedPreview = null;
+    schedError = '';
+    schedSuccess = '';
+    if (!schedOrgId) return;
+    try {
+      schedJobs = await getActiveRoles(schedOrgId);
+      const existing = await getSchedulingConfig(schedOrgId);
+      if (existing) {
+        schedAlgorithmId = existing.algorithm_id;
+        schedConfig = { ...schedConfig, ...(existing.config as Record<string, unknown>) };
+      }
+    } catch (e: any) {
+      console.error('Error loading scheduling data:', e);
+    }
+  }
+
+  function parseApplicantAvailability(recruitInfo: Record<string, string> | null): TimeRange[] {
+    if (!recruitInfo) return [];
+    // Look for availability key — AvailabilityGrid stores as JSON string of ranges
+    for (const [key, value] of Object.entries(recruitInfo)) {
+      if (key.toLowerCase().includes('availability') || key.toLowerCase().includes('avail')) {
+        try {
+          const parsed = JSON.parse(value);
+          if (Array.isArray(parsed)) return parsed as TimeRange[];
+          if (parsed?.ranges && Array.isArray(parsed.ranges)) return parsed.ranges as TimeRange[];
+        } catch { /* not JSON, skip */ }
+      }
+    }
+    return [];
+  }
+
+  async function runPreview() {
+    if (!schedOrgId) return;
+    schedPreviewing = true;
+    schedError = '';
+    schedSuccess = '';
+    schedPreview = null;
+
+    try {
+      // Fetch applicants
+      const allApplicants = await getAllApplicants(schedOrgId);
+      const filtered = schedJobId
+        ? allApplicants.filter(a => a.job === schedJobId)
+        : allApplicants;
+
+      const schedulerApplicants = filtered.map(a => ({
+        email: a.email,
+        name: a.name,
+        jobId: a.job || 0,
+        availability: parseApplicantAvailability(a.recruitInfo)
+      }));
+
+      // Fetch interviewer availability
+      const iaRows = await getInterviewerAvailability(schedOrgId);
+      const interviewerMap = new Map<string, TimeRange[]>();
+      for (const row of iaRows) {
+        const ranges = interviewerMap.get(row.email) || [];
+        ranges.push({
+          date: row.date,
+          start: row.start_time.substring(0, 5),
+          end: row.end_time.substring(0, 5)
+        });
+        interviewerMap.set(row.email, ranges);
+      }
+      const schedulerInterviewers = Array.from(interviewerMap.entries()).map(([email, availability]) => ({
+        email,
+        availability
+      }));
+
+      // Fetch existing interviews
+      const existingInterviews = await getInterviewsByOrg(schedOrgId);
+      const existingForScheduler = existingInterviews.map(iv => ({
+        startTime: iv.startTime,
+        endTime: iv.endTime || iv.startTime,
+        interviewer: iv.interviewer || '',
+        applicant: iv.applicant || ''
+      }));
+
+      const algorithm = getAlgorithm(schedAlgorithmId);
+      if (!algorithm) {
+        schedError = 'Algorithm not found.';
+        schedPreviewing = false;
+        return;
+      }
+
+      const input: SchedulerInput = {
+        applicants: schedulerApplicants,
+        interviewers: schedulerInterviewers,
+        existingInterviews: existingForScheduler,
+        config: {
+          slotDurationMinutes: Number(schedConfig.slotDurationMinutes) || 30,
+          breakBetweenMinutes: Number(schedConfig.breakBetweenMinutes) || 10,
+          maxInterviewsPerInterviewer: Number(schedConfig.maxInterviewsPerInterviewer) || 0,
+          interviewType: (schedConfig.interviewType as 'individual' | 'group') || 'individual',
+          location: String(schedConfig.location || ''),
+          ...schedConfig
+        }
+      };
+
+      schedPreview = algorithm.run(input);
+    } catch (e: any) {
+      schedError = e.message || 'Preview failed.';
+    }
+    schedPreviewing = false;
+  }
+
+  async function applySchedule() {
+    if (!schedOrgId || !schedPreview || schedPreview.interviews.length === 0) return;
+    schedApplying = true;
+    schedError = '';
+    schedSuccess = '';
+
+    try {
+      const rows = schedPreview.interviews.map(iv => ({
+        startTime: iv.startTime,
+        endTime: iv.endTime,
+        location: iv.location,
+        type: iv.type,
+        job: iv.jobId,
+        applicant: iv.applicant,
+        interviewer: iv.interviewer,
+        org_id: schedOrgId!,
+        source: 'auto'
+      }));
+
+      await bulkCreateInterviews(rows);
+
+      // Save config
+      await upsertSchedulingConfig(schedOrgId!, schedAlgorithmId, schedConfig, schedJobId || undefined);
+
+      schedSuccess = `Created ${rows.length} interviews successfully.`;
+      schedPreview = null;
+    } catch (e: any) {
+      schedError = e.message || 'Failed to apply schedule.';
+    }
+    schedApplying = false;
+  }
+
+  async function clearAutoInterviews() {
+    if (!schedOrgId) return;
+    if (!confirm('Delete all auto-scheduled interviews for this org/job? This cannot be undone.')) return;
+    schedClearing = true;
+    schedError = '';
+    schedSuccess = '';
+
+    try {
+      await clearAutoScheduledInterviews(schedOrgId, schedJobId || undefined);
+      schedSuccess = 'Auto-scheduled interviews cleared.';
+    } catch (e: any) {
+      schedError = e.message || 'Failed to clear interviews.';
+    }
+    schedClearing = false;
+  }
+
   const tabLabels: Record<TabId, string> = {
     overview: 'Platform Overview', orgs: 'Organizations', users: 'User Directory',
-    jobs: 'Job Postings', applicants: 'Applicants', settings: 'Platform Settings', admins: 'Platform Admins'
+    jobs: 'Job Postings', applicants: 'Applicants', scheduling: 'Scheduling',
+    settings: 'Platform Settings', admins: 'Platform Admins'
   };
 </script>
 
@@ -439,6 +671,9 @@
         <button class="nav-item" class:active={activeTab === 'applicants'} on:click={() => activeTab = 'applicants'}>
           <i class="fi fi-br-document"></i> Applicants
         </button>
+        <button class="nav-item" class:active={activeTab === 'scheduling'} on:click={() => activeTab = 'scheduling'}>
+          <i class="fi fi-br-calendar-clock"></i> Scheduling
+        </button>
 
         <div class="nav-divider"></div>
 
@@ -464,7 +699,14 @@
       <div class="admin-content">
         <!-- ==================== OVERVIEW TAB ==================== -->
         {#if activeTab === 'overview'}
-          {#if analytics}
+          {#if analyticsError}
+            <div class="alert-error">
+              <p><strong>Could not load analytics:</strong> {analyticsError}</p>
+              <button class="btn btn-primary btn-sm" style="margin-top: 8px;" on:click={loadAnalytics}>Retry</button>
+            </div>
+          {:else if !analyticsLoaded}
+            <p class="muted">Loading analytics...</p>
+          {:else if analytics}
             <div class="stats-grid">
               <div class="stat-card">
                 <span class="stat-number">{analytics.total_orgs}</span>
@@ -579,7 +821,7 @@
               </div>
             </div>
           {:else}
-            <p class="muted">Loading analytics...</p>
+            <p class="muted">No analytics data available.</p>
           {/if}
 
         <!-- ==================== ORGS TAB ==================== -->
@@ -800,15 +1042,53 @@
 
         <!-- ==================== JOBS TAB ==================== -->
         {:else if activeTab === 'jobs'}
-          <div class="filter-bar">
-            <input class="form-control" bind:value={jobOrgFilter} placeholder="Filter by org name..." style="max-width: 250px;" />
-            <select class="form-select" bind:value={jobStatusFilter} style="max-width: 150px;">
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-            <span class="muted" style="font-size: 12px;">{filteredJobs.length} postings</span>
+          <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+            <div class="filter-bar" style="margin-bottom: 0;">
+              <input class="form-control" bind:value={jobOrgFilter} placeholder="Filter by org name..." style="max-width: 250px;" />
+              <select class="form-select" bind:value={jobStatusFilter} style="max-width: 150px;">
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+              <span class="muted" style="font-size: 12px;">{filteredJobs.length} postings</span>
+            </div>
+            <button class="btn btn-primary" on:click={() => showCreateJob = !showCreateJob}>
+              {showCreateJob ? 'Cancel' : '+ New Job Posting'}
+            </button>
           </div>
+
+          {#if jobCreateSuccess}
+            <div class="alert-success">{jobCreateSuccess}</div>
+          {/if}
+
+          {#if showCreateJob}
+            <div class="form-card">
+              <h6>Create Job Posting</h6>
+              <div class="form-row">
+                <label>Organization</label>
+                <select class="form-select" bind:value={newJobOrgId}>
+                  <option value="">Select organization...</option>
+                  {#each organizations as org}
+                    <option value={org.id}>{org.name} (/{org.slug})</option>
+                  {/each}
+                </select>
+              </div>
+              <div class="form-row">
+                <label>Position Name</label>
+                <input class="form-control" bind:value={newJobName} placeholder="e.g. Software Engineer" />
+              </div>
+              <div class="form-row">
+                <label>Description</label>
+                <textarea class="form-control" bind:value={newJobDescription} rows="2" placeholder="Brief description of the role"></textarea>
+              </div>
+              {#if jobCreateError}
+                <p class="error-text">{jobCreateError}</p>
+              {/if}
+              <button class="btn btn-primary" on:click={createJob} disabled={jobCreating}>
+                {jobCreating ? 'Creating...' : 'Create Job Posting'}
+              </button>
+            </div>
+          {/if}
 
           <div class="jobs-table">
             <div class="table-header">
@@ -958,6 +1238,152 @@
           {#if selectedApplicantIds.size === 0}
             <div style="margin-top: 12px;">
               <button class="btn btn-quaternary btn-sm" on:click={exportApplicantsCsv}>Export All as CSV</button>
+            </div>
+          {/if}
+
+        <!-- ==================== SCHEDULING TAB ==================== -->
+        {:else if activeTab === 'scheduling'}
+          <div class="form-card">
+            <h6>Scheduling Configuration</h6>
+
+            <!-- Org selector -->
+            <div class="form-row">
+              <label>Organization</label>
+              <select class="form-select" bind:value={schedOrgId} on:change={onSchedOrgChange}>
+                <option value={null}>Select organization...</option>
+                {#each organizations as org}
+                  <option value={org.id}>{org.name} (/{org.slug})</option>
+                {/each}
+              </select>
+            </div>
+
+            <!-- Job selector -->
+            {#if schedOrgId}
+              <div class="form-row">
+                <label>Job Posting (optional — leave blank for all)</label>
+                <select class="form-select" bind:value={schedJobId}>
+                  <option value={null}>All jobs</option>
+                  {#each schedJobs as job}
+                    <option value={job.id}>{job.name}</option>
+                  {/each}
+                </select>
+              </div>
+            {/if}
+
+            <!-- Algorithm picker -->
+            {#if schedOrgId}
+              <div class="form-row">
+                <label>Algorithm</label>
+                <div class="algo-cards">
+                  {#each algorithms as algo}
+                    <button
+                      class="algo-card"
+                      class:algo-selected={schedAlgorithmId === algo.id}
+                      on:click={() => schedAlgorithmId = algo.id}
+                    >
+                      <span class="algo-name">{algo.name}</span>
+                      <span class="algo-desc">{algo.description}</span>
+                    </button>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+
+            <!-- Config form -->
+            {#if schedOrgId}
+              <div class="config-grid">
+                <div class="form-row">
+                  <label>Slot Duration (minutes)</label>
+                  <input type="number" class="form-control" bind:value={schedConfig.slotDurationMinutes} min="10" max="180" />
+                </div>
+                <div class="form-row">
+                  <label>Break Between (minutes)</label>
+                  <input type="number" class="form-control" bind:value={schedConfig.breakBetweenMinutes} min="0" max="60" />
+                </div>
+                <div class="form-row">
+                  <label>Max Interviews per Interviewer (0 = unlimited)</label>
+                  <input type="number" class="form-control" bind:value={schedConfig.maxInterviewsPerInterviewer} min="0" />
+                </div>
+                <div class="form-row">
+                  <label>Interview Type</label>
+                  <select class="form-select" bind:value={schedConfig.interviewType}>
+                    <option value="individual">Individual</option>
+                    <option value="group">Group</option>
+                  </select>
+                </div>
+                <div class="form-row">
+                  <label>Location</label>
+                  <input class="form-control" bind:value={schedConfig.location} placeholder="e.g. Room 101, Zoom, etc." />
+                </div>
+              </div>
+            {/if}
+          </div>
+
+          <!-- Actions -->
+          {#if schedOrgId}
+            <div class="sched-actions">
+              <button class="btn btn-primary" on:click={runPreview} disabled={schedPreviewing}>
+                {schedPreviewing ? 'Running...' : 'Preview Schedule'}
+              </button>
+              {#if schedPreview && schedPreview.interviews.length > 0}
+                <button class="btn btn-primary" on:click={applySchedule} disabled={schedApplying}>
+                  {schedApplying ? 'Applying...' : `Apply ${schedPreview.interviews.length} Interviews`}
+                </button>
+              {/if}
+              <button class="btn btn-danger btn-sm" on:click={clearAutoInterviews} disabled={schedClearing}>
+                {schedClearing ? 'Clearing...' : 'Clear Auto-Scheduled'}
+              </button>
+            </div>
+          {/if}
+
+          {#if schedError}<p class="error-text">{schedError}</p>{/if}
+          {#if schedSuccess}<div class="alert-success">{schedSuccess}</div>{/if}
+
+          <!-- Preview Results -->
+          {#if schedPreview}
+            <div class="form-card" style="margin-top: 16px;">
+              <h6>Preview Results</h6>
+
+              {#if schedPreview.warnings.length > 0}
+                <div class="alert-error" style="margin-bottom: 12px;">
+                  {#each schedPreview.warnings as w}
+                    <p style="margin: 2px 0;">{w}</p>
+                  {/each}
+                </div>
+              {/if}
+
+              {#if schedPreview.interviews.length > 0}
+                <div class="jobs-table">
+                  <div class="table-header sched-table-header">
+                    <span>Applicant</span>
+                    <span>Interviewer</span>
+                    <span>Date</span>
+                    <span>Time</span>
+                    <span>Location</span>
+                  </div>
+                  {#each schedPreview.interviews as iv}
+                    <div class="table-row sched-table-row">
+                      <span class="row-name">{iv.applicant}</span>
+                      <span class="row-name">{iv.interviewer}</span>
+                      <span class="row-sub">{iv.startTime.substring(0, 10)}</span>
+                      <span class="row-sub">{iv.startTime.substring(11, 16)} - {iv.endTime.substring(11, 16)}</span>
+                      <span class="row-sub">{iv.location || '-'}</span>
+                    </div>
+                  {/each}
+                </div>
+                <p class="muted" style="margin-top: 8px; font-size: 12px;">{schedPreview.interviews.length} interviews proposed</p>
+              {:else}
+                <p class="muted">No interviews could be scheduled.</p>
+              {/if}
+
+              {#if schedPreview.unmatched.length > 0}
+                <h6 style="margin-top: 16px;">Unmatched Applicants ({schedPreview.unmatched.length})</h6>
+                <div style="font-size: 13px; color: #991b1b;">
+                  {#each schedPreview.unmatched as email}
+                    <p style="margin: 2px 0;">{email}</p>
+                  {/each}
+                </div>
+              {/if}
             </div>
           {/if}
 
@@ -1284,6 +1710,15 @@
     font-size: 13px;
     margin: 8px 0;
   }
+  .alert-error {
+    background-color: #fef2f2;
+    color: #991b1b;
+    padding: 14px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin: 8px 0;
+    border: 1px solid #fecaca;
+  }
 
   .list-row {
     display: flex;
@@ -1446,6 +1881,56 @@
   .badge {
     display: inline-block; padding: 2px 8px; border-radius: 10px;
     font-size: 11px; font-weight: 600;
+  }
+
+  /* ==================== Scheduling Tab ==================== */
+  .algo-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+    margin-top: 6px;
+  }
+  .algo-card {
+    display: flex;
+    flex-direction: column;
+    padding: 14px;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    background: white;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.15s;
+    &:hover { border-color: #ffc800; }
+  }
+  .algo-selected {
+    border-color: #ffc800 !important;
+    background-color: rgba(255, 200, 0, 0.05);
+  }
+  .algo-name {
+    font-weight: 700;
+    font-size: 13px;
+    margin-bottom: 4px;
+  }
+  .algo-desc {
+    font-size: 11px;
+    color: $light-tertiary;
+    line-height: 1.4;
+  }
+  .config-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 16px;
+    margin-top: 8px;
+  }
+  .sched-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin: 16px 0;
+    flex-wrap: wrap;
+  }
+  .sched-table-header, .sched-table-row {
+    grid-template-columns: 2fr 2fr 1fr 1fr 1fr !important;
   }
 
   /* ==================== Responsive ==================== */

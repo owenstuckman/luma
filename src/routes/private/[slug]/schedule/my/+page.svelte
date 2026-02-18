@@ -5,6 +5,7 @@
   import { getInterviewsByInterviewer, getCurrentUserEmail } from '$lib/utils/supabase';
   import Sidebar from '$lib/components/recruiter/Sidebar.svelte';
   import Navbar from '$lib/components/recruiter/Navbar.svelte';
+  import { selectedJob } from '$lib/stores/jobFilter';
   import { ScheduleXCalendar } from '@schedule-x/svelte';
   import { createCalendar, createViewDay, createViewWeek, createViewMonthGrid } from '@schedule-x/calendar';
   import '@schedule-x/theme-default/dist/index.css';
@@ -33,6 +34,40 @@
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
 
+  // Rebuild calendar when job filter changes
+  $: if (!loading && interviews.length > 0) {
+    const filtered = $selectedJob
+      ? interviews.filter(iv => iv.job === $selectedJob.id)
+      : interviews;
+    buildCalendar(filtered);
+  }
+
+  function buildCalendar(source: Interview[]) {
+    const events = source.map(iv => ({
+      id: String(iv.id),
+      title: `${iv.applicant || 'Unknown'} — ${iv.type}`,
+      start: formatForCalendar(iv.startTime),
+      end: iv.endTime ? formatForCalendar(iv.endTime) : formatForCalendar(iv.startTime),
+      location: iv.location || '',
+      description: `Location: ${iv.location || 'TBD'}`,
+    }));
+
+    const now = new Date();
+    const upcoming = source.find(iv => new Date(iv.startTime) >= now);
+    const defaultDate = upcoming
+      ? formatForCalendar(upcoming.startTime).split(' ')[0]
+      : source.length > 0
+        ? formatForCalendar(source[0].startTime).split(' ')[0]
+        : getTodayStr();
+
+    calendarApp = createCalendar({
+      views: [createViewWeek(), createViewDay(), createViewMonthGrid()],
+      events,
+      selectedDate: defaultDate,
+      dayBoundaries: { start: '07:00', end: '22:00' },
+    });
+  }
+
   onMount(async () => {
     const { data: orgData } = await supabase
       .from('organizations')
@@ -47,32 +82,6 @@
     if (!userEmail) { loading = false; return; }
 
     interviews = await getInterviewsByInterviewer(orgId!, userEmail);
-
-    const events = interviews.map(iv => ({
-      id: String(iv.id),
-      title: `${iv.applicant || 'Unknown'} — ${iv.type}`,
-      start: formatForCalendar(iv.startTime),
-      end: iv.endTime ? formatForCalendar(iv.endTime) : formatForCalendar(iv.startTime),
-      location: iv.location || '',
-      description: `Location: ${iv.location || 'TBD'}`,
-    }));
-
-    // Find a good default date — first upcoming or today
-    const now = new Date();
-    const upcoming = interviews.find(iv => new Date(iv.startTime) >= now);
-    const defaultDate = upcoming
-      ? formatForCalendar(upcoming.startTime).split(' ')[0]
-      : interviews.length > 0
-        ? formatForCalendar(interviews[0].startTime).split(' ')[0]
-        : getTodayStr();
-
-    calendarApp = createCalendar({
-      views: [createViewWeek(), createViewDay(), createViewMonthGrid()],
-      events,
-      selectedDate: defaultDate,
-      dayBoundaries: { start: '07:00', end: '22:00' },
-    });
-
     loading = false;
   });
 </script>

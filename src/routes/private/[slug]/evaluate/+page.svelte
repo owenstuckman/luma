@@ -5,6 +5,7 @@
   import { getCurrentUserEmail } from '$lib/utils/supabase';
   import Sidebar from '$lib/components/recruiter/Sidebar.svelte';
   import Navbar from '$lib/components/recruiter/Navbar.svelte';
+  import { selectedJob } from '$lib/stores/jobFilter';
   import type { Interview, Applicant } from '$lib/types';
 
   let orgId: number | null = null;
@@ -25,11 +26,13 @@
 
   $: slug = $page.params.slug;
 
-  $: filteredInterviews = interviews.filter(iv => {
-    if (filterStatus === 'all') return true;
-    const hasEval = iv.comments && (iv.comments as Record<string, unknown>).evaluation;
-    return filterStatus === 'completed' ? hasEval : !hasEval;
-  });
+  $: filteredInterviews = interviews
+    .filter(iv => !$selectedJob || iv.job === $selectedJob.id)
+    .filter(iv => {
+      if (filterStatus === 'all') return true;
+      const hasEval = iv.comments && (iv.comments as Record<string, unknown>).evaluation;
+      return filterStatus === 'completed' ? hasEval : !hasEval;
+    });
 
   onMount(async () => {
     const { data: orgData } = await supabase

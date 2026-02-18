@@ -78,6 +78,7 @@ export interface Interview {
 	applicant: string | null;
 	interviewer: string | null;
 	org_id: number | null;
+	source?: string;
 }
 
 // Question engine types
@@ -163,6 +164,29 @@ export interface AdminApplicant {
 	org_slug: string | null;
 	job_name: string | null;
 	recruitInfo: Record<string, string> | null;
+}
+
+export interface SchedulingConfigRow {
+	id: number;
+	created_at: string;
+	org_id: number;
+	job_id: number | null;
+	algorithm_id: string;
+	config: Record<string, unknown>;
+	last_run_at: string | null;
+	last_run_result: Record<string, unknown> | null;
+}
+
+export interface InterviewerAvailability {
+	id: number;
+	created_at: string;
+	org_id: number;
+	user_id: string;
+	email: string;
+	date: string;
+	start_time: string;
+	end_time: string;
+	timezone: string;
 }
 
 export interface PlatformSettings {

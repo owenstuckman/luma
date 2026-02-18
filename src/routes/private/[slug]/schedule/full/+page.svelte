@@ -5,6 +5,7 @@
   import { getInterviewsByOrg } from '$lib/utils/supabase';
   import Sidebar from '$lib/components/recruiter/Sidebar.svelte';
   import Navbar from '$lib/components/recruiter/Navbar.svelte';
+  import { selectedJob } from '$lib/stores/jobFilter';
   import { ScheduleXCalendar } from '@schedule-x/svelte';
   import { createCalendar, createViewDay, createViewWeek, createViewMonthGrid } from '@schedule-x/calendar';
   import '@schedule-x/theme-default/dist/index.css';
@@ -84,14 +85,18 @@
     orgId = orgData.id;
 
     interviews = await getInterviewsByOrg(orgId!);
-    buildCalendar(interviews);
     loading = false;
   });
 
-  function applyFilter() {
-    const filtered = interviewerFilter === 'all'
-      ? interviews
-      : interviews.filter(iv => iv.interviewer === interviewerFilter);
+  // Rebuild calendar when job filter or interviewer filter changes
+  $: if (!loading && interviews.length > 0) {
+    applyFilter($selectedJob?.id ?? null, interviewerFilter);
+  }
+
+  function applyFilter(jobId?: number | null, interviewer?: string) {
+    let filtered = interviews;
+    if (jobId) filtered = filtered.filter(iv => iv.job === jobId);
+    if (interviewer && interviewer !== 'all') filtered = filtered.filter(iv => iv.interviewer === interviewer);
     buildCalendar(filtered);
   }
 </script>
@@ -104,7 +109,6 @@
       <p class="subtitle">All interviews: <strong>{interviews.length}</strong> total across <strong>{interviewerEmails.length}</strong> interviewers</p>
       <select
         bind:value={interviewerFilter}
-        on:change={applyFilter}
         class="form-control"
         style="max-width: 250px;"
       >

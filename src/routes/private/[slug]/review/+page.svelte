@@ -3,15 +3,19 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { supabase } from '$lib/utils/supabase';
+  import { getActiveRoles } from '$lib/utils/supabase';
   import Sidebar from '$lib/components/recruiter/Sidebar.svelte';
   import Navbar from '$lib/components/recruiter/Navbar.svelte';
-  import type { Applicant } from '$lib/types';
+  import { selectedJob } from '$lib/stores/jobFilter';
+  import type { Applicant, JobPosting } from '$lib/types';
 
   let applicants: Applicant[] = [];
   let searchQuery = '';
   let statusFilter = 'all';
   let sortBy: 'date' | 'name' | 'status' = 'date';
   let orgId: number | null = null;
+  let jobs: (JobPosting & { applicantCount: number })[] = [];
+  let loading = true;
 
   // Bulk selection
   let selectedIds: Set<number> = new Set();
@@ -20,6 +24,12 @@
   let bulkUpdating = false;
 
   $: slug = $page.params.slug;
+
+  // Re-fetch when selected job changes (only when a job is selected)
+  $: if (orgId && $selectedJob) loadApplicants($selectedJob.id);
+
+  // Clear applicants when job is deselected
+  $: if (!$selectedJob) applicants = [];
 
   $: filteredApplicants = applicants
     .filter(a => statusFilter === 'all' || a.status === statusFilter)
@@ -39,17 +49,36 @@
       .eq('slug', slug)
       .single();
 
-    if (!orgData) return;
+    if (!orgData) { loading = false; return; }
     orgId = orgData.id;
-    await loadApplicants();
+
+    // Load active jobs for the picker
+    const activeJobs = await getActiveRoles(orgId);
+    const jobsWithCounts = await Promise.all(
+      activeJobs.map(async (job) => {
+        const { count } = await supabase
+          .from('applicants')
+          .select('*', { count: 'exact', head: true })
+          .eq('org_id', orgId!)
+          .eq('job', job.id);
+        return { ...job, applicantCount: count || 0 };
+      })
+    );
+    jobs = jobsWithCounts;
+    loading = false;
   });
 
-  async function loadApplicants() {
+  function selectJob(job: JobPosting & { applicantCount: number }) {
+    selectedJob.set(job);
+  }
+
+  async function loadApplicants(jobId: number) {
     if (!orgId) return;
     const { data } = await supabase
       .from('applicants')
       .select('*')
       .eq('org_id', orgId)
+      .eq('job', jobId)
       .order('created_at', { ascending: false });
     applicants = data || [];
   }
@@ -94,7 +123,7 @@
     if (error) {
       console.error('Bulk update failed:', error);
     } else {
-      await loadApplicants();
+      if ($selectedJob) await loadApplicants($selectedJob.id);
       selectedIds = new Set();
     }
     bulkUpdating = false;
@@ -137,7 +166,43 @@
 
 <div class="layout">
   <div class="content-left">
-    <h4 style="text-align: left;">Review Applications</h4>
+    {#if loading}
+      <p class="placeholder-text">Loading...</p>
+
+    {:else if !$selectedJob}
+      <!-- Job Picker -->
+      <h4 style="text-align: left;">Review Applications</h4>
+      <p class="subtitle">Select a job posting to review its applicants.</p>
+
+      {#if jobs.length === 0}
+        <div class="empty-state">
+          <i class="fi fi-br-briefcase empty-icon"></i>
+          <p>No active job postings.</p>
+          <a href="/private/{slug}/settings/jobs" class="btn btn-tertiary">Manage Job Postings</a>
+        </div>
+      {:else}
+        <div class="job-grid">
+          {#each jobs as job}
+            <div
+              class="job-card"
+              on:click={() => selectJob(job)}
+              on:keydown={() => {}}
+              role="button"
+              tabindex="0"
+            >
+              <span class="job-name">{job.name}</span>
+              {#if job.description}
+                <p class="job-desc">{job.description}</p>
+              {/if}
+              <span class="job-count">{job.applicantCount} applicant{job.applicantCount !== 1 ? 's' : ''}</span>
+            </div>
+          {/each}
+        </div>
+      {/if}
+
+    {:else}
+
+    <h4 style="text-align: left;">Review Applications — {$selectedJob.name}</h4>
 
     <div class="filter-bar">
       <input
@@ -236,6 +301,7 @@
         <p style="color: #878fa1; padding: 20px;">No applicants found.</p>
       {/if}
     </div>
+    {/if}
   </div>
 
   <Navbar />
@@ -244,6 +310,70 @@
 
 <style lang="scss">
   @use '../../../../styles/col.scss' as *;
+
+  .placeholder-text {
+    color: $light-tertiary;
+    padding: 20px;
+  }
+  .subtitle {
+    font-size: 13px;
+    color: $light-tertiary;
+    margin-bottom: 10px;
+  }
+
+  /* Job picker */
+  .job-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+  }
+  .job-card {
+    background-color: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 0px 12px rgba(0, 0, 0, 0.08);
+    cursor: pointer;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+    border-left: 4px solid $yellow-primary;
+  }
+  .job-card:hover {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+    transform: translateY(-2px);
+  }
+  .job-name {
+    font-weight: 800;
+    font-size: 16px;
+    color: $dark-primary;
+  }
+  .job-desc {
+    font-size: 13px;
+    color: $light-tertiary;
+    margin: 6px 0 12px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .job-count {
+    font-size: 13px;
+    font-weight: 700;
+    color: $dark-primary;
+  }
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: $light-tertiary;
+    text-align: center;
+  }
+  .empty-icon {
+    font-size: 40px;
+    margin-bottom: 12px;
+    opacity: 0.4;
+  }
 
   .filter-bar {
     display: flex;
