@@ -51,12 +51,6 @@
         Availability
       </a>
     </li>
-    <li>
-      <a href="{base}/settings" class="btn btn-secondary btn-sidebar" class:sidebar-selected={currentStep === 6}>
-        <i class="fi fi-br-lightbulb-setting"></i>
-        Settings
-      </a>
-    </li>
   </ul>
 </div>
 

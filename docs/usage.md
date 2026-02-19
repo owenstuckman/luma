@@ -13,32 +13,33 @@ LUMA is a multi-tenant Applicant Tracking System. Each **organization** gets its
 | Route | Purpose |
 |---|---|
 | `/` | Landing page — lists all organizations, links to apply or log in |
-| `/apply/:slug` | Job listing page for a specific org (e.g. `/apply/archimedes`) |
-| `/apply/:slug/:job_id` | Dynamic application form — multi-step, driven by the job's question JSON |
-| `/apply/:slug/:job_id/success` | Confirmation page after submitting an application |
+| `/apply/[slug]` | Job listing for a specific org (e.g. `/apply/archimedes-society`) |
+| `/apply/[slug]/[job_id]` | Dynamic application form — multi-step, driven by the job's question JSON |
+| `/apply/[slug]/[job_id]/success` | Confirmation page after submitting an application |
 | `/auth` | Recruiter login/signup (email + password via Supabase Auth) |
 
 ### Authenticated Routes (requires login)
 
 | Route | Purpose |
 |---|---|
-| `/private` | Org selector — if you belong to one org, auto-redirects to its dashboard |
+| `/private` | Org selector — auto-redirects to your dashboard if you belong to one org |
 | `/register` | Create a new organization (you become the owner) |
-| `/private/:slug/dashboard` | Recruiter home — stat cards (total, pending, interview, accepted), quick links |
-| `/private/:slug/review` | Applicant list — search, filter by status, click to view details |
-| `/private/:slug/review/candidate?id=N` | Individual applicant — responses, comments, status change |
-| `/private/:slug/schedule/my` | Your upcoming interviews (calendar view, coming soon) |
-| `/private/:slug/schedule/full` | All interviews across interviewers (coming soon) |
-| `/private/:slug/evaluate` | Post-interview evaluations (coming soon) |
-| `/private/:slug/settings` | Org settings — profile, colors, team members, job posting link |
-| `/private/:slug/settings/jobs` | Job posting management — create, toggle active, delete |
-| `/private/:slug/settings/jobs/:job_id` | Form builder — visually build application form steps and questions |
+| `/private/[slug]/dashboard` | Recruiter home — stat cards (total, pending, interview, accepted), quick links |
+| `/private/[slug]/review` | Applicant list — search, filter by status, sort, bulk actions, CSV export |
+| `/private/[slug]/review/candidate?id=N` | Individual applicant — responses, comments, status change |
+| `/private/[slug]/schedule/my` | Your upcoming interviews (calendar view) |
+| `/private/[slug]/schedule/full` | All interviews across interviewers, filterable by date/interviewer |
+| `/private/[slug]/availability` | Submit your interviewer availability |
+| `/private/[slug]/evaluate` | Post-interview evaluations — star rating, recommendation, notes |
+| `/private/[slug]/settings` | Org settings — profile, colors, team members |
+| `/private/[slug]/settings/jobs` | Job posting management — create, toggle active, delete |
+| `/private/[slug]/settings/jobs/[job_id]` | Form builder — visually build application form steps and questions |
 
 ### Admin Route
 
 | Route | Purpose |
 |---|---|
-| `/admin` | Platform super-admin — view all orgs, stats, links to each org's dashboard/settings |
+| `/admin` | Platform super-admin — orgs, users, job postings, analytics, platform settings |
 
 ---
 
@@ -66,14 +67,14 @@ Each org member has one of these roles:
 
 ### 2. Creating a Job Posting
 
-1. Go to **Settings** → **Manage Postings** (or `/private/:slug/settings/jobs`)
+1. Go to **Settings → Manage Postings** (`/private/[slug]/settings/jobs`)
 2. Click **New Posting** — enter a position name and description
 3. Click **Edit Form** on the new posting
 4. **Add Steps**: Each step becomes a page in the applicant's form
-   - Give it a title (e.g. "Verification", "Teams", "Free Response")
+   - Give it a title (e.g. "Verification", "Free Response")
    - Pick an icon from the grid
 5. **Add Questions** to each step:
-   - **ID**: a unique identifier (e.g. `major`, `why_us`) — used as the key in stored responses
+   - **ID**: unique identifier (e.g. `major`, `why_us`) — used as the key in stored responses
    - **Type**: Text Input, Dual Input, Text Area, Radio, Checkbox, Checkbox with Image, Dropdown, or Availability Grid
    - **Title**: the question text shown to the applicant
    - **Options**: for Radio/Checkbox/Dropdown — enter one per line
@@ -82,38 +83,52 @@ Each org member has one of these roles:
 7. Click **Save All Changes**
 8. Back on the jobs list, make sure the posting is **Active**
 
-Applicants will now see this posting at `/apply/:slug` and can fill out the form at `/apply/:slug/:job_id`.
+Applicants will see this posting at `/apply/[slug]` and fill out the form at `/apply/[slug]/[job_id]`.
 
 ### 3. Inviting Team Members
 
-1. Go to **Settings** (or `/private/:slug/settings`)
+1. Go to **Settings** (`/private/[slug]/settings`)
 2. Under **Team Members**, enter the person's email and select their role
 3. Click **Add Member**
-4. The person must already have a LUMA account (signed up at `/auth`). If not, they'll need to sign up first.
+4. The person must already have a LUMA account. If not, they need to sign up at `/auth` first.
 5. Change roles with the dropdown next to each member
 6. Remove members with the × button (owners cannot be removed)
 
 ### 4. Reviewing Applicants
 
-1. Go to **Review** (or `/private/:slug/review`)
-2. Use the search bar to find applicants by name
+1. Go to **Review** (`/private/[slug]/review`)
+2. Use the search bar to find applicants by name or email
 3. Filter by status: All, Pending, Interview, Accepted, Denied
-4. Click an applicant card to see their full application
-5. On the candidate page:
+4. Sort by date, name, or status
+5. Use bulk select for mass status updates or CSV export
+6. Click an applicant card to see their full application
+7. On the candidate page:
    - View all their responses on the left
    - Read and add comments on the right
    - Change their status with the dropdown (Pending → Interview → Accepted/Denied)
 
 ### 5. Applicant Experience
 
-1. Applicant visits `/apply/:slug` and sees a list of open positions
+1. Applicant visits `/apply/[slug]` and sees a list of open positions
 2. Clicks a position → enters the multi-step form
 3. **Step 0** (always present): Name and email
-4. **Steps 1-N**: Custom questions defined in the form builder
+4. **Steps 1–N**: Custom questions defined in the form builder
 5. **Final step**: Review and submit
 6. On submission, the application is stored in the `applicants` table with:
-   - `name`, `email`, `recruitInfo` (JSON of all answers), `job` (posting ID), `org_id`
+   - `name`, `email`, `recruitInfo` (JSON of all answers keyed by question ID), `job`, `org_id`
 7. Applicant sees a success confirmation page
+
+### 6. Scheduling Interviews
+
+Manually:
+
+1. Interviewers go to **My Availability** (`/private/[slug]/availability`) and submit their available windows
+2. Recruiters go to **Schedule → Full** and create interviews by selecting an applicant, interviewer, time, and location
+3. Interviews appear on both **My Schedule** and **Full Schedule** calendar views
+
+Auto-scheduling (admin only):
+
+See [scheduling.md](scheduling.md) for the algorithm-based scheduling system.
 
 ---
 
@@ -126,7 +141,9 @@ Applicants will now see this posting at `/apply/:slug` and can fill out the form
 | `job_posting` | Job listings with form schemas | `org_id`, `name`, `description`, `questions` (JSON), `active_flg` |
 | `applicants` | Submitted applications | `org_id`, `job`, `name`, `email`, `recruitInfo` (JSON), `status`, `comments` |
 | `interviewers` | People conducting interviews | `org_id`, `name`, `email`, `uuid` |
-| `interviews` | Scheduled interviews | `org_id`, `job`, `applicant`, `interviewer`, `startTime`, `endTime`, `location` |
+| `interviews` | Scheduled interviews | `org_id`, `job`, `applicant`, `interviewer`, `startTime`, `endTime`, `location`, `source` |
+| `interviewer_availability` | Interviewer available windows | `org_id`, `user_id`, `date`, `start_time`, `end_time`, `timezone` |
+| `scheduling_config` | Per-org algorithm config | `org_id`, `job_id`, `algorithm_id`, `config` (JSON) |
 
 ### Key JSON Schemas
 
@@ -181,6 +198,7 @@ These are called via `supabase.rpc()` and run with elevated permissions:
 |---|---|---|
 | `is_org_member(org_id)` | Check if current user is in the org | `org_id: bigint` |
 | `has_org_role(org_id, min_role)` | Check if user has a role ≥ min_role | `org_id: bigint`, `min_role: org_role` |
+| `is_platform_admin()` | Check if current user is a platform admin | — |
 | `get_org_members_with_email(org_id)` | List members with their emails | `target_org_id: bigint` |
 | `invite_member_by_email(org_id, email, role)` | Add a user to an org by email | `target_org_id`, `target_email`, `target_role` |
 | `remove_org_member(org_id, user_id)` | Remove a member (not owners) | `target_org_id`, `target_user_id` |
@@ -196,24 +214,6 @@ Create `.env.local` in the project root:
 PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 ```
-
----
-
-## Quick Start
-
-```bash
-git clone https://github.com/your-repo/luma.git
-cd luma
-npm install
-cp .env.example .env.local  # fill in Supabase credentials
-npm run dev                  # start dev server at localhost:5173
-```
-
-Then:
-1. Go to `/auth` and sign up
-2. Go to `/register` and create your org
-3. Go to settings → manage postings → create a job → build the form
-4. Share `/apply/your-slug` with applicants
 
 ---
 
@@ -244,7 +244,7 @@ UPDATE interviews   SET org_id = (SELECT id FROM organizations WHERE slug = 'you
 UPDATE interviewers SET org_id = (SELECT id FROM organizations WHERE slug = 'your-slug') WHERE org_id IS NULL;
 
 -- 4. (Optional) Add existing interviewers as org members
---    This matches interviewer emails to auth.users and gives them the recruiter role
+--    Matches interviewer emails to auth.users and assigns the recruiter role
 INSERT INTO org_members (org_id, user_id, role)
 SELECT DISTINCT
   (SELECT id FROM organizations WHERE slug = 'your-slug'),
@@ -256,4 +256,4 @@ WHERE au.id != 'YOUR_AUTH_USER_UUID'
 ON CONFLICT DO NOTHING;
 ```
 
-Replace `YOUR_AUTH_USER_UUID` with the owner's UUID (find it in Supabase → Authentication → Users). After running this, all your existing data will be accessible at `/private/your-slug/dashboard`.
+Replace `YOUR_AUTH_USER_UUID` with the owner's UUID (find it in Supabase → Authentication → Users).

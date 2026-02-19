@@ -35,7 +35,7 @@
   }
 
   // Rebuild calendar when job filter changes
-  $: if (!loading && interviews.length > 0) {
+  $: if (!loading) {
     const filtered = $selectedJob
       ? interviews.filter(iv => iv.job === $selectedJob.id)
       : interviews;
@@ -93,9 +93,7 @@
 
     {#if loading}
       <p class="placeholder">Loading schedule...</p>
-    {:else if !calendarApp}
-      <p class="placeholder">No interviews found for your account.</p>
-    {:else}
+    {:else if calendarApp}
       <div class="calendar-wrap">
         <ScheduleXCalendar {calendarApp} />
       </div>

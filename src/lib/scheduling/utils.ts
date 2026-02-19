@@ -1,4 +1,4 @@
-import type { TimeRange, ProposedInterview } from './types';
+import type { TimeRange, ProposedInterview, BatchRound, BatchSessionWindow } from './types';
 
 /** Convert "HH:mm" to minutes since midnight */
 export function toMinutes(t: string): number {
@@ -119,4 +119,134 @@ export function findFirstAvailableSlot(
 		}
 	}
 	return null;
+}
+
+// ── Batch Scheduler Helpers ───────────────────────────────────────────────────
+
+/**
+ * Check if a TimeRange[] covers a specific (date, startMins, endMins) window.
+ */
+export function applicantAvailableAt(
+	availability: TimeRange[],
+	date: string,
+	startMins: number,
+	endMins: number
+): boolean {
+	for (const range of availability) {
+		if (range.date !== date) continue;
+		if (toMinutes(range.start) <= startMins && toMinutes(range.end) >= endMins) {
+			return true;
+		}
+	}
+	return false;
+}
+
+export interface RoomSlot {
+	id: string;
+	room: string;
+	round: BatchRound;
+	date: string;
+	startTime: string; // HH:mm
+	endTime: string; // HH:mm
+	startMins: number;
+	endMins: number;
+	assignedApplicants: string[]; // emails
+	assignedInterviewers: string[]; // emails
+}
+
+/**
+ * Generate all room×time slots for every round across all session windows.
+ * Each slot represents a (room, date, startTime, endTime) that can hold
+ * up to round.groupSize applicants.
+ */
+export function generateRoomSlots(
+	rooms: string[],
+	rounds: BatchRound[],
+	sessionWindows: BatchSessionWindow[],
+	slotStepMinutes: number,
+	blockBreakMinutes: number
+): RoomSlot[] {
+	const slots: RoomSlot[] = [];
+
+	for (const window of sessionWindows) {
+		const windowStart = toMinutes(window.startTime);
+		const windowEnd = toMinutes(window.endTime);
+
+		for (const round of rounds) {
+			const duration = round.durationMinutes;
+			let cursor = windowStart;
+			let slotIndex = 0;
+
+			while (cursor + duration <= windowEnd) {
+				const startTime = fromMinutes(cursor);
+				const endTime = fromMinutes(cursor + duration);
+
+				for (const room of rooms) {
+					slots.push({
+						id: `${window.date}-${room}-${round.id}-${slotIndex}`,
+						room,
+						round,
+						date: window.date,
+						startTime,
+						endTime,
+						startMins: cursor,
+						endMins: cursor + duration,
+						assignedApplicants: [],
+						assignedInterviewers: []
+					});
+				}
+
+				cursor += slotStepMinutes + blockBreakMinutes;
+				slotIndex++;
+			}
+		}
+	}
+
+	return slots;
+}
+
+/**
+ * Check if an applicant already has a conflicting interview in the proposed list
+ * at the given (date, startMins, endMins) window.
+ */
+export function applicantHasConflict(
+	email: string,
+	date: string,
+	startMins: number,
+	endMins: number,
+	proposed: ProposedInterview[],
+	existing: { startTime: string; endTime: string; interviewer: string; applicant: string }[]
+): boolean {
+	const all = [
+		...proposed.map((p) => ({ startTime: p.startTime, endTime: p.endTime, person: p.applicant })),
+		...existing.map((e) => ({ startTime: e.startTime, endTime: e.endTime, person: e.applicant }))
+	];
+
+	for (const interview of all) {
+		if (interview.person !== email) continue;
+		const iDate = interview.startTime.substring(0, 10);
+		if (iDate !== date) continue;
+		const iStart = toMinutes(interview.startTime.substring(11, 16));
+		const iEnd = toMinutes((interview.endTime || interview.startTime).substring(11, 16));
+		if (startMins < iEnd && endMins > iStart) return true;
+	}
+	return false;
+}
+
+/**
+ * Check if an interviewer is free at (date, startMins, endMins).
+ */
+export function interviewerFreeAt(
+	email: string,
+	date: string,
+	startMins: number,
+	endMins: number,
+	assignedSlots: RoomSlot[]
+): boolean {
+	for (const slot of assignedSlots) {
+		if (slot.date !== date) continue;
+		if (!slot.assignedInterviewers.includes(email)) continue;
+		if (startMins < slot.endMins && endMins > slot.startMins) return false;
+	}
+	return true;
 }

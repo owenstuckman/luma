@@ -2,14 +2,17 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { supabase } from '$lib/utils/supabase';
-  import { getInterviewsByOrg } from '$lib/utils/supabase';
+  import {
+    getInterviewsByOrg, getAllApplicants, getOrgMembersWithEmail,
+    getActiveRoles, createInterview
+  } from '$lib/utils/supabase';
   import Sidebar from '$lib/components/recruiter/Sidebar.svelte';
   import Navbar from '$lib/components/recruiter/Navbar.svelte';
   import { selectedJob } from '$lib/stores/jobFilter';
   import { ScheduleXCalendar } from '@schedule-x/svelte';
   import { createCalendar, createViewDay, createViewWeek, createViewMonthGrid } from '@schedule-x/calendar';
   import '@schedule-x/theme-default/dist/index.css';
-  import type { Interview } from '$lib/types';
+  import type { Interview, JobPosting, Applicant, OrgMember } from '$lib/types';
 
   let orgId: number | null = null;
   let interviews: Interview[] = [];
@@ -21,6 +24,26 @@
   $: interviewerEmails = [...new Set(interviews.map(iv => iv.interviewer).filter(Boolean))].sort() as string[];
 
   $: slug = $page.params.slug;
+
+  // Create interview modal
+  let showModal = false;
+  let jobs: JobPosting[] = [];
+  let orgMembers: (OrgMember & { email: string })[] = [];
+  let allApplicants: Applicant[] = [];
+  let newJobId = '';
+  let newApplicantEmail = '';
+  let newInterviewerEmail = '';
+  let newDate = '';
+  let newStart = '';
+  let newEnd = '';
+  let newLocation = '';
+  let createError = '';
+  let creating = false;
+  let createSuccess = '';
+
+  $: filteredApplicants = newJobId
+    ? allApplicants.filter(a => String(a.job) === newJobId)
+    : allApplicants;
 
   function formatForCalendar(dt: string): string {
     const d = new Date(dt);
@@ -86,10 +109,17 @@
 
     interviews = await getInterviewsByOrg(orgId!);
     loading = false;
+
+    // Load data for the create modal in the background
+    [jobs, orgMembers, allApplicants] = await Promise.all([
+      getActiveRoles(orgId!),
+      getOrgMembersWithEmail(orgId!),
+      getAllApplicants(orgId!)
+    ]);
   });
 
   // Rebuild calendar when job filter or interviewer filter changes
-  $: if (!loading && interviews.length > 0) {
+  $: if (!loading) {
     applyFilter($selectedJob?.id ?? null, interviewerFilter);
   }
 
@@ -99,11 +129,61 @@
     if (interviewer && interviewer !== 'all') filtered = filtered.filter(iv => iv.interviewer === interviewer);
     buildCalendar(filtered);
   }
+
+  function openModal() {
+    createError = '';
+    createSuccess = '';
+    newJobId = '';
+    newApplicantEmail = '';
+    newInterviewerEmail = '';
+    newDate = '';
+    newStart = '';
+    newEnd = '';
+    newLocation = '';
+    showModal = true;
+  }
+
+  async function handleCreate() {
+    if (!orgId || !newApplicantEmail || !newInterviewerEmail || !newDate || !newStart) {
+      createError = 'Applicant, interviewer, date, and start time are required.';
+      return;
+    }
+    createError = '';
+    creating = true;
+
+    try {
+      const startISO = `${newDate}T${newStart}:00`;
+      const endISO = newEnd ? `${newDate}T${newEnd}:00` : startISO;
+
+      await createInterview({
+        startTime: startISO,
+        endTime: endISO,
+        location: newLocation,
+        type: 'individual',
+        job: newJobId ? parseInt(newJobId) : 0,
+        applicant: newApplicantEmail,
+        interviewer: newInterviewerEmail,
+        org_id: orgId!
+      });
+
+      createSuccess = 'Interview created successfully.';
+      // Refresh interviews list and calendar
+      interviews = await getInterviewsByOrg(orgId!);
+    } catch (e: any) {
+      createError = e.message || 'Failed to create interview.';
+    }
+    creating = false;
+  }
 </script>
 
 <div class="layout">
   <div class="content-left">
-    <h4 style="text-align: left;">Full Schedule</h4>
+    <div class="page-header">
+      <h4>Full Schedule</h4>
+      <button class="btn btn-primary btn-sm" on:click={openModal}>
+        <i class="fi fi-br-calendar-plus"></i> Schedule Interview
+      </button>
+    </div>
 
     <div class="filter-bar">
       <p class="subtitle">All interviews: <strong>{interviews.length}</strong> total across <strong>{interviewerEmails.length}</strong> interviewers</p>
@@ -121,9 +201,7 @@
 
     {#if loading}
       <p class="placeholder">Loading schedule...</p>
-    {:else if !calendarApp}
-      <p class="placeholder">No interviews found.</p>
-    {:else}
+    {:else if calendarApp}
       <div class="calendar-wrap">
         <ScheduleXCalendar {calendarApp} />
       </div>
@@ -146,9 +224,95 @@
   <Sidebar currentStep={3} collapse="uncollapse" />
 </div>
 
+<!-- Create individual interview modal -->
+{#if showModal}
+  <div class="modal-overlay" on:click={() => showModal = false} on:keydown={(e) => e.key === 'Escape' && (showModal = false)}>
+    <div class="modal-content" on:click|stopPropagation on:keydown|stopPropagation>
+      <div class="modal-header">
+        <h6>Schedule Individual Interview</h6>
+        <button class="modal-close" on:click={() => showModal = false}>×</button>
+      </div>
+
+      {#if createSuccess}
+        <div class="alert-success">{createSuccess}</div>
+        <button class="btn btn-primary btn-sm" style="margin-top: 8px;" on:click={() => showModal = false}>Close</button>
+      {:else}
+        <div class="form-row">
+          <label>Job Posting</label>
+          <select class="form-select" bind:value={newJobId}>
+            <option value="">All applicants</option>
+            {#each jobs as job}
+              <option value={String(job.id)}>{job.name}</option>
+            {/each}
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label>Applicant *</label>
+          <select class="form-select" bind:value={newApplicantEmail}>
+            <option value="">Select applicant...</option>
+            {#each filteredApplicants as a}
+              <option value={a.email}>{a.name} ({a.email})</option>
+            {/each}
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label>Interviewer *</label>
+          <select class="form-select" bind:value={newInterviewerEmail}>
+            <option value="">Select interviewer...</option>
+            {#each orgMembers as m}
+              <option value={m.email}>{m.email} ({m.role})</option>
+            {/each}
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label>Date *</label>
+          <input type="date" class="form-control" bind:value={newDate} />
+        </div>
+
+        <div class="time-row">
+          <div class="form-row" style="flex: 1;">
+            <label>Start Time *</label>
+            <input type="time" class="form-control" bind:value={newStart} />
+          </div>
+          <div class="form-row" style="flex: 1;">
+            <label>End Time</label>
+            <input type="time" class="form-control" bind:value={newEnd} />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label>Location</label>
+          <input class="form-control" bind:value={newLocation} placeholder="e.g. MCB230, Zoom link, etc." />
+        </div>
+
+        {#if createError}
+          <p class="error-text">{createError}</p>
+        {/if}
+
+        <div class="modal-actions">
+          <button class="btn btn-primary" on:click={handleCreate} disabled={creating}>
+            {creating ? 'Creating...' : 'Create Interview'}
+          </button>
+          <button class="btn btn-quaternary btn-sm" on:click={() => showModal = false}>Cancel</button>
+        </div>
+      {/if}
+    </div>
+  </div>
+{/if}
+
 <style lang="scss">
   @use '../../../../../styles/col.scss' as *;
 
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    h4 { margin: 0; }
+  }
   .filter-bar {
     display: flex;
     justify-content: space-between;
@@ -195,5 +359,46 @@
     height: 8px;
     border-radius: 50%;
     flex-shrink: 0;
+  }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background-color: rgba(0,0,0,0.5);
+    display: flex; justify-content: center; align-items: center; z-index: 1000;
+  }
+  .modal-content {
+    background-color: white; border-radius: 10px; padding: 24px;
+    width: min(480px, 90vw);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    h6 { margin: 0; }
+  }
+  .modal-close {
+    background: none; border: none; font-size: 20px; cursor: pointer;
+    color: $light-tertiary; line-height: 1;
+    &:hover { color: $dark-primary; }
+  }
+  .form-row {
+    margin-bottom: 12px;
+    label { display: block; font-size: 12px; font-weight: 600; color: $light-tertiary; margin-bottom: 4px; }
+  }
+  .time-row {
+    display: flex; gap: 12px;
+  }
+  .modal-actions {
+    display: flex; gap: 8px; margin-top: 16px;
+  }
+  .error-text { color: #ef4444; font-size: 13px; margin: 6px 0; }
+  .alert-success {
+    background-color: #ecfdf5; color: #065f46; padding: 10px 14px;
+    border-radius: 6px; font-size: 13px;
   }
 </style>

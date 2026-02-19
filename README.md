@@ -129,6 +129,8 @@ If you have data from before multi-tenancy (records with `org_id = NULL`), see t
 ## Documentation
 
 - [Usage Guide](docs/usage.md) — routes, workflows, database schema, RPC functions
+- [Architecture](docs/architecture.md) — multi-tenancy model, question engine, RLS, component patterns
+- [Scheduling System](docs/scheduling.md) — algorithm interface, built-in algorithms, admin UI, database schema
 
 ## License
 

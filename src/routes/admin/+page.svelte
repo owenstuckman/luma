@@ -18,7 +18,7 @@
     OrgRole, AdminApplicant, PlatformSettings, AdminAnalytics, JobPosting, Interview
   } from '$lib/types';
   import { algorithms, getAlgorithm } from '$lib/scheduling/registry';
-  import type { SchedulerInput, SchedulerOutput, ProposedInterview, TimeRange } from '$lib/scheduling/types';
+  import type { SchedulerInput, SchedulerOutput, ProposedInterview, TimeRange, BatchRound, BatchSessionWindow } from '$lib/scheduling/types';
 
   // Auth state
   let authenticated = false;
@@ -117,7 +117,7 @@
   let schedOrgId: number | null = null;
   let schedJobId: number | null = null;
   let schedJobs: JobPosting[] = [];
-  let schedAlgorithmId = 'greedy-first-available';
+  let schedAlgorithmId = 'batch-scheduler';
   let schedConfig: Record<string, unknown> = {
     slotDurationMinutes: 30,
     breakBetweenMinutes: 10,
@@ -131,6 +131,19 @@
   let schedClearing = false;
   let schedError = '';
   let schedSuccess = '';
+
+  // Batch scheduler config state
+  let batchRoomsText = 'MCB230\nMCB231\nMCB232';
+  let batchRounds: BatchRound[] = [
+    { id: 'r1', label: 'Individual Interview', type: 'individual', durationMinutes: 20, breakBeforeMinutes: 0, groupSize: 1, interviewersPerRoom: 1 }
+  ];
+  let batchSessions: BatchSessionWindow[] = [];
+  let newSessionDate = '';
+  let newSessionStart = '09:00';
+  let newSessionEnd = '17:00';
+  let batchSlotStep = 15;
+  let batchBlockBreak = 5;
+  let batchRequireAll = false;
 
   $: filteredUsers = users.filter(u =>
     u.email?.toLowerCase().includes(userSearch.toLowerCase())
@@ -548,18 +561,34 @@
         return;
       }
 
+      const config = schedAlgorithmId === 'batch-scheduler'
+        ? {
+            rooms: batchRoomsText.split('\n').map(r => r.trim()).filter(Boolean),
+            rounds: batchRounds,
+            sessionWindows: batchSessions,
+            slotStepMinutes: batchSlotStep,
+            blockBreakMinutes: batchBlockBreak,
+            requireAllRounds: batchRequireAll,
+            slotDurationMinutes: 0,
+            breakBetweenMinutes: 0,
+            maxInterviewsPerInterviewer: 0,
+            interviewType: 'individual' as const,
+            location: ''
+          }
+        : {
+            slotDurationMinutes: Number(schedConfig.slotDurationMinutes) || 30,
+            breakBetweenMinutes: Number(schedConfig.breakBetweenMinutes) || 10,
+            maxInterviewsPerInterviewer: Number(schedConfig.maxInterviewsPerInterviewer) || 0,
+            interviewType: (schedConfig.interviewType as 'individual' | 'group') || 'individual',
+            location: String(schedConfig.location || ''),
+            ...schedConfig
+          };
+
       const input: SchedulerInput = {
         applicants: schedulerApplicants,
         interviewers: schedulerInterviewers,
         existingInterviews: existingForScheduler,
-        config: {
-          slotDurationMinutes: Number(schedConfig.slotDurationMinutes) || 30,
-          breakBetweenMinutes: Number(schedConfig.breakBetweenMinutes) || 10,
-          maxInterviewsPerInterviewer: Number(schedConfig.maxInterviewsPerInterviewer) || 0,
-          interviewType: (schedConfig.interviewType as 'individual' | 'group') || 'individual',
-          location: String(schedConfig.location || ''),
-          ...schedConfig
-        }
+        config
       };
 
       schedPreview = algorithm.run(input);
@@ -616,6 +645,19 @@
     }
     schedClearing = false;
   }
+
+  // Batch scheduling helpers
+  function addRound() {
+    const nextId = `r${batchRounds.length + 1}`;
+    batchRounds = [...batchRounds, { id: nextId, label: 'New Round', type: 'individual', durationMinutes: 20, breakBeforeMinutes: 5, groupSize: 1, interviewersPerRoom: 1 }];
+  }
+  function removeRound(i: number) { batchRounds = batchRounds.filter((_, idx) => idx !== i); }
+  function addSession() {
+    if (!newSessionDate || !newSessionStart || !newSessionEnd) return;
+    batchSessions = [...batchSessions, { date: newSessionDate, startTime: newSessionStart, endTime: newSessionEnd }];
+    newSessionDate = '';
+  }
+  function removeSession(i: number) { batchSessions = batchSessions.filter((_, idx) => idx !== i); }
 
   const tabLabels: Record<TabId, string> = {
     overview: 'Platform Overview', orgs: 'Organizations', users: 'User Directory',
@@ -1289,8 +1331,98 @@
               </div>
             {/if}
 
-            <!-- Config form -->
-            {#if schedOrgId}
+            <!-- Config form — batch scheduler -->
+            {#if schedOrgId && schedAlgorithmId === 'batch-scheduler'}
+              <!-- Rooms -->
+              <div class="form-row">
+                <label>Rooms (one per line)</label>
+                <textarea class="form-control" bind:value={batchRoomsText} rows="4"
+                  placeholder="MCB230&#10;MCB231&#10;MCB232"></textarea>
+                <span class="form-hint">{batchRoomsText.split('\n').filter(r => r.trim()).length} room(s) configured</span>
+              </div>
+
+              <!-- Session windows -->
+              <div class="form-row">
+                <label>Session Windows</label>
+                {#each batchSessions as session, i}
+                  <div class="session-row">
+                    <span class="row-name">{session.date}</span>
+                    <span class="row-sub">{session.startTime} – {session.endTime}</span>
+                    <button class="btn btn-danger btn-sm" on:click={() => removeSession(i)}>×</button>
+                  </div>
+                {/each}
+                {#if batchSessions.length === 0}
+                  <p class="muted" style="font-size: 12px; margin: 4px 0 8px;">No sessions added yet.</p>
+                {/if}
+                <div class="add-session-form">
+                  <input type="date" class="form-control" bind:value={newSessionDate} style="max-width: 160px;" />
+                  <input type="time" class="form-control" bind:value={newSessionStart} style="max-width: 110px;" />
+                  <span class="muted" style="font-size: 12px;">to</span>
+                  <input type="time" class="form-control" bind:value={newSessionEnd} style="max-width: 110px;" />
+                  <button class="btn btn-primary btn-sm" on:click={addSession}>Add</button>
+                </div>
+              </div>
+
+              <!-- Rounds -->
+              <div class="form-row">
+                <label>Rounds</label>
+                {#each batchRounds as round, i}
+                  <div class="round-card">
+                    <div class="round-header">
+                      <input class="form-control" bind:value={round.label} placeholder="Round label" style="max-width: 220px;" />
+                      <select class="form-select" bind:value={round.type} style="max-width: 140px;">
+                        <option value="individual">Individual</option>
+                        <option value="group">Group</option>
+                      </select>
+                      {#if batchRounds.length > 1}
+                        <button class="btn btn-danger btn-sm" on:click={() => removeRound(i)}>Remove</button>
+                      {/if}
+                    </div>
+                    <div class="round-fields">
+                      <div>
+                        <label class="field-label">Duration (min)</label>
+                        <input type="number" class="form-control" bind:value={round.durationMinutes} min="5" style="max-width: 90px;" />
+                      </div>
+                      <div>
+                        <label class="field-label">Break before (min)</label>
+                        <input type="number" class="form-control" bind:value={round.breakBeforeMinutes} min="0" style="max-width: 90px;" />
+                      </div>
+                      {#if round.type === 'group'}
+                        <div>
+                          <label class="field-label">Applicants/room</label>
+                          <input type="number" class="form-control" bind:value={round.groupSize} min="2" style="max-width: 90px;" />
+                        </div>
+                        <div>
+                          <label class="field-label">Interviewers/room</label>
+                          <input type="number" class="form-control" bind:value={round.interviewersPerRoom} min="1" style="max-width: 90px;" />
+                        </div>
+                      {/if}
+                    </div>
+                  </div>
+                {/each}
+                <button class="btn btn-quaternary btn-sm" on:click={addRound} style="margin-top: 8px;">+ Add Round</button>
+              </div>
+
+              <!-- Batch options -->
+              <div class="config-grid">
+                <div class="form-row">
+                  <label>Slot step (minutes)</label>
+                  <input type="number" class="form-control" bind:value={batchSlotStep} min="5" max="60" />
+                </div>
+                <div class="form-row">
+                  <label>Break between slots (minutes)</label>
+                  <input type="number" class="form-control" bind:value={batchBlockBreak} min="0" />
+                </div>
+                <div class="form-row" style="grid-column: span 2;">
+                  <label class="toggle-label" style="font-size: 12px; font-weight: 600; color: var(--light-tertiary, #9ca3af);">
+                    <input type="checkbox" bind:checked={batchRequireAll} style="width: 16px; height: 16px; margin-right: 6px;" />
+                    Require all rounds (remove assignments for applicants missing any round)
+                  </label>
+                </div>
+              </div>
+
+            <!-- Config form — simple algorithms -->
+            {:else if schedOrgId}
               <div class="config-grid">
                 <div class="form-row">
                   <label>Slot Duration (minutes)</label>
@@ -1376,7 +1508,54 @@
                 <p class="muted">No interviews could be scheduled.</p>
               {/if}
 
-              {#if schedPreview.unmatched.length > 0}
+              <!-- Per-round stats (batch scheduler) -->
+              {#if schedPreview.stats && schedPreview.stats.length > 0}
+                <h6 style="margin-top: 16px;">Results by Round</h6>
+                <div class="round-stats-table">
+                  <div class="rst-header">
+                    <span>Round</span><span>Scheduled</span><span>Missed</span><span>Slots Used</span>
+                  </div>
+                  {#each schedPreview.stats as stat}
+                    <div class="rst-row">
+                      <span class="row-name">{stat.roundLabel}</span>
+                      <span style="color: #065f46; font-weight: 600;">{stat.scheduled}</span>
+                      <span style="color: {stat.missed > 0 ? '#991b1b' : '#065f46'}; font-weight: 600;">{stat.missed}</span>
+                      <span class="row-sub">{stat.filledSlots}/{stat.totalSlots}</span>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+
+              <!-- Unmatched applicants with suggestions (batch) -->
+              {#if schedPreview.unmatchedDetails && schedPreview.unmatchedDetails.length > 0}
+                <h6 style="margin-top: 16px;">
+                  Unmatched Applicants
+                  <span style="font-weight: 400; font-size: 12px; color: #6b7280;">({schedPreview.unmatchedDetails.length}) — suggested slots shown for manual placement</span>
+                </h6>
+                {#each schedPreview.unmatchedDetails as u}
+                  <div class="unmatched-row">
+                    <div class="unmatched-info">
+                      <span class="row-name">{u.name}</span>
+                      <span class="row-sub">{u.email}</span>
+                      <span class="row-sub" style="color: #991b1b;">Missed: {u.missedRounds.join(', ')}</span>
+                    </div>
+                    <div class="suggested-slots">
+                      {#each u.suggestedSlots.slice(0, 4) as slot}
+                        <span class="slot-chip" class:slot-full={slot.isFull}>
+                          {slot.roundId}: {slot.date} {slot.startTime}–{slot.endTime} @ {slot.room}{slot.isFull ? ' ⚠ full' : ''}
+                        </span>
+                      {/each}
+                      {#if u.suggestedSlots.length === 0}
+                        <span class="row-sub" style="color: #991b1b;">No available slots match their availability.</span>
+                      {:else if u.suggestedSlots.length > 4}
+                        <span class="row-sub">+{u.suggestedSlots.length - 4} more options</span>
+                      {/if}
+                    </div>
+                  </div>
+                {/each}
+
+              <!-- Unmatched fallback for simple algorithms -->
+              {:else if schedPreview.unmatched.length > 0}
                 <h6 style="margin-top: 16px;">Unmatched Applicants ({schedPreview.unmatched.length})</h6>
                 <div style="font-size: 13px; color: #991b1b;">
                   {#each schedPreview.unmatched as email}
@@ -1931,6 +2110,121 @@
   }
   .sched-table-header, .sched-table-row {
     grid-template-columns: 2fr 2fr 1fr 1fr 1fr !important;
+  }
+
+  /* ==================== Batch Scheduler UI ==================== */
+  .form-hint {
+    font-size: 11px;
+    color: $light-tertiary;
+    margin-top: 4px;
+    display: block;
+  }
+  .field-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: $light-tertiary;
+    margin-bottom: 3px;
+    white-space: nowrap;
+  }
+  .session-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    background-color: $light-secondary;
+    border-radius: 6px;
+    margin-bottom: 4px;
+    font-size: 13px;
+  }
+  .add-session-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+  .round-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 10px;
+    background-color: #fafbfc;
+  }
+  .round-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .round-fields {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .round-stats-table {
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+    margin-bottom: 12px;
+  }
+  .rst-header, .rst-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr;
+    padding: 8px 14px;
+    gap: 8px;
+    align-items: center;
+    font-size: 13px;
+  }
+  .rst-header {
+    font-size: 11px;
+    font-weight: 700;
+    color: $light-tertiary;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background-color: #fafbfc;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .rst-row {
+    border-bottom: 1px solid #f0f0f0;
+    &:last-child { border-bottom: none; }
+  }
+  .unmatched-row {
+    display: flex;
+    gap: 16px;
+    padding: 10px 14px;
+    background-color: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .unmatched-info {
+    min-width: 180px;
+  }
+  .suggested-slots {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    flex: 1;
+  }
+  .slot-chip {
+    display: inline-block;
+    padding: 3px 8px;
+    background-color: #ecfdf5;
+    color: #065f46;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: monospace;
+    white-space: nowrap;
+  }
+  .slot-full {
+    background-color: #fffbeb;
+    color: #92400e;
   }
 
   /* ==================== Responsive ==================== */
