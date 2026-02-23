@@ -21,7 +21,9 @@
 
   // Filter by interviewer
   let interviewerFilter = 'all';
+  let showFlaggedOnly = false;
   $: interviewerEmails = [...new Set(interviews.map(iv => iv.interviewer).filter(Boolean))].sort() as string[];
+  $: flaggedCount = interviews.filter(iv => iv.violations && iv.violations.length > 0).length;
 
   $: slug = $page.params.slug;
 
@@ -72,14 +74,20 @@
   }
 
   function buildCalendar(filtered: Interview[]) {
-    const events = filtered.map(iv => ({
-      id: String(iv.id),
-      title: `${iv.applicant || 'Unknown'} — ${iv.interviewer || '?'}`,
-      start: formatForCalendar(iv.startTime),
-      end: iv.endTime ? formatForCalendar(iv.endTime) : formatForCalendar(iv.startTime),
-      location: iv.location || '',
-      description: `Interviewer: ${iv.interviewer || 'TBD'}\nLocation: ${iv.location || 'TBD'}\nType: ${iv.type}`,
-    }));
+    const events = filtered.map(iv => {
+      const isFlagged = iv.violations && iv.violations.length > 0;
+      const violationSummary = isFlagged
+        ? iv.violations!.map(v => v.detail).join('; ')
+        : '';
+      return {
+        id: String(iv.id),
+        title: `${isFlagged ? '⚠ ' : ''}${iv.applicant || 'Unknown'} — ${iv.interviewer || '?'}`,
+        start: formatForCalendar(iv.startTime),
+        end: iv.endTime ? formatForCalendar(iv.endTime) : formatForCalendar(iv.startTime),
+        location: iv.location || '',
+        description: `Interviewer: ${iv.interviewer || 'TBD'}\nLocation: ${iv.location || 'TBD'}\nType: ${iv.type}${isFlagged ? '\n⚠ Needs review: ' + violationSummary : ''}`,
+      };
+    });
 
     const now = new Date();
     const upcoming = filtered.find(iv => new Date(iv.startTime) >= now);
@@ -118,15 +126,16 @@
     ]);
   });
 
-  // Rebuild calendar when job filter or interviewer filter changes
+  // Rebuild calendar when job filter, interviewer filter, or flagged filter changes
   $: if (!loading) {
-    applyFilter($selectedJob?.id ?? null, interviewerFilter);
+    applyFilter($selectedJob?.id ?? null, interviewerFilter, showFlaggedOnly);
   }
 
-  function applyFilter(jobId?: number | null, interviewer?: string) {
+  function applyFilter(jobId?: number | null, interviewer?: string, flaggedOnly?: boolean) {
     let filtered = interviews;
     if (jobId) filtered = filtered.filter(iv => iv.job === jobId);
     if (interviewer && interviewer !== 'all') filtered = filtered.filter(iv => iv.interviewer === interviewer);
+    if (flaggedOnly) filtered = filtered.filter(iv => iv.violations && iv.violations.length > 0);
     buildCalendar(filtered);
   }
 
@@ -186,17 +195,32 @@
     </div>
 
     <div class="filter-bar">
-      <p class="subtitle">All interviews: <strong>{interviews.length}</strong> total across <strong>{interviewerEmails.length}</strong> interviewers</p>
-      <select
-        bind:value={interviewerFilter}
-        class="form-control"
-        style="max-width: 250px;"
-      >
-        <option value="all">All Interviewers</option>
-        {#each interviewerEmails as email}
-          <option value={email}>{email}</option>
-        {/each}
-      </select>
+      <p class="subtitle">
+        All interviews: <strong>{interviews.length}</strong> across <strong>{interviewerEmails.length}</strong> interviewers
+        {#if flaggedCount > 0}
+          <span class="flagged-badge" title="These interviews were placed with relaxed constraints and need human review">
+            ⚠ {flaggedCount} need review
+          </span>
+        {/if}
+      </p>
+      <div class="filter-controls">
+        {#if flaggedCount > 0}
+          <label class="flagged-toggle">
+            <input type="checkbox" bind:checked={showFlaggedOnly} />
+            Flagged only
+          </label>
+        {/if}
+        <select
+          bind:value={interviewerFilter}
+          class="form-control"
+          style="max-width: 250px;"
+        >
+          <option value="all">All Interviewers</option>
+          {#each interviewerEmails as email}
+            <option value={email}>{email}</option>
+          {/each}
+        </select>
+      </div>
     </div>
 
     {#if loading}
@@ -321,10 +345,40 @@
     margin-bottom: 15px;
     flex-wrap: wrap;
   }
+  .filter-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
   .subtitle {
     font-size: 13px;
     color: $light-tertiary;
     margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .flagged-badge {
+    display: inline-block;
+    background-color: #fef3c7;
+    color: #92400e;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+    cursor: default;
+  }
+  .flagged-toggle {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #92400e;
+    cursor: pointer;
+    white-space: nowrap;
   }
   .placeholder {
     color: $light-tertiary;

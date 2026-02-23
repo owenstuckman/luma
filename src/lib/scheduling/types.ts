@@ -4,10 +4,13 @@ export interface SchedulerInput {
 		name: string;
 		jobId: number;
 		availability: TimeRange[];
+		attributes?: Record<string, string | string[]>; // from recruitInfo, keyed by question id
+		priority?: number; // 0 = normal, 1 = high priority
 	}[];
 	interviewers: {
 		email: string;
 		availability: TimeRange[];
+		attributes?: Record<string, string | string[]>; // from org_members.metadata
 	}[];
 	existingInterviews: {
 		startTime: string;
@@ -34,6 +37,14 @@ export interface SchedulerOutput {
 	warnings: string[];
 	unmatchedDetails?: UnmatchedApplicant[]; // richer output for batch scheduler
 	stats?: BatchRoundStat[];
+	relaxedCount?: number; // how many were placed via relaxed constraint pass
+}
+
+export type ScheduleViolationType = 'availability' | 'attribute_mismatch';
+
+export interface ScheduleViolation {
+	type: ScheduleViolationType;
+	detail: string;
 }
 
 export interface ProposedInterview {
@@ -44,6 +55,7 @@ export interface ProposedInterview {
 	location: string;
 	type: 'individual' | 'group';
 	jobId: number;
+	violations?: ScheduleViolation[]; // only present on relaxed placements
 }
 
 export interface TimeRange {
@@ -86,6 +98,13 @@ export interface BatchSessionWindow {
 	endTime: string; // HH:mm
 }
 
+export interface AttributeMatchRule {
+	applicantQuestionId: string;    // question id in job_posting.questions (key in recruitInfo)
+	interviewerAttributeKey: string; // key in org_members.metadata
+	weight: number;                  // score bonus for a match
+	hard: boolean;                   // if true, prefer only matching interviewers (falls back if none)
+}
+
 /**
  * Config for the batch scheduler. Stored in scheduling_config.config JSON.
  * Compatible with SchedulerConfig via the index signature.
@@ -97,6 +116,12 @@ export interface BatchSchedulerConfig {
 	slotStepMinutes: number; // how often slots start (e.g. every 15 min)
 	blockBreakMinutes: number; // gap between sequential slots in the same room
 	requireAllRounds: boolean; // if true, unmatched in any round = remove all assignments
+	relaxedFallback?: boolean; // if true, run a second pass for unmatched applicants with soft constraints
+	relaxedAvailabilityPenalty?: number; // score penalty per availability violation (default 10)
+	attributeMatching?: {
+		enabled: boolean;
+		rules: AttributeMatchRule[];
+	};
 	// SchedulerConfig compat fields (unused by batch but satisfies the type):
 	slotDurationMinutes: number;
 	breakBetweenMinutes: number;
@@ -129,4 +154,5 @@ export interface BatchRoundStat {
 	missed: number;
 	totalSlots: number;
 	filledSlots: number;
+	relaxedCount: number; // how many in this round were placed via relaxed pass
 }

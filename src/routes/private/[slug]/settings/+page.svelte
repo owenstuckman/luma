@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { supabase, isPlatformAdmin } from '$lib/utils/supabase';
-  import { getOrgMembersWithEmail, inviteMemberByEmail, removeMember, updateMemberRole } from '$lib/utils/supabase';
+  import { getOrgMembersWithEmail, inviteMemberByEmail, removeMember, updateMemberRole, updateMemberMetadata } from '$lib/utils/supabase';
   import Sidebar from '$lib/components/recruiter/Sidebar.svelte';
   import Navbar from '$lib/components/recruiter/Navbar.svelte';
   import type { Organization, OrgMember } from '$lib/types';
@@ -128,6 +128,31 @@
     }
   }
 
+  // Per-member attribute editing
+  let editingAttrUserId: string | null = null;
+  let attrTeamsInput = '';
+  let attrSaveMsg = '';
+
+  function startEditAttr(member: OrgMember & { email: string }) {
+    editingAttrUserId = member.user_id;
+    const teams = (member.metadata?.teams as string | string[] | undefined);
+    attrTeamsInput = Array.isArray(teams) ? teams.join(', ') : (teams || '');
+    attrSaveMsg = '';
+  }
+
+  async function saveAttr(member: OrgMember & { email: string }) {
+    if (!org) return;
+    const teams = attrTeamsInput.split(',').map(t => t.trim()).filter(Boolean);
+    try {
+      await updateMemberMetadata(org.id, member.user_id, { ...member.metadata, teams });
+      attrSaveMsg = 'Saved!';
+      await loadMembers();
+      setTimeout(() => { attrSaveMsg = ''; editingAttrUserId = null; }, 1500);
+    } catch (err) {
+      attrSaveMsg = err instanceof Error ? err.message : 'Failed to save';
+    }
+  }
+
   function getRoleBadgeColor(role: string) {
     switch (role) {
       case 'owner': return '#ffc800';
@@ -225,31 +250,63 @@
         <!-- Member list -->
         <div class="member-list">
           {#each members as member}
-            <div class="member-row">
-              <div class="member-info">
-                <span class="member-email">{member.email}</span>
-                <span class="role-badge" style="background-color: {getRoleBadgeColor(member.role)};">
-                  {member.role}
-                </span>
-              </div>
-              <div class="member-actions">
-                {#if member.role !== 'owner' && isAdmin}
-                  <select
-                    class="form-control role-select"
-                    value={member.role}
-                    on:change={(e) => handleRoleChange(member, e.currentTarget.value)}
-                  >
-                    <option value="viewer">Viewer</option>
-                    <option value="recruiter">Recruiter</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                  {#if member.user_id !== currentUserId}
-                    <button class="btn-remove" on:click={() => handleRemove(member)} title="Remove member">
-                      <i class="fi fi-br-cross-small"></i>
+            <div class="member-card">
+              <div class="member-row">
+                <div class="member-info">
+                  <span class="member-email">{member.email}</span>
+                  <span class="role-badge" style="background-color: {getRoleBadgeColor(member.role)};">
+                    {member.role}
+                  </span>
+                  {#if member.metadata?.teams && (member.metadata.teams as string[]).length > 0}
+                    <span class="teams-badge">
+                      {(Array.isArray(member.metadata.teams) ? member.metadata.teams : [member.metadata.teams]).join(', ')}
+                    </span>
+                  {/if}
+                </div>
+                <div class="member-actions">
+                  {#if isAdmin}
+                    <button class="btn-attr" on:click={() => startEditAttr(member)} title="Edit scheduling attributes">
+                      <i class="fi fi-br-tags"></i>
                     </button>
                   {/if}
-                {/if}
+                  {#if member.role !== 'owner' && isAdmin}
+                    <select
+                      class="form-control role-select"
+                      value={member.role}
+                      on:change={(e) => handleRoleChange(member, e.currentTarget.value)}
+                    >
+                      <option value="viewer">Viewer</option>
+                      <option value="recruiter">Recruiter</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                    {#if member.user_id !== currentUserId}
+                      <button class="btn-remove" on:click={() => handleRemove(member)} title="Remove member">
+                        <i class="fi fi-br-cross-small"></i>
+                      </button>
+                    {/if}
+                  {/if}
+                </div>
               </div>
+
+              {#if editingAttrUserId === member.user_id}
+                <div class="attr-editor">
+                  <label class="attr-label">Scheduling teams / attributes</label>
+                  <p class="attr-hint">Comma-separated. Used by attribute-based matching in the scheduler (e.g. "engineering, design").</p>
+                  <div class="attr-row">
+                    <input
+                      class="form-control"
+                      bind:value={attrTeamsInput}
+                      placeholder="e.g. engineering, design, marketing"
+                      style="flex: 1;"
+                    />
+                    <button class="btn btn-tertiary" style="font-size: 11px; padding: 4px 12px;" on:click={() => saveAttr(member)}>Save</button>
+                    <button class="btn btn-quaternary" style="font-size: 11px; padding: 4px 10px;" on:click={() => editingAttrUserId = null}>Cancel</button>
+                  </div>
+                  {#if attrSaveMsg}
+                    <span style="font-size: 12px; color: #22c55e;">{attrSaveMsg}</span>
+                  {/if}
+                </div>
+              {/if}
             </div>
           {/each}
         </div>
@@ -297,13 +354,16 @@
     flex-direction: column;
     gap: 6px;
   }
+  .member-card {
+    background-color: $light-secondary;
+    border-radius: 6px;
+    overflow: hidden;
+  }
   .member-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 10px 12px;
-    background-color: $light-secondary;
-    border-radius: 6px;
   }
   .member-info {
     display: flex;
@@ -349,5 +409,56 @@
   .btn-remove:hover {
     background-color: #fef2f2;
     color: #ef4444;
+  }
+  .teams-badge {
+    font-size: 10px;
+    color: #065f46;
+    background-color: #ecfdf5;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 600;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .btn-attr {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: $light-tertiary;
+    cursor: pointer;
+    font-size: 10px;
+    &:hover { background-color: #eff6ff; color: #1e40af; }
+  }
+  .attr-editor {
+    padding: 10px 12px 12px;
+    border-top: 1px solid #e5e7eb;
+    background-color: white;
+  }
+  .attr-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    color: $light-tertiary;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 3px;
+  }
+  .attr-hint {
+    font-size: 11px;
+    color: $light-tertiary;
+    margin: 0 0 8px;
+  }
+  .attr-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
   }
 </style>

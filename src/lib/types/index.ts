@@ -18,6 +18,7 @@ export interface OrgMember {
 	org_id: number;
 	user_id: string;
 	role: OrgRole;
+	metadata: Record<string, unknown>;
 }
 
 export interface JobPosting {
@@ -79,6 +80,7 @@ export interface Interview {
 	interviewer: string | null;
 	org_id: number | null;
 	source?: string;
+	violations?: { type: string; detail: string }[] | null;
 }
 
 // Question engine types

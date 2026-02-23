@@ -461,6 +461,16 @@ export const removeMember = async (orgId: number, userId: string) => {
 	return data;
 };
 
+export const updateMemberMetadata = async (orgId: number, userId: string, metadata: Record<string, unknown>) => {
+	const { error } = await supabase
+		.from('org_members')
+		.update({ metadata })
+		.eq('org_id', orgId)
+		.eq('user_id', userId);
+
+	if (error) throw new Error(error.message);
+};
+
 export const updateMemberRole = async (orgId: number, userId: string, role: string) => {
 	const { data, error } = await supabase.rpc('update_member_role', {
 		target_org_id: orgId,
@@ -773,6 +783,7 @@ export const bulkCreateInterviews = async (
 		interviewer: string;
 		org_id: number;
 		source: string;
+		violations?: { type: string; detail: string }[] | null;
 	}[]
 ) => {
 	const { data, error } = await supabase

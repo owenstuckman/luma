@@ -11,14 +11,14 @@
     getAdminAnalytics, adminCreateJobPosting, getActiveRoles,
     getAllApplicants, getInterviewerAvailability, getInterviewsByOrg,
     bulkCreateInterviews, clearAutoScheduledInterviews,
-    upsertSchedulingConfig, getSchedulingConfig
+    upsertSchedulingConfig, getSchedulingConfig, getOrgMembersWithEmail
   } from '$lib/utils/supabase';
   import type {
     Organization, AdminUser, PlatformAdmin, AdminJobPosting, UserMembership,
     OrgRole, AdminApplicant, PlatformSettings, AdminAnalytics, JobPosting, Interview
   } from '$lib/types';
   import { algorithms, getAlgorithm } from '$lib/scheduling/registry';
-  import type { SchedulerInput, SchedulerOutput, ProposedInterview, TimeRange, BatchRound, BatchSessionWindow } from '$lib/scheduling/types';
+  import type { SchedulerInput, SchedulerOutput, ProposedInterview, TimeRange, BatchRound, BatchSessionWindow, AttributeMatchRule } from '$lib/scheduling/types';
 
   // Auth state
   let authenticated = false;
@@ -144,6 +144,14 @@
   let batchSlotStep = 15;
   let batchBlockBreak = 5;
   let batchRequireAll = false;
+  let batchRelaxedFallback = false;
+  let batchRelaxedPenalty = 10;
+  let batchAttrEnabled = false;
+  let batchAttrRules: AttributeMatchRule[] = [];
+  let newRuleQId = '';
+  let newRuleAttrKey = '';
+  let newRuleWeight = 20;
+  let newRuleHard = false;
 
   $: filteredUsers = users.filter(u =>
     u.email?.toLowerCase().includes(userSearch.toLowerCase())
@@ -507,6 +515,23 @@
     return [];
   }
 
+  function extractApplicantAttributes(
+    recruitInfo: Record<string, string>,
+    rules: AttributeMatchRule[]
+  ): Record<string, string | string[]> {
+    const attrs: Record<string, string | string[]> = {};
+    for (const rule of rules) {
+      const val = recruitInfo[rule.applicantQuestionId];
+      if (val) {
+        // Multi-select checkbox answers stored as comma-separated
+        attrs[rule.applicantQuestionId] = val.includes(',')
+          ? val.split(',').map((v: string) => v.trim()).filter(Boolean)
+          : val.trim();
+      }
+    }
+    return attrs;
+  }
+
   async function runPreview() {
     if (!schedOrgId) return;
     schedPreviewing = true;
@@ -521,15 +546,27 @@
         ? allApplicants.filter(a => a.job === schedJobId)
         : allApplicants;
 
+      // Attribute rules for this run
+      const activeAttrRules = batchAttrEnabled && schedAlgorithmId === 'batch-scheduler' ? batchAttrRules : [];
+
       const schedulerApplicants = filtered.map(a => ({
         email: a.email,
         name: a.name,
         jobId: a.job || 0,
-        availability: parseApplicantAvailability(a.recruitInfo)
+        availability: parseApplicantAvailability(a.recruitInfo),
+        priority: typeof a.metadata?.priority === 'number' ? (a.metadata.priority as number) : 0,
+        attributes: a.recruitInfo && activeAttrRules.length > 0
+          ? extractApplicantAttributes(a.recruitInfo, activeAttrRules)
+          : undefined
       }));
 
       // Fetch interviewer availability
-      const iaRows = await getInterviewerAvailability(schedOrgId);
+      const [iaRows, orgMembersForSched] = await Promise.all([
+        getInterviewerAvailability(schedOrgId),
+        getOrgMembersWithEmail(schedOrgId)
+      ]);
+      const memberMetaMap = new Map(orgMembersForSched.map(m => [m.email, (m as any).metadata as Record<string, unknown> || {}]));
+
       const interviewerMap = new Map<string, TimeRange[]>();
       for (const row of iaRows) {
         const ranges = interviewerMap.get(row.email) || [];
@@ -542,7 +579,10 @@
       }
       const schedulerInterviewers = Array.from(interviewerMap.entries()).map(([email, availability]) => ({
         email,
-        availability
+        availability,
+        attributes: activeAttrRules.length > 0
+          ? (memberMetaMap.get(email) as Record<string, string | string[]> | undefined)
+          : undefined
       }));
 
       // Fetch existing interviews
@@ -569,6 +609,9 @@
             slotStepMinutes: batchSlotStep,
             blockBreakMinutes: batchBlockBreak,
             requireAllRounds: batchRequireAll,
+            relaxedFallback: batchRelaxedFallback,
+            relaxedAvailabilityPenalty: batchRelaxedPenalty,
+            attributeMatching: { enabled: batchAttrEnabled, rules: batchAttrRules },
             slotDurationMinutes: 0,
             breakBetweenMinutes: 0,
             maxInterviewsPerInterviewer: 0,
@@ -614,7 +657,8 @@
         applicant: iv.applicant,
         interviewer: iv.interviewer,
         org_id: schedOrgId!,
-        source: 'auto'
+        source: 'auto',
+        violations: iv.violations && iv.violations.length > 0 ? iv.violations : null
       }));
 
       await bulkCreateInterviews(rows);
@@ -658,6 +702,17 @@
     newSessionDate = '';
   }
   function removeSession(i: number) { batchSessions = batchSessions.filter((_, idx) => idx !== i); }
+  function addAttrRule() {
+    if (!newRuleQId.trim() || !newRuleAttrKey.trim()) return;
+    batchAttrRules = [...batchAttrRules, {
+      applicantQuestionId: newRuleQId.trim(),
+      interviewerAttributeKey: newRuleAttrKey.trim(),
+      weight: newRuleWeight,
+      hard: newRuleHard
+    }];
+    newRuleQId = ''; newRuleAttrKey = ''; newRuleWeight = 20; newRuleHard = false;
+  }
+  function removeAttrRule(i: number) { batchAttrRules = batchAttrRules.filter((_, idx) => idx !== i); }
 
   const tabLabels: Record<TabId, string> = {
     overview: 'Platform Overview', orgs: 'Organizations', users: 'User Directory',
@@ -1419,7 +1474,66 @@
                     Require all rounds (remove assignments for applicants missing any round)
                   </label>
                 </div>
+                <div class="form-row" style="grid-column: span 2;">
+                  <label class="toggle-label" style="font-size: 12px; font-weight: 600; color: var(--light-tertiary, #9ca3af);">
+                    <input type="checkbox" bind:checked={batchRelaxedFallback} style="width: 16px; height: 16px; margin-right: 6px;" />
+                    Relaxed fallback — schedule unmatched applicants with flagged violations
+                  </label>
+                  <p class="form-hint" style="margin-top: 4px;">
+                    A second pass places applicants who couldn't be strictly scheduled, even outside their stated availability. These are saved with a violation flag for human review.
+                  </p>
+                </div>
+                {#if batchRelaxedFallback}
+                  <div class="form-row">
+                    <label>Availability penalty weight</label>
+                    <input type="number" class="form-control" bind:value={batchRelaxedPenalty} min="1" max="100" style="max-width: 90px;" />
+                    <span class="form-hint">Higher = stronger preference for slots within stated availability</span>
+                  </div>
+                {/if}
               </div>
+
+              <!-- Attribute matching -->
+              <div class="form-row" style="margin-top: 8px;">
+                <label class="toggle-label" style="font-size: 12px; font-weight: 600; color: var(--light-tertiary, #9ca3af);">
+                  <input type="checkbox" bind:checked={batchAttrEnabled} style="width: 16px; height: 16px; margin-right: 6px;" />
+                  Attribute-based matching — pair applicants with interviewers by shared attributes
+                </label>
+                <p class="form-hint" style="margin-top: 4px;">
+                  Maps applicant answers (by question ID in recruitInfo) to interviewer attributes (by key in member metadata). Set member attributes in Settings → Team Members.
+                </p>
+              </div>
+
+              {#if batchAttrEnabled}
+                <div class="form-row">
+                  <label>Matching Rules</label>
+                  {#each batchAttrRules as rule, i}
+                    <div class="attr-rule-row">
+                      <span class="rule-pill">
+                        <span class="rule-qid">{rule.applicantQuestionId}</span>
+                        <i class="fi fi-br-arrow-right" style="font-size: 10px; color: #9ca3af;"></i>
+                        <span class="rule-attr">{rule.interviewerAttributeKey}</span>
+                        <span class="rule-weight">+{rule.weight}</span>
+                        {#if rule.hard}<span class="rule-hard">hard</span>{/if}
+                      </span>
+                      <button class="btn-icon-sm" on:click={() => removeAttrRule(i)} title="Remove rule">×</button>
+                    </div>
+                  {/each}
+                  {#if batchAttrRules.length === 0}
+                    <p class="muted" style="font-size: 12px; margin: 4px 0 8px;">No rules. Add one below.</p>
+                  {/if}
+                  <div class="attr-rule-add">
+                    <input class="form-control" bind:value={newRuleQId} placeholder="Applicant question ID (e.g. team_interest)" style="flex: 1;" />
+                    <i class="fi fi-br-arrow-right" style="font-size: 11px; color: #9ca3af; flex-shrink: 0;"></i>
+                    <input class="form-control" bind:value={newRuleAttrKey} placeholder="Member attribute key (e.g. teams)" style="flex: 1;" />
+                    <input type="number" class="form-control" bind:value={newRuleWeight} min="1" max="100" placeholder="Wt" style="max-width: 60px;" title="Score bonus for a match" />
+                    <label class="toggle-label" style="font-size: 11px; white-space: nowrap; gap: 4px;">
+                      <input type="checkbox" bind:checked={newRuleHard} style="width: 14px; height: 14px;" /> Hard
+                    </label>
+                    <button class="btn btn-quaternary btn-sm" on:click={addAttrRule}>Add</button>
+                  </div>
+                  <p class="form-hint">Hard rules restrict to matching interviewers only (fallback if none). Soft rules add score bonus.</p>
+                </div>
+              {/if}
 
             <!-- Config form — simple algorithms -->
             {:else if schedOrgId}
@@ -1484,6 +1598,13 @@
                 </div>
               {/if}
 
+              {#if schedPreview.relaxedCount && schedPreview.relaxedCount > 0}
+                <div class="alert-warn" style="margin-bottom: 12px;">
+                  <i class="fi fi-br-triangle-warning"></i>
+                  {schedPreview.relaxedCount} interview(s) placed via relaxed constraints — flagged for review. Confirm or adjust before applying.
+                </div>
+              {/if}
+
               {#if schedPreview.interviews.length > 0}
                 <div class="jobs-table">
                   <div class="table-header sched-table-header">
@@ -1492,14 +1613,22 @@
                     <span>Date</span>
                     <span>Time</span>
                     <span>Location</span>
+                    <span>Flags</span>
                   </div>
                   {#each schedPreview.interviews as iv}
-                    <div class="table-row sched-table-row">
+                    <div class="table-row sched-table-row" class:sched-row-flagged={iv.violations && iv.violations.length > 0}>
                       <span class="row-name">{iv.applicant}</span>
                       <span class="row-name">{iv.interviewer}</span>
                       <span class="row-sub">{iv.startTime.substring(0, 10)}</span>
                       <span class="row-sub">{iv.startTime.substring(11, 16)} - {iv.endTime.substring(11, 16)}</span>
                       <span class="row-sub">{iv.location || '-'}</span>
+                      <span>
+                        {#if iv.violations && iv.violations.length > 0}
+                          <span class="violation-chip" title={iv.violations.map(v => v.detail).join('; ')}>
+                            ⚠ {iv.violations.map(v => v.type === 'availability' ? 'avail' : 'attr').join(', ')}
+                          </span>
+                        {/if}
+                      </span>
                     </div>
                   {/each}
                 </div>
@@ -1513,12 +1642,13 @@
                 <h6 style="margin-top: 16px;">Results by Round</h6>
                 <div class="round-stats-table">
                   <div class="rst-header">
-                    <span>Round</span><span>Scheduled</span><span>Missed</span><span>Slots Used</span>
+                    <span>Round</span><span>Scheduled</span><span>Relaxed</span><span>Missed</span><span>Slots Used</span>
                   </div>
                   {#each schedPreview.stats as stat}
                     <div class="rst-row">
                       <span class="row-name">{stat.roundLabel}</span>
                       <span style="color: #065f46; font-weight: 600;">{stat.scheduled}</span>
+                      <span style="color: {stat.relaxedCount > 0 ? '#92400e' : '#6b7280'}; font-weight: 600;">{stat.relaxedCount}</span>
                       <span style="color: {stat.missed > 0 ? '#991b1b' : '#065f46'}; font-weight: 600;">{stat.missed}</span>
                       <span class="row-sub">{stat.filledSlots}/{stat.totalSlots}</span>
                     </div>
@@ -2109,7 +2239,31 @@
     flex-wrap: wrap;
   }
   .sched-table-header, .sched-table-row {
-    grid-template-columns: 2fr 2fr 1fr 1fr 1fr !important;
+    grid-template-columns: 2fr 2fr 1fr 1fr 1fr 1fr !important;
+  }
+  .sched-row-flagged {
+    background-color: #fffbeb !important;
+  }
+  .violation-chip {
+    display: inline-block;
+    padding: 2px 7px;
+    background-color: #fef3c7;
+    color: #92400e;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: help;
+  }
+  .alert-warn {
+    background-color: #fffbeb;
+    color: #92400e;
+    border: 1px solid #fde68a;
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 
   /* ==================== Batch Scheduler UI ==================== */
@@ -2172,11 +2326,57 @@
   }
   .rst-header, .rst-row {
     display: grid;
-    grid-template-columns: 2fr 1fr 1fr 1fr;
+    grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
     padding: 8px 14px;
     gap: 8px;
     align-items: center;
     font-size: 13px;
+  }
+  .attr-rule-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .rule-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background-color: $light-secondary;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 12px;
+    flex: 1;
+  }
+  .rule-qid { color: #1e40af; font-weight: 600; }
+  .rule-attr { color: #065f46; font-weight: 600; }
+  .rule-weight { color: $light-tertiary; font-size: 11px; }
+  .rule-hard {
+    background-color: #fef3c7;
+    color: #92400e;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 1px 5px;
+    border-radius: 8px;
+  }
+  .attr-rule-add {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+  }
+  .btn-icon-sm {
+    background: none;
+    border: none;
+    font-size: 16px;
+    color: $light-tertiary;
+    cursor: pointer;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 4px;
+    &:hover { color: #ef4444; background-color: #fef2f2; }
   }
   .rst-header {
     font-size: 11px;
