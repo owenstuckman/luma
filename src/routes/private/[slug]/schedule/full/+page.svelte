@@ -8,6 +8,7 @@
   } from '$lib/utils/supabase';
   import Sidebar from '$lib/components/recruiter/Sidebar.svelte';
   import Navbar from '$lib/components/recruiter/Navbar.svelte';
+  import EmailGeneratorModal from '$lib/components/recruiter/EmailGeneratorModal.svelte';
   import { selectedJob } from '$lib/stores/jobFilter';
   import { ScheduleXCalendar } from '@schedule-x/svelte';
   import { createCalendar, createViewDay, createViewWeek, createViewMonthGrid } from '@schedule-x/calendar';
@@ -15,9 +16,11 @@
   import type { Interview, JobPosting, Applicant, OrgMember } from '$lib/types';
 
   let orgId: number | null = null;
+  let orgName = '';
   let interviews: Interview[] = [];
   let calendarApp: ReturnType<typeof createCalendar> | null = null;
   let loading = true;
+  let showEmailModal = false;
 
   // Filter by interviewer
   let interviewerFilter = 'all';
@@ -108,12 +111,13 @@
   onMount(async () => {
     const { data: orgData } = await supabase
       .from('organizations')
-      .select('id')
+      .select('id, name')
       .eq('slug', slug)
       .single();
 
     if (!orgData) { loading = false; return; }
     orgId = orgData.id;
+    orgName = orgData.name ?? '';
 
     interviews = await getInterviewsByOrg(orgId!);
     loading = false;
@@ -189,9 +193,14 @@
   <div class="content-left">
     <div class="page-header">
       <h4>Full Schedule</h4>
-      <button class="btn btn-primary btn-sm" on:click={openModal}>
-        <i class="fi fi-br-calendar-plus"></i> Schedule Interview
-      </button>
+      <div class="header-actions">
+        <button class="btn btn-secondary btn-sm" on:click={() => showEmailModal = true} disabled={interviews.length === 0}>
+          <i class="fi fi-br-envelope"></i> Generate Emails
+        </button>
+        <button class="btn btn-primary btn-sm" on:click={openModal}>
+          <i class="fi fi-br-calendar-plus"></i> Schedule Interview
+        </button>
+      </div>
     </div>
 
     <div class="filter-bar">
@@ -247,6 +256,17 @@
   <Navbar />
   <Sidebar currentStep={3} collapse="uncollapse" />
 </div>
+
+{#if showEmailModal}
+  <EmailGeneratorModal
+    {interviews}
+    applicants={allApplicants}
+    {orgMembers}
+    {jobs}
+    {orgName}
+    onClose={() => showEmailModal = false}
+  />
+{/if}
 
 <!-- Create individual interview modal -->
 {#if showModal}
@@ -336,6 +356,11 @@
     align-items: center;
     margin-bottom: 16px;
     h4 { margin: 0; }
+  }
+  .header-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
   }
   .filter-bar {
     display: flex;
