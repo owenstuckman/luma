@@ -20,6 +20,12 @@
   let primaryColor = '';
   let secondaryColor = '';
 
+  // Email settings
+  let emailFromAddress = '';
+  let emailReplyTo = '';
+  let emailSaving = false;
+  let emailSaveMessage = '';
+
   // Invite
   let inviteEmail = '';
   let inviteRole = 'recruiter';
@@ -42,6 +48,10 @@
     orgSlug = orgData.slug;
     primaryColor = orgData.primary_color;
     secondaryColor = orgData.secondary_color;
+
+    const emailSettings = (orgData.email_settings ?? {}) as Record<string, string>;
+    emailFromAddress = emailSettings.fromEmail ?? '';
+    emailReplyTo = emailSettings.replyToEmail ?? '';
 
     const { data: userData } = await supabase.auth.getUser();
     if (userData?.user) {
@@ -84,6 +94,24 @@
     }
     saving = false;
     setTimeout(() => { saveMessage = ''; }, 3000);
+  }
+
+  async function saveEmailSettings() {
+    if (!org || !isAdmin) return;
+    emailSaving = true;
+    const emailSettings = { fromEmail: emailFromAddress.trim(), replyToEmail: emailReplyTo.trim() };
+    const { error } = await supabase
+      .from('organizations')
+      .update({ email_settings: emailSettings })
+      .eq('id', org.id);
+
+    if (error) {
+      emailSaveMessage = 'Failed to save: ' + error.message;
+    } else {
+      emailSaveMessage = 'Email settings saved!';
+    }
+    emailSaving = false;
+    setTimeout(() => { emailSaveMessage = ''; }, 3000);
   }
 
   async function handleInvite() {
@@ -219,6 +247,42 @@
         </p>
       </div>
 
+      <!-- Email Settings -->
+      <div class="card" style="max-width: 500px; margin-top: 20px;">
+        <h5>Email Notifications</h5>
+        <p style="font-size: 13px; color: #878fa1; margin: 0 0 14px;">
+          Configure sender details for automated interview notifications (requires <code>RESEND_API_KEY</code> in Supabase secrets).
+        </p>
+        <div class="setting-field">
+          <label>From Email</label>
+          <input
+            type="text"
+            class="form-control"
+            bind:value={emailFromAddress}
+            placeholder='e.g. "Archimedes Recruiting <recruiting@archimedes.vt.edu>"'
+          />
+          <p class="field-hint">Shown as the sender. Must be a verified Resend domain.</p>
+        </div>
+        <div class="setting-field">
+          <label>Reply-To Email</label>
+          <input
+            type="email"
+            class="form-control"
+            bind:value={emailReplyTo}
+            placeholder="e.g. recruiting@archimedes.vt.edu"
+          />
+          <p class="field-hint">Where applicants reply. Included in the email body.</p>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center; margin-top: 10px;">
+          <button class="btn btn-tertiary" on:click={saveEmailSettings} disabled={emailSaving}>
+            {emailSaving ? 'Saving...' : 'Save Email Settings'}
+          </button>
+          {#if emailSaveMessage}
+            <span style="font-size: 13px; color: #22c55e;">{emailSaveMessage}</span>
+          {/if}
+        </div>
+      </div>
+
       <!-- Members -->
       <div class="card" style="max-width: 500px; margin-top: 20px;">
         <h5>Team Members ({members.length})</h5>
@@ -332,6 +396,11 @@
     font-weight: 600;
     color: $light-tertiary;
     margin-bottom: 4px;
+  }
+  .field-hint {
+    font-size: 11px;
+    color: $light-tertiary;
+    margin: 4px 0 0;
   }
 
   .invite-form {

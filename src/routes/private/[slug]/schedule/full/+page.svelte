@@ -156,6 +156,49 @@
     showModal = true;
   }
 
+  function exportCSV() {
+    function csvCell(val: string): string {
+      if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+        return `"${val.replace(/"/g, '""')}"`;
+      }
+      return val;
+    }
+
+    function getJobName(jobId: number | null): string {
+      if (!jobId) return '';
+      return jobs.find(j => j.id === jobId)?.name ?? '';
+    }
+
+    function getApplicantName(email: string | null): string {
+      if (!email) return '';
+      return allApplicants.find(a => a.email === email)?.name ?? '';
+    }
+
+    const header = ['ID', 'Job', 'Applicant Name', 'Applicant Email', 'Interviewer Email', 'Start Time', 'End Time', 'Location', 'Type'];
+    const rows = interviews.map(iv => [
+      String(iv.id),
+      getJobName(iv.job),
+      getApplicantName(iv.applicant),
+      iv.applicant ?? '',
+      iv.interviewer ?? '',
+      iv.startTime,
+      iv.endTime ?? '',
+      iv.location,
+      iv.type
+    ].map(csvCell));
+
+    const csv = [header, ...rows].map(r => r.join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${orgName.replace(/\s+/g, '-')}-interviews.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   async function handleCreate() {
     if (!orgId || !newApplicantEmail || !newInterviewerEmail || !newDate || !newStart) {
       createError = 'Applicant, interviewer, date, and start time are required.';
@@ -196,6 +239,9 @@
       <div class="header-actions">
         <button class="btn btn-secondary btn-sm" on:click={() => showEmailModal = true} disabled={interviews.length === 0}>
           <i class="fi fi-br-envelope"></i> Generate Emails
+        </button>
+        <button class="btn btn-secondary btn-sm" on:click={exportCSV} disabled={interviews.length === 0}>
+          <i class="fi fi-br-file-spreadsheet"></i> Export CSV
         </button>
         <button class="btn btn-primary btn-sm" on:click={openModal}>
           <i class="fi fi-br-calendar-plus"></i> Schedule Interview

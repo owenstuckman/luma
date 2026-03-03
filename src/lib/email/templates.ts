@@ -52,8 +52,9 @@ export function applicantEmail(params: {
 	orgName: string;
 	jobTitle: string;
 	slots: EmailSlot[];
+	replyToEmail?: string;
 }): EmailDraft {
-	const { applicantName, orgName, jobTitle, slots } = params;
+	const { applicantName, orgName, jobTitle, slots, replyToEmail } = params;
 
 	const sorted = [...slots].sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
 	const first = sorted[0];
@@ -75,6 +76,9 @@ export function applicantEmail(params: {
 		.join('\n\n');
 
 	const greeting = applicantName ? `Hi ${applicantName},` : 'Hi,';
+	const replyLine = replyToEmail
+		? `Reply to ${replyToEmail} if you have any questions or need to reschedule.`
+		: `Reply to this email if you have any questions or need to reschedule.`;
 
 	const text = `${greeting}
 
@@ -82,7 +86,7 @@ We're excited to invite you to interview for ${jobTitle} at ${orgName}.
 
 ${slotLines}
 
-Please arrive 5 minutes early. Reply to this email if you have any questions or need to reschedule.
+Please arrive 5 minutes early. ${replyLine}
 
 Best,
 ${orgName} Recruiting Team`;
