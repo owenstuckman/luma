@@ -10,7 +10,40 @@
   export let orgMembers: (OrgMember & { email: string })[];
   export let jobs: JobPosting[];
   export let orgName: string;
+  export let orgId: number | null = null;
+  export let slug: string = '';
   export let onClose: () => void;
+
+  // ── Send state ───────────────────────────────────────────────────────────
+  let sending = false;
+  let sendResult: { sent: number; failed: number; errors: string[]; dryRun?: boolean; message?: string; wouldSend?: { applicants: number; interviewers: number } } | null = null;
+  let sendError = '';
+
+  async function sendEmails(recipientType: 'applicants' | 'interviewers' | 'both') {
+    if (!orgId || !slug) {
+      sendError = 'Missing org context. Reload the page and try again.';
+      return;
+    }
+    sending = true;
+    sendResult = null;
+    sendError = '';
+    try {
+      const resp = await fetch(`/private/${slug}/schedule/notify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orgId, recipientType })
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        sendError = data.message ?? data.error ?? `Server error ${resp.status}`;
+      } else {
+        sendResult = data;
+      }
+    } catch (e: unknown) {
+      sendError = e instanceof Error ? e.message : 'Network error';
+    }
+    sending = false;
+  }
 
   type Tab = 'applicants' | 'interviewers';
   let activeTab: Tab = 'applicants';
@@ -242,8 +275,46 @@
             <i class="fi fi-br-download"></i> Download All .ics (ZIP)
           {/if}
         </button>
+        {#if orgId && slug}
+          <button
+            class="btn btn-sm btn-primary send-btn"
+            on:click={() => sendEmails(activeTab)}
+            disabled={sending}
+            title="Send emails via Resend (requires RESEND_API_KEY)"
+          >
+            {#if sending}
+              <i class="fi fi-br-spinner"></i> Sending...
+            {:else}
+              <i class="fi fi-br-paper-plane"></i> Send {activeTab === 'applicants' ? 'Applicant' : 'Interviewer'} Emails
+            {/if}
+          </button>
+        {/if}
         <span class="footer-hint">Each email is editable before copying.</span>
       </div>
+
+      {#if sendResult}
+        <div class="send-result" class:has-errors={sendResult.failed > 0}>
+          {#if sendResult.dryRun}
+            <i class="fi fi-br-info"></i>
+            {sendResult.message} — would send to {sendResult.wouldSend?.applicants ?? 0} applicants and {sendResult.wouldSend?.interviewers ?? 0} interviewers.
+          {:else}
+            <i class="fi fi-br-check"></i>
+            Sent <strong>{sendResult.sent}</strong> email{sendResult.sent === 1 ? '' : 's'}.
+            {#if sendResult.failed > 0}
+              <strong>{sendResult.failed}</strong> failed.
+              {#each sendResult.errors as err}
+                <span class="send-error-line">{err}</span>
+              {/each}
+            {/if}
+          {/if}
+        </div>
+      {/if}
+
+      {#if sendError}
+        <div class="send-result has-errors">
+          <i class="fi fi-br-cross-circle"></i> {sendError}
+        </div>
+      {/if}
     {/if}
 
   </div>
@@ -441,5 +512,37 @@
     font-size: 13px;
     text-align: center;
     padding: 24px 0;
+  }
+
+  .send-btn {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .send-result {
+    font-size: 12px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background-color: #ecfdf5;
+    color: #065f46;
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    flex-wrap: wrap;
+
+    &.has-errors {
+      background-color: #fef2f2;
+      color: #991b1b;
+    }
+  }
+
+  .send-error-line {
+    display: block;
+    font-family: monospace;
+    font-size: 11px;
+    margin-top: 2px;
+    opacity: 0.85;
   }
 </style>

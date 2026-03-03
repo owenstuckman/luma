@@ -19,7 +19,8 @@
       "mcp__supabase__get_advisors",
       "Bash(npm rebuild:*)",
       "Bash(gh repo view:*)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "mcp__supabase__list_edge_functions"
     ]
   },
   "enableAllProjectMcpServers": true,

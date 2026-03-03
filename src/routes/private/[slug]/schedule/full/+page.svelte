@@ -264,6 +264,8 @@
     {orgMembers}
     {jobs}
     {orgName}
+    {orgId}
+    {slug}
     onClose={() => showEmailModal = false}
   />
 {/if}
