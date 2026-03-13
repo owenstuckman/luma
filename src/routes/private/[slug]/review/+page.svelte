@@ -1,13 +1,15 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { supabase } from '$lib/utils/supabase';
   import { getActiveRoles } from '$lib/utils/supabase';
   import Sidebar from '$lib/components/recruiter/Sidebar.svelte';
   import Navbar from '$lib/components/recruiter/Navbar.svelte';
+  import Toast from '$lib/components/recruiter/Toast.svelte';
   import { selectedJob } from '$lib/stores/jobFilter';
   import type { Applicant, JobPosting } from '$lib/types';
+  import type { RealtimeChannel } from '@supabase/supabase-js';
 
   let applicants: Applicant[] = [];
   let searchQuery = '';
@@ -22,6 +24,23 @@
   let selectMode = false;
   let bulkStatus = 'pending';
   let bulkUpdating = false;
+
+  // Bulk comment
+  let showBulkComment = false;
+  let bulkComment = '';
+  let bulkCommentDecision = 'neutral';
+
+  // Bulk email
+  let showBulkEmail = false;
+  let bulkEmailSubject = '';
+  let bulkEmailBody = '';
+  let bulkEmailSending = false;
+  let bulkEmailResult = '';
+
+  // Realtime
+  let realtimeChannel: RealtimeChannel | null = null;
+  let toasts: { id: number; message: string; type: 'info' | 'success' | 'error' }[] = [];
+  let toastCounter = 0;
 
   $: slug = $page.params.slug;
 
@@ -66,7 +85,55 @@
     );
     jobs = jobsWithCounts;
     loading = false;
+
+    // Realtime: subscribe to new applicants for this org
+    realtimeChannel = supabase
+      .channel(`review-applicants-${orgId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'applicants', filter: `org_id=eq.${orgId}` },
+        (payload) => {
+          const newApp = payload.new as Applicant;
+          // If viewing the same job, add to the list
+          if ($selectedJob && newApp.job === $selectedJob.id) {
+            applicants = [newApp, ...applicants];
+          }
+          addToast(`New applicant: ${newApp.name}`, 'info');
+          // Refresh job counts
+          refreshJobCounts();
+        }
+      )
+      .subscribe();
   });
+
+  onDestroy(() => {
+    if (realtimeChannel) supabase.removeChannel(realtimeChannel);
+  });
+
+  function addToast(message: string, type: 'info' | 'success' | 'error' = 'info') {
+    const id = ++toastCounter;
+    toasts = [...toasts, { id, message, type }];
+  }
+
+  function removeToast(id: number) {
+    toasts = toasts.filter(t => t.id !== id);
+  }
+
+  async function refreshJobCounts() {
+    if (!orgId) return;
+    const activeJobs = await getActiveRoles(orgId);
+    const jobsWithCounts = await Promise.all(
+      activeJobs.map(async (job) => {
+        const { count } = await supabase
+          .from('applicants')
+          .select('*', { count: 'exact', head: true })
+          .eq('org_id', orgId!)
+          .eq('job', job.id);
+        return { ...job, applicantCount: count || 0 };
+      })
+    );
+    jobs = jobsWithCounts;
+  }
 
   function selectJob(job: JobPosting & { applicantCount: number }) {
     selectedJob.set(job);
@@ -148,6 +215,82 @@
       selectedIds = new Set();
     }
     bulkUpdating = false;
+  }
+
+  async function bulkAddComment() {
+    if (selectedIds.size === 0 || !bulkComment.trim()) return;
+    bulkUpdating = true;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    const userEmail = user?.email ?? 'unknown';
+
+    const ids = Array.from(selectedIds);
+    // Fetch current comments for selected applicants
+    const { data: selected } = await supabase
+      .from('applicants')
+      .select('id, comments')
+      .in('id', ids);
+
+    if (selected) {
+      for (const app of selected) {
+        const existing = app.comments?.comments ?? [];
+        const newComment = {
+          id: Date.now() + app.id,
+          email: userEmail,
+          comment: bulkComment.trim(),
+          decision: bulkCommentDecision
+        };
+        const { error } = await supabase
+          .from('applicants')
+          .update({ comments: { comments: [...existing, newComment] } })
+          .eq('id', app.id);
+        if (error) console.error(`Comment failed for ${app.id}:`, error);
+      }
+    }
+
+    bulkComment = '';
+    showBulkComment = false;
+    if ($selectedJob) await loadApplicants($selectedJob.id);
+    bulkUpdating = false;
+    addToast(`Comment added to ${ids.length} applicant(s)`, 'success');
+  }
+
+  async function bulkSendEmail() {
+    if (selectedIds.size === 0 || !bulkEmailSubject.trim() || !bulkEmailBody.trim()) return;
+    if (!orgId) return;
+    bulkEmailSending = true;
+    bulkEmailResult = '';
+
+    const ids = Array.from(selectedIds);
+    const targets = applicants.filter(a => ids.includes(a.id));
+
+    try {
+      const resp = await fetch(`/private/${slug}/schedule/notify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orgId,
+          recipientType: 'custom',
+          customEmails: targets.map(a => ({
+            to: a.email,
+            subject: bulkEmailSubject,
+            text: bulkEmailBody.replace(/\{name\}/g, a.name).replace(/\{email\}/g, a.email)
+          }))
+        })
+      });
+      const data = await resp.json();
+      if (data.dryRun) {
+        bulkEmailResult = `Dry run: RESEND_API_KEY not configured. Would send to ${targets.length} recipients.`;
+      } else if (data.error) {
+        bulkEmailResult = `Error: ${data.error}`;
+      } else {
+        bulkEmailResult = `Sent ${data.sent ?? 0} email(s). ${data.failed ? data.failed + ' failed.' : ''}`;
+        showBulkEmail = false;
+      }
+    } catch (e: unknown) {
+      bulkEmailResult = e instanceof Error ? e.message : 'Network error';
+    }
+    bulkEmailSending = false;
   }
 
   function exportCSV() {
@@ -292,8 +435,82 @@
           >
             Delete ({selectedIds.size})
           </button>
+          <button
+            class="btn btn-quaternary btn-sm"
+            on:click={() => showBulkComment = !showBulkComment}
+            disabled={selectedIds.size === 0}
+          >
+            <i class="fi fi-br-comment-alt"></i> Note
+          </button>
+          <button
+            class="btn btn-quaternary btn-sm"
+            on:click={() => { showBulkEmail = !showBulkEmail; bulkEmailResult = ''; }}
+            disabled={selectedIds.size === 0}
+          >
+            <i class="fi fi-br-envelope"></i> Email
+          </button>
         </div>
       </div>
+
+      {#if showBulkComment && selectMode}
+        <div class="bulk-panel">
+          <h6 style="margin: 0 0 8px; font-size: 13px;">Add Note to {selectedIds.size} Applicant(s)</h6>
+          <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+            <select bind:value={bulkCommentDecision} class="form-control" style="max-width: 140px; font-size: 12px;">
+              <option value="neutral">Neutral</option>
+              <option value="positive">Positive</option>
+              <option value="negative">Negative</option>
+            </select>
+          </div>
+          <textarea
+            bind:value={bulkComment}
+            class="form-control"
+            rows="2"
+            placeholder="Enter note..."
+            style="font-size: 12px; margin-bottom: 8px;"
+          ></textarea>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-tertiary btn-sm" on:click={bulkAddComment} disabled={!bulkComment.trim() || bulkUpdating}>
+              {bulkUpdating ? 'Saving...' : 'Add Note'}
+            </button>
+            <button class="btn btn-quaternary btn-sm" on:click={() => showBulkComment = false}>Cancel</button>
+          </div>
+        </div>
+      {/if}
+
+      {#if showBulkEmail && selectMode}
+        <div class="bulk-panel">
+          <h6 style="margin: 0 0 8px; font-size: 13px;">Email {selectedIds.size} Applicant(s)</h6>
+          <p style="font-size: 11px; color: #878fa1; margin: 0 0 8px;">Use {'{name}'} and {'{email}'} as placeholders.</p>
+          <input
+            type="text"
+            bind:value={bulkEmailSubject}
+            class="form-control"
+            placeholder="Subject"
+            style="font-size: 12px; margin-bottom: 8px;"
+          />
+          <textarea
+            bind:value={bulkEmailBody}
+            class="form-control"
+            rows="4"
+            placeholder="Email body..."
+            style="font-size: 12px; margin-bottom: 8px; font-family: monospace;"
+          ></textarea>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button
+              class="btn btn-tertiary btn-sm"
+              on:click={bulkSendEmail}
+              disabled={!bulkEmailSubject.trim() || !bulkEmailBody.trim() || bulkEmailSending}
+            >
+              {bulkEmailSending ? 'Sending...' : 'Send'}
+            </button>
+            <button class="btn btn-quaternary btn-sm" on:click={() => { showBulkEmail = false; bulkEmailResult = ''; }}>Cancel</button>
+            {#if bulkEmailResult}
+              <span style="font-size: 11px; color: #878fa1;">{bulkEmailResult}</span>
+            {/if}
+          </div>
+        </div>
+      {/if}
     {/if}
 
     <div class="applicant-grid">
@@ -336,6 +553,10 @@
   <Navbar />
   <Sidebar currentStep={1} />
 </div>
+
+{#each toasts as toast (toast.id)}
+  <Toast message={toast.message} type={toast.type} onDismiss={() => removeToast(toast.id)} />
+{/each}
 
 <style lang="scss">
   @use '../../../../styles/col.scss' as *;
@@ -506,5 +727,13 @@
     font-size: 12px;
     color: $light-tertiary;
     margin: 2px 0;
+  }
+
+  .bulk-panel {
+    background-color: white;
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: 0 0px 12px rgba(0, 0, 0, 0.08);
+    margin-bottom: 15px;
   }
 </style>

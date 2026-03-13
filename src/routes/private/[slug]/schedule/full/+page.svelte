@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { page } from '$app/stores';
   import { supabase } from '$lib/utils/supabase';
   import {
@@ -8,12 +8,14 @@
   } from '$lib/utils/supabase';
   import Sidebar from '$lib/components/recruiter/Sidebar.svelte';
   import Navbar from '$lib/components/recruiter/Navbar.svelte';
+  import Toast from '$lib/components/recruiter/Toast.svelte';
   import EmailGeneratorModal from '$lib/components/recruiter/EmailGeneratorModal.svelte';
   import { selectedJob } from '$lib/stores/jobFilter';
   import { ScheduleXCalendar } from '@schedule-x/svelte';
   import { createCalendar, createViewDay, createViewWeek, createViewMonthGrid } from '@schedule-x/calendar';
   import '@schedule-x/theme-default/dist/index.css';
   import type { Interview, JobPosting, Applicant, OrgMember } from '$lib/types';
+  import type { RealtimeChannel } from '@supabase/supabase-js';
 
   let orgId: number | null = null;
   let orgName = '';
@@ -21,6 +23,9 @@
   let calendarApp: ReturnType<typeof createCalendar> | null = null;
   let loading = true;
   let showEmailModal = false;
+  let realtimeChannel: RealtimeChannel | null = null;
+  let toasts: { id: number; message: string; type: 'info' | 'success' | 'error' }[] = [];
+  let toastCounter = 0;
 
   // Filter by interviewer
   let interviewerFilter = 'all';
@@ -128,7 +133,43 @@
       getOrgMembersWithEmail(orgId!),
       getAllApplicants(orgId!)
     ]);
+
+    // Realtime: subscribe to interview changes for this org
+    realtimeChannel = supabase
+      .channel(`schedule-interviews-${orgId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'interviews', filter: `org_id=eq.${orgId}` },
+        async (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newIv = payload.new as Interview;
+            interviews = [...interviews, newIv];
+            addToast('New interview added to schedule', 'info');
+          } else if (payload.eventType === 'DELETE') {
+            const oldId = (payload.old as { id: number }).id;
+            interviews = interviews.filter(iv => iv.id !== oldId);
+            addToast('Interview removed from schedule', 'info');
+          } else if (payload.eventType === 'UPDATE') {
+            const updated = payload.new as Interview;
+            interviews = interviews.map(iv => iv.id === updated.id ? updated : iv);
+          }
+        }
+      )
+      .subscribe();
   });
+
+  onDestroy(() => {
+    if (realtimeChannel) supabase.removeChannel(realtimeChannel);
+  });
+
+  function addToast(message: string, type: 'info' | 'success' | 'error' = 'info') {
+    const id = ++toastCounter;
+    toasts = [...toasts, { id, message, type }];
+  }
+
+  function removeToast(id: number) {
+    toasts = toasts.filter(t => t.id !== id);
+  }
 
   // Rebuild calendar when job filter, interviewer filter, or flagged filter changes
   $: if (!loading) {
@@ -429,6 +470,10 @@
     </div>
   </div>
 {/if}
+
+{#each toasts as toast (toast.id)}
+  <Toast message={toast.message} type={toast.type} onDismiss={() => removeToast(toast.id)} />
+{/each}
 
 <style lang="scss">
   @use '../../../../../styles/col.scss' as *;

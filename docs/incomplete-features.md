@@ -1,8 +1,8 @@
 # Incomplete & Missing Features
 
-Last audited: 2026-03-12
+Last audited: 2026-03-13
 
-Overall assessment: **~95% complete** — core ATS workflow is production-ready. The gaps below are secondary features or missing polish.
+Overall assessment: **~97% complete** — core ATS workflow is production-ready. The gaps below are secondary features or missing polish.
 
 ---
 
@@ -23,9 +23,14 @@ Overall assessment: **~95% complete** — core ATS workflow is production-ready.
 | Job posting CRUD | Create, edit, toggle active, delete |
 | Form builder | Add/remove/reorder steps and questions, all question types |
 | CSV export | Applicants (review + admin), schedule (full schedule page) |
-| Org settings | Name, slug, colors, email from/reply-to |
+| Org settings | Name, slug, colors, email from/reply-to, logo upload |
 | Admin panel (core) | Org CRUD, user management, platform admins, analytics |
 | Auth (email/password) | Signup, login, email confirmation |
+| Organization logo upload | Upload/remove in settings, stored in Supabase Storage `org-assets` bucket |
+| Email log viewer | Last 50 emails viewable in org settings (recipient, type, status, errors) |
+| Schedule conflict detection | Real-time warnings when creating overlapping interviews, violations in CSV export |
+| Dashboard realtime updates | Supabase Realtime subscription auto-refreshes applicant counts on new submissions |
+| Bulk delete (review page) | Delete selected applicants with confirmation dialog |
 
 ---
 
@@ -36,7 +41,6 @@ Overall assessment: **~95% complete** — core ATS workflow is production-ready.
 
 **What's missing:**
 - Requires `RESEND_API_KEY` in Supabase Edge Function secrets — fails silently if not set
-- `email_log` table exists but no UI to view sent email history
 - ICS files are generated but not auto-attached to emails (downloadable separately)
 - No bounce/delivery status tracking
 
@@ -53,17 +57,7 @@ Overall assessment: **~95% complete** — core ATS workflow is production-ready.
 
 **Files:** `src/lib/scheduling/`, `src/routes/admin/+page.svelte` (scheduling tab)
 
-#### 3. Schedule Conflict Detection
-**What works:** `violations` type defined, batch scheduler can generate violations during relaxed placement. Migration added for `interviews.violations` column.
-
-**What's missing:**
-- Violations are not actively displayed or flagged in the schedule UI
-- No real-time conflict check when manually creating interviews
-- CSV export doesn't include violations
-
-**Files:** `src/lib/scheduling/algorithms/batch-scheduler.ts`, `src/routes/private/[slug]/schedule/full/+page.svelte`
-
-#### 4. Email Settings
+#### 3. Email Settings
 **What works:** `email_settings` JSONB column on `organizations`, UI for `fromEmail` and `replyToEmail` in org settings.
 
 **What's missing:**
@@ -72,13 +66,12 @@ Overall assessment: **~95% complete** — core ATS workflow is production-ready.
 
 **Files:** `src/routes/private/[slug]/settings/+page.svelte`, `supabase/migrations/00010_email_log.sql`
 
-#### 5. Bulk Actions on Review Page
-**What works:** Bulk status update, bulk selection via checkboxes.
+#### 4. Bulk Actions on Review Page
+**What works:** Bulk status update, bulk selection via checkboxes, bulk delete with confirmation.
 
 **What's missing:**
 - No bulk email from selection
 - No bulk comment/note addition
-- No bulk delete from recruiter view (only available in admin panel)
 
 **Files:** `src/routes/private/[slug]/review/+page.svelte`
 
@@ -95,21 +88,10 @@ Overall assessment: **~95% complete** — core ATS workflow is production-ready.
 - Not implemented — only email/password auth
 - Supabase supports it natively; would need a UI toggle on the auth page
 
-#### 3. Organization Logo Upload
-- `organizations.logo_url` column exists in DB
-- Logo is displayed in applicant-facing pages if URL is set
-- No upload UI exists — logo URL can only be set manually in DB or via admin panel text field
-- Needs: file upload component, Supabase Storage bucket, upload handler
-
-#### 4. Email Log Viewer
-- `email_log` table exists with proper schema (recipient, type, status, error, provider_id)
-- Edge Function writes to it on send
-- No UI anywhere to view sent emails or delivery status
-
-#### 5. Real-Time Notifications
-- No WebSocket/realtime subscriptions for live updates
-- Dashboard requires manual refresh to see new applicants
-- Supabase Realtime is available but not wired up
+#### 3. Real-Time Notifications (beyond dashboard)
+- Dashboard has realtime for new applicant counts
+- No realtime on review page, schedule page, or other views
+- No toast/notification UI for realtime events
 
 ---
 
@@ -132,16 +114,14 @@ These aren't missing features but are worth addressing:
 **High priority (blocks common workflows):**
 1. Add password reset flow — users will forget passwords
 2. Surface email send errors in UI — silent failures are confusing
-3. Add real-time conflict check for manual interview creation
 
 **Medium priority (improves experience):**
-4. Build email log viewer in settings or schedule page
-5. Add logo upload component
-6. Document how to use auto-scheduling from admin panel
-7. Fix TypeScript errors for clean `svelte-check`
+3. Document how to use auto-scheduling from admin panel
+4. Fix TypeScript errors for clean `svelte-check`
+5. Expand realtime subscriptions beyond dashboard (review page, schedule page)
 
 **Low priority (nice to have):**
-8. Magic link auth option
-9. Realtime subscriptions for dashboard
-10. Advanced email settings UI
-11. Migrate all components to Svelte 5 runes
+6. Magic link auth option
+7. Advanced email settings UI (custom templates, send limits)
+8. Bulk email from review page selection
+9. Migrate all components to Svelte 5 runes

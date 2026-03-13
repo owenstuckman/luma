@@ -4,8 +4,10 @@ import { applicantEmail, interviewerEmail } from '../_shared/templates.ts';
 
 interface RequestBody {
 	orgId: number;
-	recipientType: 'applicants' | 'interviewers' | 'both';
+	recipientType: 'applicants' | 'interviewers' | 'both' | 'custom';
 	interviewIds?: number[]; // if omitted, send for all org interviews
+	attachICS?: boolean; // if true, attach .ics calendar invites to emails
+	customEmails?: { to: string; subject: string; text: string }[]; // for custom/bulk emails from review page
 }
 
 interface InterviewRow {
@@ -54,7 +56,7 @@ Deno.serve(async (req: Request) => {
 
 		// ── Parse body ───────────────────────────────────────────────────────
 		const body: RequestBody = await req.json();
-		const { orgId, recipientType, interviewIds } = body;
+		const { orgId, recipientType, interviewIds, attachICS = true } = body;
 		if (!orgId || !recipientType) return jsonError('orgId and recipientType are required', 400);
 
 		// Verify user is an org member
@@ -125,6 +127,46 @@ Deno.serve(async (req: Request) => {
 			errors: []
 		};
 
+		// ── Handle custom/bulk emails (from review page) ────────────────────
+		if (recipientType === 'custom' && body.customEmails) {
+			if (!resendApiKey) {
+				return json({
+					dryRun: true,
+					message: 'RESEND_API_KEY not configured — dry run only',
+					wouldSend: { applicants: body.customEmails.length, interviewers: 0 }
+				});
+			}
+
+			for (const ce of body.customEmails) {
+				const sendResult = await sendViaResend({
+					apiKey: resendApiKey,
+					from: fromEmail,
+					to: ce.to,
+					subject: ce.subject,
+					text: ce.text,
+					replyTo: replyToEmail
+				});
+
+				await supabase.from('email_log').insert({
+					org_id: orgId,
+					recipient: ce.to,
+					type: 'custom_bulk',
+					provider_id: sendResult.id ?? null,
+					status: sendResult.error ? 'failed' : 'sent',
+					error: sendResult.error ?? null
+				});
+
+				if (sendResult.error) {
+					results.failed++;
+					results.errors.push(`${ce.to}: ${sendResult.error}`);
+				} else {
+					results.sent++;
+				}
+			}
+
+			return json(results);
+		}
+
 		if (!resendApiKey) {
 			// Dry-run mode: return what would be sent without actually sending
 			const applicantCount = [...new Set((interviews as InterviewRow[]).map((iv) => iv.applicant).filter(Boolean))].length;
@@ -168,13 +210,38 @@ Deno.serve(async (req: Request) => {
 					replyToEmail
 				});
 
+				// Build ICS attachment if enabled
+			const icsAttachments: { filename: string; content: string }[] = [];
+			if (attachICS) {
+				const seen = new Set<string>();
+				const events = ivs
+					.filter(iv => {
+						const key = `${iv.startTime}|${iv.location}`;
+						if (seen.has(key)) return false;
+						seen.add(key);
+						return true;
+					})
+					.map(iv => ({
+						uid: `${iv.id}-applicant@luma`,
+						start: iv.startTime,
+						end: iv.endTime ?? iv.startTime,
+						summary: `Interview – ${getJobTitle(iv.job)} @ ${orgName}`,
+						description: `Format: ${iv.type === 'group' ? 'Group Interview' : 'Individual Interview'}\nLocation: ${iv.location || 'TBD'}`,
+						location: iv.location || ''
+					}));
+				if (events.length > 0) {
+					icsAttachments.push({ filename: 'interview-invite.ics', content: buildICSForRecipient(events) });
+				}
+			}
+
 				const sendResult = await sendViaResend({
 					apiKey: resendApiKey,
 					from: fromEmail,
 					to: email,
 					subject: draft.subject,
 					text: draft.text,
-					replyTo: replyToEmail
+					replyTo: replyToEmail,
+					attachments: icsAttachments
 				});
 
 				const logEntry = {
@@ -227,12 +294,29 @@ Deno.serve(async (req: Request) => {
 					}))
 				});
 
+				// Build ICS attachment if enabled
+			const icsAttachments: { filename: string; content: string }[] = [];
+			if (attachICS) {
+				const events = ivs.map(iv => ({
+					uid: `${iv.id}-interviewer@luma`,
+					start: iv.startTime,
+					end: iv.endTime ?? iv.startTime,
+					summary: `Interview with ${getApplicantName(iv.applicant ?? '')} – ${getJobTitle(iv.job)}`,
+					description: `Applicant: ${iv.applicant || 'TBD'}\nFormat: ${iv.type === 'group' ? 'Group Interview' : 'Individual Interview'}\nLocation: ${iv.location || 'TBD'}`,
+					location: iv.location || ''
+				}));
+				if (events.length > 0) {
+					icsAttachments.push({ filename: 'interview-schedule.ics', content: buildICSForRecipient(events) });
+				}
+			}
+
 				const sendResult = await sendViaResend({
 					apiKey: resendApiKey,
 					from: fromEmail,
 					to: email,
 					subject: draft.subject,
-					text: draft.text
+					text: draft.text,
+					attachments: icsAttachments
 				});
 
 				const logEntry = {
@@ -262,6 +346,33 @@ Deno.serve(async (req: Request) => {
 	}
 });
 
+// ── ICS helpers ──────────────────────────────────────────────────────────────
+
+function formatICSDate(isoStr: string): string {
+	return isoStr.split('.')[0].replace('Z', '').replace(/-/g, '').replace(/:/g, '');
+}
+
+function icsEscape(s: string): string {
+	return s.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+}
+
+function buildICSForRecipient(events: { uid: string; start: string; end: string; summary: string; description: string; location: string }[]): string {
+	const stamp = formatICSDate(new Date().toISOString()) + 'Z';
+	const vevents = events.map(e => [
+		'BEGIN:VEVENT',
+		`UID:${e.uid}`,
+		`DTSTAMP:${stamp}`,
+		`DTSTART:${formatICSDate(e.start)}`,
+		`DTEND:${formatICSDate(e.end || e.start)}`,
+		`SUMMARY:${icsEscape(e.summary)}`,
+		`DESCRIPTION:${icsEscape(e.description)}`,
+		`LOCATION:${icsEscape(e.location)}`,
+		'END:VEVENT'
+	].join('\r\n'));
+
+	return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//LUMA ATS//EN', 'CALSCALE:GREGORIAN', ...vevents, 'END:VCALENDAR'].join('\r\n');
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 async function sendViaResend(params: {
@@ -271,6 +382,7 @@ async function sendViaResend(params: {
 	subject: string;
 	text: string;
 	replyTo?: string;
+	attachments?: { filename: string; content: string }[];
 }): Promise<{ id?: string; error?: string }> {
 	const body: Record<string, unknown> = {
 		from: params.from,
@@ -279,6 +391,12 @@ async function sendViaResend(params: {
 		text: params.text
 	};
 	if (params.replyTo) body.reply_to = params.replyTo;
+	if (params.attachments && params.attachments.length > 0) {
+		body.attachments = params.attachments.map(a => ({
+			filename: a.filename,
+			content: btoa(a.content)
+		}));
+	}
 
 	const res = await fetch('https://api.resend.com/emails', {
 		method: 'POST',
