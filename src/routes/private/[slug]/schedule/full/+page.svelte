@@ -174,7 +174,7 @@
       return allApplicants.find(a => a.email === email)?.name ?? '';
     }
 
-    const header = ['ID', 'Job', 'Applicant Name', 'Applicant Email', 'Interviewer Email', 'Start Time', 'End Time', 'Location', 'Type'];
+    const header = ['ID', 'Job', 'Applicant Name', 'Applicant Email', 'Interviewer Email', 'Start Time', 'End Time', 'Location', 'Type', 'Violations'];
     const rows = interviews.map(iv => [
       String(iv.id),
       getJobName(iv.job),
@@ -184,7 +184,8 @@
       iv.startTime,
       iv.endTime ?? '',
       iv.location,
-      iv.type
+      iv.type,
+      iv.violations?.map(v => v.detail).join('; ') ?? ''
     ].map(csvCell));
 
     const csv = [header, ...rows].map(r => r.join(',')).join('\n');
@@ -198,6 +199,31 @@
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
+
+  function checkConflicts(): string[] {
+    if (!newDate || !newStart) return [];
+    const startISO = `${newDate}T${newStart}:00`;
+    const endISO = newEnd ? `${newDate}T${newEnd}:00` : startISO;
+    const newStart_ = new Date(startISO).getTime();
+    const newEnd_ = new Date(endISO).getTime();
+    const warnings: string[] = [];
+
+    for (const iv of interviews) {
+      const ivStart = new Date(iv.startTime).getTime();
+      const ivEnd = iv.endTime ? new Date(iv.endTime).getTime() : ivStart;
+      if (newStart_ < ivEnd && newEnd_ > ivStart) {
+        if (iv.interviewer === newInterviewerEmail) {
+          warnings.push(`Interviewer ${iv.interviewer} already has an interview at this time (${iv.applicant || 'unknown applicant'}).`);
+        }
+        if (iv.applicant === newApplicantEmail) {
+          warnings.push(`Applicant ${iv.applicant} already has an interview at this time (with ${iv.interviewer || 'unknown interviewer'}).`);
+        }
+      }
+    }
+    return [...new Set(warnings)];
+  }
+
+  $: conflictWarnings = checkConflicts();
 
   async function handleCreate() {
     if (!orgId || !newApplicantEmail || !newInterviewerEmail || !newDate || !newStart) {
@@ -380,6 +406,15 @@
           <input class="form-control" bind:value={newLocation} placeholder="e.g. MCB230, Zoom link, etc." />
         </div>
 
+        {#if conflictWarnings.length > 0}
+          <div class="conflict-warning">
+            <strong>Scheduling conflicts detected:</strong>
+            {#each conflictWarnings as warning}
+              <p style="margin: 4px 0 0; font-size: 12px;">{warning}</p>
+            {/each}
+          </div>
+        {/if}
+
         {#if createError}
           <p class="error-text">{createError}</p>
         {/if}
@@ -522,6 +557,14 @@
   }
   .modal-actions {
     display: flex; gap: 8px; margin-top: 16px;
+  }
+  .conflict-warning {
+    background-color: #fef3c7;
+    color: #92400e;
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    margin-top: 4px;
   }
   .error-text { color: #ef4444; font-size: 13px; margin: 6px 0; }
   .alert-success {

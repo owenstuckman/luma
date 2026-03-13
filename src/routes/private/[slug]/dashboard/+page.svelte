@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { page } from '$app/stores';
   import { supabase } from '$lib/utils/supabase';
   import { getActiveRoles } from '$lib/utils/supabase';
@@ -7,11 +7,13 @@
   import Navbar from '$lib/components/recruiter/Navbar.svelte';
   import { selectedJob } from '$lib/stores/jobFilter';
   import type { Organization, JobPosting } from '$lib/types';
+  import type { RealtimeChannel } from '@supabase/supabase-js';
 
   let org: Organization | null = null;
   let userEmail = '';
   let jobs: (JobPosting & { applicantCount: number })[] = [];
   let loading = true;
+  let realtimeChannel: RealtimeChannel | null = null;
 
   // Filtered stats (shown after a job is selected)
   let applicantCount = 0;
@@ -53,6 +55,40 @@
     }
 
     loading = false;
+
+    // Subscribe to realtime applicant inserts
+    if (org) {
+      realtimeChannel = supabase
+        .channel(`applicants-org-${org.id}`)
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'applicants', filter: `org_id=eq.${org.id}` },
+          async () => {
+            // Refresh job counts when a new applicant submits
+            if (!org) return;
+            const activeJobs = await getActiveRoles(org.id);
+            const jobsWithCounts = await Promise.all(
+              activeJobs.map(async (job) => {
+                const { count } = await supabase
+                  .from('applicants')
+                  .select('*', { count: 'exact', head: true })
+                  .eq('org_id', org!.id)
+                  .eq('job', job.id);
+                return { ...job, applicantCount: count || 0 };
+              })
+            );
+            jobs = jobsWithCounts;
+            if ($selectedJob) await loadCounts(org!.id, $selectedJob.id);
+          }
+        )
+        .subscribe();
+    }
+  });
+
+  onDestroy(() => {
+    if (realtimeChannel) {
+      supabase.removeChannel(realtimeChannel);
+    }
   });
 
   function selectJob(job: JobPosting & { applicantCount: number }) {

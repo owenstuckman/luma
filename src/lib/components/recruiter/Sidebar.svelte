@@ -2,6 +2,7 @@
   import { page } from '$app/stores';
 
   export let currentStep = 0;
+  export let collapse = '';
 
   $: slug = $page.params.slug || '';
   $: base = `/private/${slug}`;
@@ -51,6 +52,12 @@
       <a href="{base}/availability" class="btn btn-sidebar" class:sidebar-selected={currentStep === 7}>
         <i class="fi fi-br-clock"></i>
         Availability
+      </a>
+    </li>
+    <li>
+      <a href="{base}/settings" class="btn btn-sidebar" class:sidebar-selected={currentStep === 6}>
+        <i class="fi fi-br-settings"></i>
+        Settings
       </a>
     </li>
   </ul>

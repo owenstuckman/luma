@@ -129,6 +129,27 @@
     bulkUpdating = false;
   }
 
+  async function bulkDelete() {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Delete ${selectedIds.size} applicant(s)? This cannot be undone.`)) return;
+    bulkUpdating = true;
+
+    const ids = Array.from(selectedIds);
+    const { error } = await supabase
+      .from('applicants')
+      .delete()
+      .in('id', ids);
+
+    if (error) {
+      console.error('Bulk delete failed:', error);
+      alert('Failed to delete: ' + error.message);
+    } else {
+      if ($selectedJob) await loadApplicants($selectedJob.id);
+      selectedIds = new Set();
+    }
+    bulkUpdating = false;
+  }
+
   function exportCSV() {
     const targets = selectMode && selectedIds.size > 0
       ? filteredApplicants.filter(a => selectedIds.has(a.id))
@@ -262,6 +283,14 @@
             disabled={selectedIds.size === 0 || bulkUpdating}
           >
             {bulkUpdating ? 'Updating...' : 'Apply'}
+          </button>
+          <button
+            class="btn btn-sm btn-danger"
+            on:click={bulkDelete}
+            disabled={selectedIds.size === 0 || bulkUpdating}
+            style="background-color: #ef4444; color: white; border: none; font-size: 11px; padding: 4px 10px;"
+          >
+            Delete ({selectedIds.size})
           </button>
         </div>
       </div>

@@ -679,4 +679,68 @@
     align-items: center;
     flex-wrap: wrap;
   }
+
+  .email-log-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 10px;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  .log-row {
+    background-color: $light-secondary;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+  .log-info {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  .log-recipient {
+    font-weight: 600;
+    font-family: monospace;
+    font-size: 12px;
+  }
+  .log-type {
+    font-size: 10px;
+    font-weight: 700;
+    color: #4f46e5;
+    background-color: #eef2ff;
+    padding: 1px 6px;
+    border-radius: 10px;
+    text-transform: capitalize;
+  }
+  .log-meta {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  .log-status {
+    font-size: 10px;
+    font-weight: 700;
+    color: #065f46;
+    background-color: #ecfdf5;
+    padding: 1px 6px;
+    border-radius: 10px;
+    text-transform: uppercase;
+  }
+  .log-failed {
+    color: #991b1b;
+    background-color: #fef2f2;
+  }
+  .log-date {
+    font-size: 11px;
+    color: $light-tertiary;
+  }
+  .log-error {
+    display: block;
+    font-size: 11px;
+    color: #ef4444;
+    margin-top: 4px;
+    font-family: monospace;
+  }
 </style>
