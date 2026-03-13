@@ -16,6 +16,7 @@
   let calendarApp: ReturnType<typeof createCalendar> | null = null;
   let loading = true;
   let userEmail = '';
+  let errorMsg = '';
 
   $: slug = $page.params.slug;
 
@@ -75,11 +76,11 @@
       .eq('slug', slug)
       .single();
 
-    if (!orgData) { loading = false; return; }
+    if (!orgData) { loading = false; errorMsg = 'Organization not found.'; return; }
     orgId = orgData.id;
 
     userEmail = (await getCurrentUserEmail()) || '';
-    if (!userEmail) { loading = false; return; }
+    if (!userEmail) { loading = false; errorMsg = 'Could not determine your email. Please sign out and back in.'; return; }
 
     interviews = await getInterviewsByInterviewer(orgId!, userEmail);
     loading = false;
@@ -93,6 +94,8 @@
 
     {#if loading}
       <p class="placeholder">Loading schedule...</p>
+    {:else if errorMsg}
+      <p class="placeholder">{errorMsg}</p>
     {:else if calendarApp}
       <div class="calendar-wrap">
         <ScheduleXCalendar {calendarApp} />

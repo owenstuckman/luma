@@ -346,8 +346,16 @@ export const batchScheduler: SchedulingAlgorithm = {
 					const priorityDiff = (b.priority ?? 0) - (a.priority ?? 0);
 					if (priorityDiff !== 0) return priorityDiff;
 					// In relaxed pass, sort by fewest non-full slots (most constrained first)
-					const aCount = roundSlots.filter((s) => s.assignedApplicants.length < round.groupSize).length;
-					const bCount = roundSlots.filter((s) => s.assignedApplicants.length < round.groupSize).length;
+					const aCount = roundSlots.filter(
+						(s) =>
+							s.assignedApplicants.length < round.groupSize &&
+							applicantAvailableAt(a.availability, s.date, s.startMins, s.endMins)
+					).length;
+					const bCount = roundSlots.filter(
+						(s) =>
+							s.assignedApplicants.length < round.groupSize &&
+							applicantAvailableAt(b.availability, s.date, s.startMins, s.endMins)
+					).length;
 					return aCount - bCount;
 				});
 

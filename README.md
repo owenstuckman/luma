@@ -113,6 +113,9 @@ Row-Level Security enforces data isolation — users can only see data from orgs
 
 ### Vercel (recommended)
 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fowenstuckman%2Fluma&env=PUBLIC_SUPABASE_URL,PUBLIC_SUPABASE_ANON_KEY&envDescription=Supabase%20project%20credentials%20required%20for%20authentication%20and%20database&envLink=https%3A%2F%2Fsupabase.com%2Fdashboard&project-name=luma&repository-name=luma)
+
+Or manually:
 1. Push to GitHub
 2. Import in Vercel
 3. Set environment variables (`PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY`)
