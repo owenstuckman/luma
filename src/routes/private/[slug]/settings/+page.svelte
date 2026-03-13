@@ -19,12 +19,20 @@
   let orgSlug = '';
   let primaryColor = '';
   let secondaryColor = '';
+  let logoUrl = '';
+  let logoUploading = false;
+  let logoMessage = '';
 
   // Email settings
   let emailFromAddress = '';
   let emailReplyTo = '';
   let emailSaving = false;
   let emailSaveMessage = '';
+
+  // Email log
+  let emailLogs: { id: number; created_at: string; recipient: string; type: string; status: string; error: string | null }[] = [];
+  let emailLogsLoading = false;
+  let showEmailLogs = false;
 
   // Invite
   let inviteEmail = '';
@@ -48,6 +56,7 @@
     orgSlug = orgData.slug;
     primaryColor = orgData.primary_color;
     secondaryColor = orgData.secondary_color;
+    logoUrl = orgData.logo_url ?? '';
 
     const emailSettings = (orgData.email_settings ?? {}) as Record<string, string>;
     emailFromAddress = emailSettings.fromEmail ?? '';
@@ -181,6 +190,91 @@
     }
   }
 
+  async function handleLogoUpload(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file || !org) return;
+
+    if (!file.type.startsWith('image/')) {
+      logoMessage = 'Please select an image file.';
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      logoMessage = 'File must be under 2MB.';
+      return;
+    }
+
+    logoUploading = true;
+    logoMessage = '';
+
+    const ext = file.name.split('.').pop() || 'png';
+    const path = `logos/${org.id}/logo.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('org-assets')
+      .upload(path, file, { upsert: true });
+
+    if (uploadError) {
+      logoMessage = 'Upload failed: ' + uploadError.message;
+      logoUploading = false;
+      return;
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('org-assets')
+      .getPublicUrl(path);
+
+    const publicUrl = urlData.publicUrl;
+    const { error: updateError } = await supabase
+      .from('organizations')
+      .update({ logo_url: publicUrl })
+      .eq('id', org.id);
+
+    if (updateError) {
+      logoMessage = 'Failed to save URL: ' + updateError.message;
+    } else {
+      logoUrl = publicUrl;
+      logoMessage = 'Logo uploaded!';
+    }
+    logoUploading = false;
+    setTimeout(() => { logoMessage = ''; }, 3000);
+  }
+
+  async function removeLogo() {
+    if (!org) return;
+    const { error } = await supabase
+      .from('organizations')
+      .update({ logo_url: null })
+      .eq('id', org.id);
+    if (!error) {
+      logoUrl = '';
+      logoMessage = 'Logo removed.';
+      setTimeout(() => { logoMessage = ''; }, 3000);
+    }
+  }
+
+  async function loadEmailLogs() {
+    if (!org) return;
+    emailLogsLoading = true;
+    const { data, error } = await supabase
+      .from('email_log')
+      .select('*')
+      .eq('org_id', org.id)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (!error && data) {
+      emailLogs = data;
+    }
+    emailLogsLoading = false;
+  }
+
+  async function toggleEmailLogs() {
+    showEmailLogs = !showEmailLogs;
+    if (showEmailLogs && emailLogs.length === 0) {
+      await loadEmailLogs();
+    }
+  }
+
   function getRoleBadgeColor(role: string) {
     switch (role) {
       case 'owner': return '#ffc800';
@@ -234,6 +328,24 @@
         </div>
       </div>
 
+      <!-- Logo Upload -->
+      <div class="card" style="max-width: 500px; margin-top: 20px;">
+        <h5>Organization Logo</h5>
+        {#if logoUrl}
+          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+            <img src={logoUrl} alt="Org logo" style="max-height: 48px; max-width: 120px; border-radius: 6px; object-fit: contain;" />
+            <button class="btn btn-quaternary" style="font-size: 11px; padding: 4px 10px;" on:click={removeLogo}>Remove</button>
+          </div>
+        {/if}
+        <div class="setting-field">
+          <label>Upload Logo (max 2MB)</label>
+          <input type="file" accept="image/*" class="form-control" on:change={handleLogoUpload} disabled={logoUploading} />
+        </div>
+        {#if logoMessage}
+          <span style="font-size: 13px; color: #22c55e;">{logoMessage}</span>
+        {/if}
+      </div>
+
       <!-- Job Postings -->
       <div class="card" style="max-width: 500px; margin-top: 20px;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -281,6 +393,43 @@
             <span style="font-size: 13px; color: #22c55e;">{emailSaveMessage}</span>
           {/if}
         </div>
+      </div>
+
+      <!-- Email Log -->
+      <div class="card" style="max-width: 500px; margin-top: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h5 style="margin: 0;">Email Log</h5>
+          <button class="btn btn-tertiary" style="font-size: 11px; padding: 4px 12px;" on:click={toggleEmailLogs}>
+            {showEmailLogs ? 'Hide' : 'View Log'}
+          </button>
+        </div>
+        {#if showEmailLogs}
+          {#if emailLogsLoading}
+            <p style="font-size: 13px; color: #878fa1; margin-top: 10px;">Loading...</p>
+          {:else if emailLogs.length === 0}
+            <p style="font-size: 13px; color: #878fa1; margin-top: 10px;">No emails sent yet.</p>
+          {:else}
+            <div class="email-log-list">
+              {#each emailLogs as log}
+                <div class="log-row">
+                  <div class="log-info">
+                    <span class="log-recipient">{log.recipient}</span>
+                    <span class="log-type">{log.type.replace(/_/g, ' ')}</span>
+                  </div>
+                  <div class="log-meta">
+                    <span class="log-status" class:log-failed={log.status === 'failed'}>
+                      {log.status}
+                    </span>
+                    <span class="log-date">{new Date(log.created_at).toLocaleString()}</span>
+                  </div>
+                  {#if log.error}
+                    <span class="log-error">{log.error}</span>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          {/if}
+        {/if}
       </div>
 
       <!-- Members -->
