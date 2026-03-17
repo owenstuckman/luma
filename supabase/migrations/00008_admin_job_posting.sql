@@ -28,8 +28,8 @@ BEGIN
     RETURN json_build_object('error', 'Organization not found');
   END IF;
 
-  INSERT INTO job_posting (name, description, owner, org_id, questions, schedule, active_flg)
-    VALUES (job_name, job_description, job_owner, job_org_id, job_questions, job_schedule, false)
+  INSERT INTO job_posting (name, description, owner, org_id, questions, schedule, active_flg, scheduled)
+    VALUES (job_name, job_description, job_owner, job_org_id, job_questions, job_schedule, false, false)
     RETURNING id INTO new_job_id;
 
   RETURN json_build_object('success', true, 'job_id', new_job_id);

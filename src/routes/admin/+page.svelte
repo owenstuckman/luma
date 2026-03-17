@@ -19,6 +19,8 @@
   } from '$lib/types';
   import { algorithms, getAlgorithm } from '$lib/scheduling/registry';
   import type { SchedulerInput, SchedulerOutput, ProposedInterview, TimeRange, BatchRound, BatchSessionWindow, AttributeMatchRule } from '$lib/scheduling/types';
+  import EmailGeneratorModal from '$lib/components/recruiter/EmailGeneratorModal.svelte';
+  import type { Applicant, OrgMember } from '$lib/types';
 
   // Auth state
   let authenticated = false;
@@ -47,8 +49,8 @@
   let newOrgName = '';
   let newOrgSlug = '';
   let newOrgOwnerEmail = '';
-  let newOrgPrimaryColor = '#ffc800';
-  let newOrgSecondaryColor = '#0F1112';
+  let newOrgPrimaryColor = '';
+  let newOrgSecondaryColor = '';
   let orgCreateError = '';
   let orgCreateSuccess = '';
   let showCreateOrg = false;
@@ -131,6 +133,16 @@
   let schedClearing = false;
   let schedError = '';
   let schedSuccess = '';
+
+  // Email modal state
+  let showSchedEmailModal = false;
+  let schedEmailInterviews: Interview[] = [];
+  let schedEmailApplicants: Applicant[] = [];
+  let schedEmailOrgMembers: (OrgMember & { email: string })[] = [];
+  let schedEmailJobs: JobPosting[] = [];
+  let schedEmailOrgName = '';
+  let schedEmailOrgSlug = '';
+  let schedEmailLoading = false;
 
   // Batch scheduler config state
   let batchRoomsText = 'MCB230\nMCB231\nMCB232';
@@ -254,6 +266,9 @@
   async function loadSettings() {
     platformSettings = await getPlatformSettings();
     editSettings = { ...platformSettings };
+    // Sync org create defaults from platform settings
+    if (!newOrgPrimaryColor) newOrgPrimaryColor = platformSettings.default_primary_color || '#ffc800';
+    if (!newOrgSecondaryColor) newOrgSecondaryColor = platformSettings.default_secondary_color || '#0F1112';
   }
 
   // Org CRUD
@@ -268,7 +283,8 @@
       await adminCreateOrganization(newOrgName, newOrgSlug, newOrgOwnerEmail, newOrgPrimaryColor, newOrgSecondaryColor);
       orgCreateSuccess = `Created "${newOrgName}" successfully.`;
       newOrgName = ''; newOrgSlug = ''; newOrgOwnerEmail = '';
-      newOrgPrimaryColor = '#ffc800'; newOrgSecondaryColor = '#0F1112';
+      newOrgPrimaryColor = platformSettings.default_primary_color || '#ffc800';
+      newOrgSecondaryColor = platformSettings.default_secondary_color || '#0F1112';
       showCreateOrg = false;
       await loadOrgs();
     } catch (e: any) { orgCreateError = e.message; }
@@ -666,12 +682,54 @@
       // Save config
       await upsertSchedulingConfig(schedOrgId!, schedAlgorithmId, schedConfig, schedJobId || undefined);
 
-      schedSuccess = `Created ${rows.length} interviews successfully.`;
+      schedSuccess = `Created ${rows.length} interviews successfully. You can now send notification emails.`;
+
+      // Prepare email modal data
+      const org = organizations.find(o => o.id === schedOrgId);
+      schedEmailOrgName = org?.name ?? '';
+      schedEmailOrgSlug = org?.slug ?? '';
+      schedEmailInterviews = rows.map((r, i) => ({
+        id: i,
+        created_at: new Date().toISOString(),
+        startTime: r.startTime,
+        endTime: r.endTime,
+        location: r.location,
+        type: r.type as 'individual' | 'group',
+        comments: null,
+        job: r.job,
+        applicant: r.applicant,
+        interviewer: r.interviewer,
+        org_id: r.org_id,
+        source: 'auto',
+        violations: r.violations as Interview['violations']
+      }));
+      schedEmailApplicants = await getAllApplicants(schedOrgId!);
+      schedEmailOrgMembers = await getOrgMembersWithEmail(schedOrgId!);
+      schedEmailJobs = schedJobs;
+
       schedPreview = null;
     } catch (e: any) {
       schedError = e.message || 'Failed to apply schedule.';
     }
     schedApplying = false;
+  }
+
+  async function openEmailModal() {
+    if (!schedOrgId) return;
+    schedEmailLoading = true;
+    try {
+      const org = organizations.find(o => o.id === schedOrgId);
+      schedEmailOrgName = org?.name ?? '';
+      schedEmailOrgSlug = org?.slug ?? '';
+      schedEmailInterviews = await getInterviewsByOrg(schedOrgId);
+      schedEmailApplicants = await getAllApplicants(schedOrgId);
+      schedEmailOrgMembers = await getOrgMembersWithEmail(schedOrgId);
+      schedEmailJobs = await getActiveRoles(schedOrgId);
+      showSchedEmailModal = true;
+    } catch (e: any) {
+      schedError = e.message || 'Failed to load email data.';
+    }
+    schedEmailLoading = false;
   }
 
   async function clearAutoInterviews() {
@@ -1576,6 +1634,9 @@
                   {schedApplying ? 'Applying...' : `Apply ${schedPreview.interviews.length} Interviews`}
                 </button>
               {/if}
+              <button class="btn btn-primary" on:click={openEmailModal} disabled={schedEmailLoading}>
+                <i class="fi fi-br-paper-plane"></i> {schedEmailLoading ? 'Loading...' : 'Send Emails'}
+              </button>
               <button class="btn btn-danger btn-sm" on:click={clearAutoInterviews} disabled={schedClearing}>
                 {schedClearing ? 'Clearing...' : 'Clear Auto-Scheduled'}
               </button>
@@ -1778,6 +1839,19 @@
       </div>
     </main>
   </div>
+{/if}
+
+{#if showSchedEmailModal}
+  <EmailGeneratorModal
+    interviews={schedEmailInterviews}
+    applicants={schedEmailApplicants}
+    orgMembers={schedEmailOrgMembers}
+    jobs={schedEmailJobs}
+    orgName={schedEmailOrgName}
+    orgId={schedOrgId}
+    slug={schedEmailOrgSlug}
+    onClose={() => showSchedEmailModal = false}
+  />
 {/if}
 
 <style lang="scss">

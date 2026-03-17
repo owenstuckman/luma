@@ -21,6 +21,7 @@ export function toISO(date: string, time: string): string {
 /**
  * Find all overlapping slot windows between two sets of availability ranges.
  * Returns candidate slots of at least `durationMins` length on matching dates.
+ * If applicant has no availability (rangesA is empty), use all interviewer slots.
  */
 export function findOverlappingSlots(
 	rangesA: TimeRange[],
@@ -28,6 +29,17 @@ export function findOverlappingSlots(
 	durationMins: number
 ): { date: string; start: string; end: string }[] {
 	const results: { date: string; start: string; end: string }[] = [];
+
+	// If applicant has no availability, treat them as available anytime —
+	// use all interviewer slots directly.
+	if (rangesA.length === 0) {
+		for (const b of rangesB) {
+			if (toMinutes(b.end) - toMinutes(b.start) >= durationMins) {
+				results.push({ date: b.date, start: b.start, end: b.end });
+			}
+		}
+		return results;
+	}
 
 	for (const a of rangesA) {
 		for (const b of rangesB) {
@@ -125,6 +137,7 @@ export function findFirstAvailableSlot(
 
 /**
  * Check if a TimeRange[] covers a specific (date, startMins, endMins) window.
+ * If applicant has no availability data, treat them as available anytime.
  */
 export function applicantAvailableAt(
 	availability: TimeRange[],
@@ -132,6 +145,9 @@ export function applicantAvailableAt(
 	startMins: number,
 	endMins: number
 ): boolean {
+	// No availability data = available anytime
+	if (availability.length === 0) return true;
+
 	for (const range of availability) {
 		if (range.date !== date) continue;
 		if (toMinutes(range.start) <= startMins && toMinutes(range.end) >= endMins) {

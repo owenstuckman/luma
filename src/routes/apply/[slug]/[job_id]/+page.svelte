@@ -228,11 +228,60 @@
       {:else if isReviewStep}
         <!-- Review & Submit -->
         <h4>Review & Submit</h4>
-        <div class="card">
-          <h5>Your Information</h5>
-          <p><strong>Name:</strong> {firstName} {lastName}</p>
-          <p><strong>Email:</strong> {email}</p>
+        <p class="review-hint">Please review your answers before submitting. Click a section to edit.</p>
+
+        <div class="card review-card" on:click={() => currentStep = 0} on:keydown={() => {}} role="button" tabindex="0">
+          <h5>Personal Information</h5>
+          <div class="review-field">
+            <span class="review-label">Name</span>
+            <span class="review-value">{firstName} {lastName}</span>
+          </div>
+          <div class="review-field">
+            <span class="review-label">Email</span>
+            <span class="review-value">{email}</span>
+          </div>
         </div>
+
+        {#each steps as step, stepIndex}
+          <div class="card review-card" on:click={() => currentStep = stepIndex + 1} on:keydown={() => {}} role="button" tabindex="0">
+            <h5>{step.title}</h5>
+            {#each step.questions as q}
+              {@const key = `${storagePrefix}_${q.id}`}
+              <div class="review-field">
+                <span class="review-label">{q.title}</span>
+                <span class="review-value">
+                  {#if q.type === 'input_dual'}
+                    {localStorage.getItem(`${key}_1`) || ''} {localStorage.getItem(`${key}_2`) || ''}
+                  {:else if q.type === 'availability'}
+                    {@const raw = localStorage.getItem(key)}
+                    {#if raw}
+                      {@const ranges = JSON.parse(raw)}
+                      {#each ranges as r}
+                        <span class="review-tag">{r.date} {r.start}–{r.end}</span>
+                      {/each}
+                    {:else}
+                      <span class="review-empty">Not provided</span>
+                    {/if}
+                  {:else if q.type === 'checkbox' || q.type === 'checkbox_image'}
+                    {@const val = localStorage.getItem(key) || ''}
+                    {#if val}
+                      {#each val.split(',').filter(Boolean) as item}
+                        <span class="review-tag">{item}</span>
+                      {/each}
+                    {:else}
+                      <span class="review-empty">Not provided</span>
+                    {/if}
+                  {:else}
+                    {localStorage.getItem(key) || ''}
+                    {#if !localStorage.getItem(key)}
+                      <span class="review-empty">Not provided</span>
+                    {/if}
+                  {/if}
+                </span>
+              </div>
+            {/each}
+          </div>
+        {/each}
 
         {#if submitError}
           <div style="color: red; margin-top: 1rem;">{submitError}</div>
@@ -370,5 +419,56 @@
     max-width: 500px;
     margin-top: 20px;
     padding: 10px 0;
+  }
+
+  .review-hint {
+    font-size: 13px;
+    color: $light-tertiary;
+    margin-bottom: 12px;
+  }
+  .review-card {
+    cursor: pointer;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    border: 1px solid transparent;
+    &:hover {
+      border-color: $yellow-primary;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    }
+  }
+  .review-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 0;
+    border-bottom: 1px solid #f1f5f9;
+    &:last-child { border-bottom: none; }
+  }
+  .review-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: $light-tertiary;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .review-value {
+    font-size: 14px;
+    color: $dark-primary;
+    word-break: break-word;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .review-tag {
+    display: inline-block;
+    background-color: #f1f5f9;
+    color: $dark-primary;
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+  .review-empty {
+    color: $light-tertiary;
+    font-style: italic;
+    font-size: 13px;
   }
 </style>

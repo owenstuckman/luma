@@ -19,6 +19,7 @@
     export let timezone: string = Intl.DateTimeFormat().resolvedOptions().timeZone;
     export let initialRanges: Range[] = [];
     export let dense = false; // tighter row height
+    export let showDayNames = false; // show Mon/Tue/Wed instead of dates
   
     const dispatch = createEventDispatcher();
   
@@ -42,6 +43,14 @@
       return `${y}-${m}-${day}`;
     }
   
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    function formatDateHeader(dateStr: string): string {
+      if (!showDayNames) return dateStr;
+      const d = parseDate(dateStr);
+      return dayNames[d.getDay()];
+    }
+
     function parseDate(input: Date | string): Date {
       if (input instanceof Date) return new Date(input.getFullYear(), input.getMonth(), input.getDate());
       const [y, m, d] = input.split('-').map(Number);
@@ -245,7 +254,11 @@
   </style>
   
   <div class="controls">
-    <div class="pill">{dates[0]} → {dates[dates.length - 1]}</div>
+    {#if showDayNames}
+      <div class="pill">Weekly Schedule</div>
+    {:else}
+      <div class="pill">{dates[0]} → {dates[dates.length - 1]}</div>
+    {/if}
     <div class="pill">{dayStart}–{dayEnd} / {stepMinutes}m</div>
     <button class="btn ghost" on:click={clearAll} aria-label="Clear selection">Clear</button>
     <div class="legend"><span class="swatch"></span> Selected (available)</div>
@@ -256,7 +269,7 @@
     <div class="row hdr">
       <div class="time" aria-hidden>Time</div>
       {#each dates as d}
-        <div class="datehdr">{d}</div>
+        <div class="datehdr">{formatDateHeader(d)}</div>
       {/each}
     </div>
   

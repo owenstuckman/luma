@@ -140,7 +140,7 @@ export const createJobPosting = async (posting: {
 }) => {
 	const { data, error } = await supabase
 		.from('job_posting')
-		.insert(posting)
+		.insert({ scheduled: false, active_flg: true, ...posting })
 		.select()
 		.single();
 

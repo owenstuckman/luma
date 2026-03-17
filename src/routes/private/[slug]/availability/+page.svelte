@@ -16,21 +16,20 @@
 
   $: slug = $page.params.slug;
 
-  // Compute next Sunday through Saturday for a fixed week view
-  function getNextWeekDates(): { start: Date; end: Date } {
+  // Compute current week Monday through Sunday
+  function getCurrentWeekDates(): { start: Date; end: Date } {
     const now = new Date();
-    const day = now.getDay(); // 0=Sun
-    // Start from next Sunday (or today if Sunday)
-    const daysUntilSunday = day === 0 ? 0 : 7 - day;
+    const day = now.getDay(); // 0=Sun, 1=Mon, ...
+    const diffToMon = day === 0 ? -6 : 1 - day;
     const start = new Date(now);
-    start.setDate(now.getDate() + daysUntilSunday);
+    start.setDate(now.getDate() + diffToMon);
     start.setHours(0, 0, 0, 0);
     const end = new Date(start);
     end.setDate(start.getDate() + 6);
     return { start, end };
   }
 
-  const weekDates = getNextWeekDates();
+  const weekDates = getCurrentWeekDates();
 
   function fmt(d: Date): string {
     const y = d.getFullYear();
@@ -97,6 +96,7 @@
         dayStart="08:00"
         dayEnd="20:00"
         stepMinutes={30}
+        showDayNames={true}
         {initialRanges}
       />
 
