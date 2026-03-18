@@ -61,7 +61,9 @@
       {/if}
 
       <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
-        <a href="/register" class="btn btn-primary" style="font-size: 12px;">Create New Org</a>
+        {#if orgs.length > 0}
+          <a href="/register" class="btn btn-primary" style="font-size: 12px;">+ Add Another Org</a>
+        {/if}
         <a href="/" class="btn btn-primary" style="font-size: 12px;">Home</a>
       </div>
     </div>

@@ -52,6 +52,16 @@ CREATE POLICY members_select_same_org ON public.org_members
 CREATE POLICY members_insert_admin ON public.org_members
   FOR INSERT WITH CHECK (has_org_role(org_id, 'admin'));
 
+-- Allow org owners to insert themselves as the first member (needed for org creation)
+CREATE POLICY members_insert_owner ON public.org_members
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.organizations
+      WHERE id = org_id AND owner_id = auth.uid()
+    )
+    AND user_id = auth.uid()
+  );
+
 CREATE POLICY members_update_admin ON public.org_members
   FOR UPDATE USING (has_org_role(org_id, 'admin'));
 

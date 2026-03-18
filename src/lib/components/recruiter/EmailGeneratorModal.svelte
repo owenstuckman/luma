@@ -21,7 +21,7 @@
 
   async function sendEmails(recipientType: 'applicants' | 'interviewers' | 'both') {
     if (!orgId || !slug) {
-      sendError = 'Missing org context. Reload the page and try again.';
+      sendError = 'Missing org context — orgId or slug is not set. Make sure you selected an organization.';
       return;
     }
     sending = true;
@@ -33,14 +33,24 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orgId, recipientType })
       });
+      // Handle non-JSON responses (e.g. HTML error pages, Edge Function not deployed)
+      const contentType = resp.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        const text = await resp.text();
+        sendError = resp.ok
+          ? 'Unexpected response from server. The Edge Function may not be deployed.'
+          : `Server error ${resp.status}: ${text.substring(0, 200)}`;
+        sending = false;
+        return;
+      }
       const data = await resp.json();
       if (!resp.ok) {
-        sendError = data.message ?? data.error ?? `Server error ${resp.status}`;
+        sendError = data.message ?? data.error ?? `Server error ${resp.status}. Ensure the notify-interviews Edge Function is deployed and RESEND_API_KEY is set.`;
       } else {
         sendResult = data;
       }
     } catch (e: unknown) {
-      sendError = e instanceof Error ? e.message : 'Network error';
+      sendError = e instanceof Error ? e.message : 'Network error — could not reach the server.';
     }
     sending = false;
   }
@@ -519,10 +529,10 @@
   .email-list {
     flex: 1;
     overflow-y: auto;
-    padding: 12px 24px;
+    padding: 16px 24px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 12px;
     min-height: 0;
   }
 
@@ -538,8 +548,8 @@
   .card-header {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 14px;
+    gap: 10px;
+    padding: 12px 16px;
     cursor: pointer;
     list-style: none;
     font-size: 13px;

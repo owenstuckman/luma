@@ -346,6 +346,19 @@
         {/if}
       </div>
 
+      <!-- Auto-Scheduling -->
+      <div class="card" style="max-width: 500px; margin-top: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h5 style="margin: 0;">Auto-Scheduling</h5>
+          <a href="/private/{slug}/settings/scheduling" class="btn btn-tertiary" style="font-size: 11px; padding: 4px 12px;">
+            Configure Scheduling
+          </a>
+        </div>
+        <p style="font-size: 13px; color: #878fa1; margin-top: 8px;">
+          Run auto-scheduling algorithms to assign interviews. Supports batch, round-robin, balanced-load, and greedy algorithms.
+        </p>
+      </div>
+
       <!-- Job Postings -->
       <div class="card" style="max-width: 500px; margin-top: 20px;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
