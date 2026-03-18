@@ -120,15 +120,84 @@ Applicants will see this posting at `/apply/[slug]` and fill out the form at `/a
 
 ### 6. Scheduling Interviews
 
-Manually:
+#### Setting Interviewer Availability
 
-1. Interviewers go to **My Availability** (`/private/[slug]/availability`) and submit their available windows
-2. Recruiters go to **Schedule → Full** and create interviews by selecting an applicant, interviewer, time, and location
-3. Interviews appear on both **My Schedule** and **Full Schedule** calendar views
+1. Go to **My Availability** (`/private/[slug]/availability`)
+2. The weekly grid shows Mon–Sun, 08:00–20:00
+3. Click or drag to paint available time slots (green = available)
+4. Click **Save Availability**
+5. This data feeds into the auto-scheduler — interviewers without availability are skipped unless no one else is free
 
-Auto-scheduling (admin only):
+#### Manual Scheduling
 
-See [scheduling.md](scheduling.md) for the algorithm-based scheduling system.
+1. Go to **Schedule → Full** (`/private/[slug]/schedule/full`)
+2. Click a time slot on the calendar or use the **Create Interview** button
+3. Fill in: applicant, interviewer, date/time, location, type (individual/group)
+4. The system warns if there's a time conflict with existing interviews
+5. Save — the interview appears on both **My Schedule** and **Full Schedule**
+
+#### Auto-Scheduling (Admin)
+
+1. Go to **Admin** (`/admin`) → **Scheduling** tab
+2. Select the organization
+3. Choose an algorithm:
+   - **Greedy First Available** — fast, assigns first open slot per applicant
+   - **Balanced Load** — distributes interviews evenly across interviewers
+   - **Round Robin** — strict interviewer rotation
+   - **Batch Scheduler** — multi-room, multi-round (for 100+ applicants)
+4. Configure: slot duration, break time, max interviews per interviewer, location
+5. Click **Preview** to see proposed interviews without saving
+6. Review results: proposed matches, unmatched applicants, warnings
+7. Click **Apply Schedule** to save all proposed interviews
+8. Click **Send Emails** to notify participants (opens the email modal)
+9. Use **Clear Auto-Scheduled** to remove all auto-generated interviews (manual interviews are never touched)
+
+**Note:** Applicants who didn't submit availability are treated as available anytime — they'll be matched to any open interviewer slot.
+
+### 7. Sending Email Notifications
+
+#### After Scheduling
+
+1. On the schedule page or admin scheduling tab, click **Send Emails**
+2. The email modal shows two tabs: **Applicants** and **Interviewers**
+3. Each recipient has a pre-filled email with their interview details
+4. Edit subject or body if needed
+5. Click **Copy** to copy to clipboard, or **Send** to send via Resend API
+6. Emails include `.ics` calendar invites as attachments
+
+#### Bulk Email from Review Page
+
+1. Go to **Review** (`/private/[slug]/review`)
+2. Select applicants with checkboxes
+3. Click **Bulk Email**
+4. Write your message using `{name}` and `{email}` placeholders
+5. Click **Send**
+
+#### Email Setup
+
+To enable automated sending (not just copy-paste):
+1. Create a [Resend](https://resend.com) account (free tier: 3,000 emails/month)
+2. Verify your sending domain in Resend
+3. Set the API key as a Supabase secret: `supabase secrets set RESEND_API_KEY=re_...`
+4. Deploy the Edge Function: `supabase functions deploy notify-interviews`
+5. Configure the From/Reply-To email in **Settings** → email fields
+
+See [email-notifications.md](email-notifications.md) for full details.
+
+### 8. Using the Admin Panel
+
+The admin panel (`/admin`) is for platform super-admins. Access requires being in the `platform_admins` table.
+
+**Tabs:**
+
+| Tab | Features |
+|---|---|
+| Organizations | View all orgs, create new, edit, delete |
+| Users | View all auth users, platform admin management |
+| Job Postings | View/manage all job postings across orgs |
+| Analytics | Platform-wide stats (orgs, users, applicants, interviews) |
+| Scheduling | Auto-scheduling config and execution per org |
+| Settings | Platform defaults (colors, maintenance mode) |
 
 ---
 
@@ -144,6 +213,10 @@ See [scheduling.md](scheduling.md) for the algorithm-based scheduling system.
 | `interviews` | Scheduled interviews | `org_id`, `job`, `applicant`, `interviewer`, `startTime`, `endTime`, `location`, `source` |
 | `interviewer_availability` | Interviewer available windows | `org_id`, `user_id`, `date`, `start_time`, `end_time`, `timezone` |
 | `scheduling_config` | Per-org algorithm config | `org_id`, `job_id`, `algorithm_id`, `config` (JSON) |
+| `email_log` | Sent email records | `org_id`, `interview_id`, `recipient`, `type`, `status`, `provider_id` |
+| `platform_admins` | Super-admin users | `user_id` |
+| `platform_settings` | Global platform config | `key`, `value` |
+| `notes` | Interview evaluation notes | `org_id`, `interview_id`, `author`, `content` |
 
 ### Key JSON Schemas
 

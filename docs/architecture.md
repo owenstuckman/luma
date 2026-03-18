@@ -183,7 +183,34 @@ Per-org branding (`primary_color`, `secondary_color`) is applied via CSS custom 
 
 ## Scheduling System
 
-See [scheduling.md](scheduling.md) for the scheduling algorithm architecture and admin UI design.
+See [scheduling.md](scheduling.md) for the full scheduling system documentation (manual + auto-scheduling, algorithms, admin UI).
+
+---
+
+## Email Notifications
+
+Interview notification emails are sent via a Supabase Edge Function (`notify-interviews`) backed by the Resend API. Emails include auto-attached `.ics` calendar invites.
+
+- **Browser-side**: `src/lib/email/` — templates, ICS generation, recipient grouping
+- **Edge Function**: `supabase/functions/notify-interviews/` — sends via Resend, logs to `email_log`
+- **UI**: `EmailGeneratorModal.svelte` — preview, edit, copy, and send emails
+- **API route**: `/private/[slug]/schedule/notify/+server.ts` — proxies to Edge Function
+
+See [email-notifications.md](email-notifications.md) for setup and usage details.
+
+---
+
+## Realtime
+
+LUMA uses Supabase Realtime (`postgres_changes`) for live updates on authenticated pages:
+
+| Page | Channel | Events |
+|---|---|---|
+| Dashboard | `applicants` INSERT | Auto-refreshes job counts |
+| Review | `applicants` INSERT | New applicant toast + list refresh |
+| Full Schedule | `interviews` INSERT/UPDATE/DELETE | Calendar refresh + toast |
+
+Subscriptions are created in `onMount` and cleaned up in `onDestroy`. The `Toast.svelte` component (`src/lib/components/recruiter/Toast.svelte`) provides slide-in notifications.
 
 ---
 
@@ -196,4 +223,6 @@ See [scheduling.md](scheduling.md) for the scheduling algorithm architecture and
 | Styling | Bootstrap 5 + SCSS + CSS custom properties | Consistent with existing codebase; CSS vars enable per-org theming |
 | Component style | Match the file's existing style | Svelte 4/5 mixed intentionally; don't break working components |
 | State | localStorage for applicants, direct Supabase for recruiters | Matches original pattern; no extra infra |
+| Email | Supabase Edge Function + Resend API | No server-side Node needed; Edge Functions run close to DB |
+| Realtime | Supabase Realtime (postgres_changes) | Built-in, no extra infra; WebSocket-based |
 | Deployment | Vercel-first, with Docker/Node adapter options | Already configured; lowest friction for most users |

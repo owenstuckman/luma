@@ -10,16 +10,18 @@ Remaining incomplete items and tech debt.
 - [ ] Add Resend webhook endpoint for bounce/delivery status tracking
 - [ ] Validate that email addresses are verified with the sending provider
 - [ ] Advanced email settings UI (bounce address, custom templates, send limits)
+- [ ] Scheduled reminder emails (24h before interview via pg_cron)
 
-**Files:** `src/lib/email/`, `supabase/functions/notify-interviews/`, `src/routes/private/[slug]/schedule/notify/+server.ts`, `src/routes/private/[slug]/settings/+page.svelte`
+**Files:** `src/lib/email/`, `supabase/functions/notify-interviews/`, `src/routes/private/[slug]/schedule/notify/+server.ts`
 
-### Auto-Scheduling
-- [ ] Document how to use auto-scheduling from admin panel
-- [ ] Build recruiter-side scheduling UI (beyond manual interview creation)
-- [ ] Test scheduling preview/apply flow in admin panel with real data
-- [ ] Exercise batch scheduler attribute matching rules
+### Scheduling Enhancements
+- [ ] Relaxed constraint second pass (schedule unmatched with flagged violations)
+- [ ] Attribute-based matching (pair applicants with interviewers by team/preference)
+- [ ] Applicant priority weighting
+- [ ] Custom algorithm editor (paste JS function in browser)
+- [ ] Edge Function for cron-triggered auto-scheduling
 
-**Files:** `src/lib/scheduling/`, `src/routes/admin/+page.svelte` (scheduling tab)
+**Files:** `src/lib/scheduling/`, see [scheduling-enhancements.md](scheduling-enhancements.md) for full plan
 
 ---
 

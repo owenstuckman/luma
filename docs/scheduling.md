@@ -1,101 +1,135 @@
-# LUMA Scheduling System
+# Scheduling System
 
 ## Overview
 
 LUMA supports two modes of interview scheduling:
 
-1. **Manual scheduling** — recruiters create/edit/delete interviews by hand via a modal form on the schedule pages. Calls `createInterview` / `updateInterview` / `deleteInterview` from `supabase.ts`.
-
-2. **Algorithm-based scheduling** — platform admins configure an auto-scheduling algorithm per org (or per job posting) from the admin panel. The algorithm runs in the browser for a dry-run preview, then bulk-inserts proposed interviews on confirmation.
-
-This document covers the algorithm-based system.
+1. **Manual scheduling** — recruiters create/edit/delete interviews via a modal form on the schedule pages
+2. **Auto-scheduling** — platform admins configure an algorithm per org from the admin panel, preview proposed interviews, and apply them in bulk
 
 ---
 
-## Design Goals
+## Manual Scheduling
 
-1. **Pluggable** — new algorithms can be added without touching the scheduler runner
-2. **Transparent** — admins preview what the algorithm will do before committing (dry-run)
-3. **Safe** — auto-scheduling never overwrites manually-created interviews
-4. **Org-scoped** — each org (or job posting) can use a different algorithm
-5. **No external infra** — algorithms run in the browser or in a Supabase Edge Function; no separate service
+On the **Full Schedule** page (`/private/[slug]/schedule/full`):
+- Click a time slot or the **Create Interview** button
+- Select applicant, interviewer, date/time, location, and type (individual/group)
+- Conflict detection warns if the interviewer or applicant already has an overlapping interview
+- Edit or delete existing interviews from the calendar view
+
+Manual interviews are stored with `source = 'manual'` and are never modified by auto-scheduling.
 
 ---
 
-## Architecture
+## Interviewer Availability
 
-Algorithms are **pure TypeScript modules** in `src/lib/scheduling/algorithms/`. Each exports a function with a standard interface. The same modules work in the browser (for previews) and in an Edge Function (for cron-triggered scheduling).
+Interviewers submit their available windows at **My Availability** (`/private/[slug]/availability`):
+- Weekly grid (Mon–Sun) with configurable time range (default 08:00–20:00)
+- Click/drag to select available slots
+- Saved to the `interviewer_availability` table
 
-```
-src/lib/scheduling/
-  types.ts                          — shared types and interfaces
-  registry.ts                       — exports all available algorithms
-  utils.ts                          — shared helpers (time overlap, slot generation)
-  algorithms/
-    greedy-first-available.ts
-    balanced-load.ts
-    round-robin.ts
-```
+The auto-scheduler reads this data to find overlapping windows with applicant availability.
+
+**Applicants with no availability data** are treated as available anytime — the scheduler matches them to any interviewer's open slot.
+
+---
+
+## Auto-Scheduling (Admin Panel)
+
+### Setup
+
+1. Go to **Admin** (`/admin`) → **Scheduling** tab
+2. Select an organization
+3. Choose an algorithm (greedy-first-available, round-robin, balanced-load, or batch-scheduler)
+4. Configure algorithm parameters (slot duration, break time, max interviews per interviewer, location, etc.)
+
+### Preview & Apply
+
+1. Click **Preview** — the algorithm runs in the browser and shows:
+   - Proposed interviews (applicant, interviewer, time, location)
+   - Unmatched applicants (with reasons)
+   - Warnings
+   - Stats (for batch scheduler: per-round counts)
+2. Review the results, then click **Apply Schedule** to bulk-insert interviews with `source = 'auto'`
+3. Click **Send Emails** to open the email notification modal (see [email-notifications.md](email-notifications.md))
+4. **Clear Auto-Scheduled** removes all `source = 'auto'` interviews for the org — manual interviews are never touched
+
+### Send Emails
+
+The **Send Emails** button is always available in the scheduling tab. It loads all interviews for the selected org into the `EmailGeneratorModal`, allowing you to send notification emails at any time (not just after applying a schedule).
+
+---
+
+## Algorithms
+
+All algorithms are pure TypeScript modules in `src/lib/scheduling/algorithms/`. Each exports a standard `SchedulingAlgorithm` interface with `id`, `name`, `description`, `configSchema`, and `run()`.
+
+### `greedy-first-available`
+
+Sorts applicants by submission date, then for each applicant finds the first overlapping slot with any available interviewer. Simple, fast, predictable.
+
+**Best for:** Small orgs, straightforward 1:1 scheduling.
+
+### `balanced-load`
+
+Same matching logic as greedy, but prioritizes the interviewer with the fewest assigned interviews. Distributes workload evenly.
+
+**Best for:** Orgs with many interviewers who want fair distribution.
+
+### `round-robin`
+
+Cycles through interviewers in a fixed order. Each gets the next available applicant in sequence.
+
+**Best for:** Strict interviewer rotation.
+
+### `batch-scheduler`
+
+Designed for large cohorts (100+ applicants) across multiple rooms and rounds.
+
+**Best for:** Orgs running structured interview days with parallel rooms and sequential rounds (individual → group).
+
+#### Batch Config
+
+| Field | Type | Description |
+|---|---|---|
+| `rooms` | `string[]` | Room names used in parallel |
+| `rounds` | `BatchRound[]` | Ordered list of interview rounds |
+| `sessionWindows` | `BatchSessionWindow[]` | Date + time windows for scheduling |
+| `slotStepMinutes` | `number` | Time between slot start times (e.g. 15 min) |
+| `blockBreakMinutes` | `number` | Gap between sequential slots |
+| `requireAllRounds` | `boolean` | Remove applicants who miss any round |
+
+#### BatchRound Fields
+
+| Field | Description |
+|---|---|
+| `id` | Unique identifier (e.g. `"individual"`) |
+| `label` | Display name |
+| `type` | `"individual"` or `"group"` |
+| `durationMinutes` | Slot length |
+| `groupSize` | Applicants per slot (1 for individual) |
+| `interviewersPerRoom` | Interviewers per slot |
+
+#### How It Works
+
+1. **Slot generation** — creates all (room × time × round) slots from session windows
+2. **Interviewer assignment** — assigns interviewers to slots based on availability (round-robin fallback if insufficient)
+3. **Applicant matching** — sorts by constraint score (most-constrained first), places each in the first available slot
+4. **Unmatched output** — missed applicants get `suggestedSlots` listing every slot they could attend
+
+#### Batch Output
+
+The batch scheduler provides additional output:
+
+- `unmatchedDetails[]` — per-applicant: missed rounds + suggested alternative slots
+- `stats[]` — per-round: scheduled count, missed count, total slots, filled slots
 
 ---
 
 ## Algorithm Interface
 
 ```typescript
-export interface SchedulerInput {
-  applicants: {
-    email: string;
-    name: string;
-    jobId: number;
-    availability: TimeRange[];
-  }[];
-  interviewers: {
-    email: string;
-    availability: TimeRange[];
-  }[];
-  existingInterviews: {
-    startTime: string;
-    endTime: string;
-    interviewer: string;
-    applicant: string;
-  }[];
-  config: SchedulerConfig;
-}
-
-export interface SchedulerConfig {
-  slotDurationMinutes: number;
-  breakBetweenMinutes: number;
-  maxInterviewsPerInterviewer: number;
-  interviewType: 'individual' | 'group';
-  groupSize?: number;
-  location: string;
-  [key: string]: unknown;  // algorithm-specific params
-}
-
-export interface SchedulerOutput {
-  interviews: ProposedInterview[];
-  unmatched: string[];   // applicant emails that couldn't be scheduled
-  warnings: string[];
-}
-
-export interface ProposedInterview {
-  startTime: string;
-  endTime: string;
-  applicant: string;
-  interviewer: string;
-  location: string;
-  type: 'individual' | 'group';
-  jobId: number;
-}
-
-export interface TimeRange {
-  date: string;   // YYYY-MM-DD
-  start: string;  // HH:mm
-  end: string;    // HH:mm
-}
-
-// Every algorithm exports this shape
-export interface SchedulingAlgorithm {
+interface SchedulingAlgorithm {
   id: string;
   name: string;
   description: string;
@@ -103,33 +137,23 @@ export interface SchedulingAlgorithm {
   run: (input: SchedulerInput) => SchedulerOutput;
 }
 
-export interface ConfigField {
-  key: string;
-  label: string;
-  type: 'number' | 'string' | 'boolean' | 'select';
-  default: unknown;
-  options?: { label: string; value: unknown }[];
+interface SchedulerInput {
+  applicants: { email: string; name: string; jobId: number; availability: TimeRange[] }[];
+  interviewers: { email: string; availability: TimeRange[] }[];
+  existingInterviews: { startTime: string; endTime: string; interviewer: string; applicant: string }[];
+  config: SchedulerConfig;
+}
+
+interface SchedulerOutput {
+  interviews: ProposedInterview[];
+  unmatched: string[];
+  warnings: string[];
+  unmatchedDetails?: UnmatchedApplicant[];  // batch scheduler
+  stats?: BatchRoundStat[];                 // batch scheduler
 }
 ```
 
----
-
-## Built-in Algorithms
-
-### `greedy-first-available`
-Sorts applicants by submission date, then for each applicant finds the first overlapping slot with any available interviewer. Simple, fast, predictable. Best for small orgs or straightforward scheduling.
-
-### `balanced-load`
-Same matching logic as greedy, but prioritizes the interviewer with the fewest assigned interviews who has an overlapping slot. Best for orgs with many interviewers who want fair workload distribution.
-
-### `round-robin`
-Cycles through interviewers in a fixed order. Each interviewer gets the next available applicant in sequence; skips if no overlapping availability. Best for orgs that want strict rotation.
-
-### `batch-scheduler`
-Designed for large cohorts (100s of applicants) across multiple rooms and multiple rounds. Generates all possible time slots from session windows × rooms, fills them with applicants based on availability (most-constrained first), and provides structured output for applicants the algorithm misses. See [Batch Scheduler](#batch-scheduler-1) below for full details.
-
-### `custom` (future)
-Admin pastes a JS function body into a code editor in the browser. The function receives `SchedulerInput` and must return `SchedulerOutput`. Runs sandboxed. For power users with unique constraints.
+See `src/lib/scheduling/types.ts` for full type definitions.
 
 ---
 
@@ -137,12 +161,11 @@ Admin pastes a JS function body into a code editor in the browser. The function 
 
 ### `scheduling_config`
 
-Stores per-org or per-job scheduling preferences.
+Stores per-org (or per-job) scheduling preferences:
 
 ```sql
 CREATE TABLE public.scheduling_config (
   id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-  created_at timestamptz NOT NULL DEFAULT now(),
   org_id bigint NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   job_id bigint REFERENCES job_posting(id) ON DELETE CASCADE,
   algorithm_id text NOT NULL DEFAULT 'greedy-first-available',
@@ -153,16 +176,11 @@ CREATE TABLE public.scheduling_config (
 );
 ```
 
-`job_id = NULL` means org-wide default. `config` stores algorithm-specific parameters. `last_run_result` summarizes the most recent run.
-
 ### `interviewer_availability`
-
-Interviewers submit their available windows (mirrors applicant availability).
 
 ```sql
 CREATE TABLE public.interviewer_availability (
   id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-  created_at timestamptz NOT NULL DEFAULT now(),
   org_id bigint NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   email text NOT NULL,
@@ -176,200 +194,37 @@ CREATE TABLE public.interviewer_availability (
 
 ### `interviews.source`
 
-Track whether an interview was manually created or auto-scheduled:
-
 ```sql
-ALTER TABLE public.interviews
-  ADD COLUMN source text NOT NULL DEFAULT 'manual';
-  -- values: 'manual' | 'auto'
+-- values: 'manual' | 'auto'
+ALTER TABLE public.interviews ADD COLUMN source text NOT NULL DEFAULT 'manual';
 ```
 
-Auto-scheduling only inserts interviews with `source = 'auto'`. The "Clear" button only deletes `source = 'auto'` rows — manual interviews are never touched.
+Auto-scheduling inserts with `source = 'auto'`. The "Clear" button only deletes `source = 'auto'` rows.
 
 ---
 
-## Admin UI
+## Key Files
 
-Located at `/admin` under a "Scheduling" tab.
-
-### Per-Org Config Panel
-
-1. Org selector
-2. Algorithm picker — radio cards showing `name` and `description` from the registry
-3. Config form — dynamically rendered from `configSchema` (numbers, selects, toggles)
-4. Save — writes to `scheduling_config`
-
-### Dry-Run / Preview
-
-1. **Preview** — fetches applicants + interviewer availability for the selected org/job, runs the algorithm in the browser, displays:
-   - Proposed interviews (applicant, interviewer, time, location)
-   - Unmatched applicants
-   - Warnings
-2. **Apply** — bulk-inserts proposed interviews with `source = 'auto'`
-3. **Clear Auto-Scheduled** — deletes all `source = 'auto'` interviews for the org/job
-
----
-
-## Interviewer Availability Input
-
-The recruiter's **My Schedule** page (`/private/[slug]/availability`) includes an `AvailabilityGrid` component (same one applicants use) where interviewers submit their available windows. On save, rows are written to `interviewer_availability`.
-
----
-
-## Edge Function (Optional)
-
-For orgs that want cron-triggered auto-scheduling:
-
-```
-supabase/functions/auto-schedule/index.ts
-```
-
-- Reads `scheduling_config` for orgs with an algorithm set
-- Imports the same algorithm modules
-- Runs the algorithm, inserts interviews with `source = 'auto'`
-- Triggered by Supabase cron or `pg_cron`
-
-This is optional — the browser-based dry-run covers the primary use case.
-
----
-
----
-
-## Batch Scheduler
-
-The `batch-scheduler` algorithm handles large-scale scheduling across many rooms and multiple rounds.
-
-### When to use it
-
-- 50+ applicants
-- Multiple rooms available simultaneously (e.g. 10 MCB rooms)
-- Multiple interview rounds (e.g. individual + group)
-- Need structured output for applicants who couldn't be auto-placed
-
-### Config
-
-```json
-{
-  "rooms": ["MCB230", "MCB231", "MCB232", "MCB233", "MCB304"],
-  "rounds": [
-    {
-      "id": "individual",
-      "label": "Individual Interview",
-      "type": "individual",
-      "durationMinutes": 20,
-      "breakBeforeMinutes": 0,
-      "groupSize": 1,
-      "interviewersPerRoom": 1
-    },
-    {
-      "id": "group",
-      "label": "Group Interview",
-      "type": "group",
-      "durationMinutes": 40,
-      "breakBeforeMinutes": 10,
-      "groupSize": 8,
-      "interviewersPerRoom": 3
-    }
-  ],
-  "sessionWindows": [
-    { "date": "2025-09-13", "startTime": "09:00", "endTime": "17:00" },
-    { "date": "2025-09-14", "startTime": "09:00", "endTime": "13:00" }
-  ],
-  "slotStepMinutes": 15,
-  "blockBreakMinutes": 5,
-  "requireAllRounds": false
-}
-```
-
-**Config fields:**
-
-| Field | Type | Description |
-|---|---|---|
-| `rooms` | `string[]` | Room names — all rooms are used in parallel |
-| `rounds` | `BatchRound[]` | Ordered list of rounds; each round is scheduled independently |
-| `sessionWindows` | `BatchSessionWindow[]` | Date + time windows when scheduling can happen |
-| `slotStepMinutes` | `number` | How often slot start times are generated (e.g. every 15 min) |
-| `blockBreakMinutes` | `number` | Gap between sequential slots in the same room |
-| `requireAllRounds` | `boolean` | If `true`, applicants missing any round have ALL their assignments removed |
-
-**`BatchRound` fields:**
-
-| Field | Description |
+| File | Purpose |
 |---|---|
-| `id` | Unique identifier (e.g. `"individual"`, `"group-1"`) |
-| `label` | Display name |
-| `type` | `"individual"` or `"group"` |
-| `durationMinutes` | Length of each slot |
-| `breakBeforeMinutes` | Gap before this round starts (within the same session block) |
-| `groupSize` | Applicants per slot (`1` for individual, `N` for group) |
-| `interviewersPerRoom` | Interviewers assigned to each slot |
-
-### How it works
-
-1. **Slot generation** — For each session window × room × round, the algorithm generates all possible time slots spaced `slotStepMinutes` apart.
-
-2. **Interviewer assignment** — Each slot gets `interviewersPerRoom` interviewers assigned based on their availability. If an interviewer has no availability data, they're treated as always available. If fewer interviewers than needed are available, the algorithm falls back to round-robin from the full list and emits a warning.
-
-3. **Applicant matching** — For each round, applicants are sorted by constraint score (fewest available slots first — most constrained matched first). Each applicant is placed in the first slot with remaining capacity where they're available and have no time conflicts.
-
-4. **Missed applicants** — Applicants who couldn't be placed receive a `SuggestedSlot[]` listing every slot they *could* attend (including full slots, marked `isFull: true`). Recruiters can use this to manually override.
-
-5. **`requireAllRounds`** — If `true`, any applicant missing one or more rounds has all their assignments removed, so the output is all-or-nothing per applicant.
-
-### Output
-
-In addition to the standard `SchedulerOutput` fields, the batch scheduler populates:
-
-**`unmatchedDetails`** (`UnmatchedApplicant[]`):
-```typescript
-{
-  email: "student@vt.edu",
-  name: "Jane Smith",
-  missedRounds: ["individual"],   // which round(s) they couldn't be placed in
-  suggestedSlots: [
-    {
-      roundId: "individual",
-      date: "2025-09-13",
-      startTime: "14:00",
-      endTime: "14:20",
-      room: "MCB232",
-      isFull: false              // false = space available; true = recruiter must bump someone
-    }
-  ]
-}
-```
-
-**`stats`** (`BatchRoundStat[]`):
-```typescript
-{
-  roundId: "individual",
-  roundLabel: "Individual Interview",
-  scheduled: 243,
-  missed: 7,
-  totalSlots: 300,
-  filledSlots: 180
-}
-```
-
-### Interview rows in the database
-
-Following the same model as the existing Archimedes data: each (applicant × interviewer) in a slot produces **one row** in the `interviews` table. So a group slot with 8 applicants and 3 interviewers produces 24 rows — all with the same `startTime`, `endTime`, and `location`, enabling per-interviewer evaluations per applicant.
+| `src/lib/scheduling/types.ts` | Shared types and interfaces |
+| `src/lib/scheduling/registry.ts` | Algorithm registry (exports all available algorithms) |
+| `src/lib/scheduling/utils.ts` | Helpers: time overlap, slot generation, conflict checking |
+| `src/lib/scheduling/algorithms/greedy-first-available.ts` | Greedy algorithm |
+| `src/lib/scheduling/algorithms/balanced-load.ts` | Balanced-load algorithm |
+| `src/lib/scheduling/algorithms/round-robin.ts` | Round-robin algorithm |
+| `src/lib/scheduling/algorithms/batch-scheduler.ts` | Batch scheduler (multi-room, multi-round) |
+| `src/routes/admin/+page.svelte` | Admin panel with scheduling tab |
+| `src/routes/private/[slug]/availability/+page.svelte` | Interviewer availability page |
+| `src/routes/private/[slug]/schedule/full/+page.svelte` | Full schedule with manual CRUD |
 
 ---
 
-## Implementation Status
+## Future Enhancements
 
-- [x] **Phase A — Foundation**: `types.ts`, `registry.ts`, `utils.ts`, `greedy-first-available`, `balanced-load`, `round-robin`, `batch-scheduler` implemented
-- [ ] **Phase B — Admin UI**: Scheduling tab in admin panel, dry-run preview, apply/clear buttons
-- [ ] **Phase C — Interviewer Availability**: `AvailabilityGrid` on My Schedule, `interviewer_availability` CRUD, wire into scheduler input
-- [ ] **Phase D — More Algorithms**: `custom` JS editor for power users
-- [ ] **Phase E — Edge Function**: Cron-triggered auto-scheduling, admin toggle per org
-
----
-
-## Open Questions
-
-1. **Applicant availability** — currently stored as JSON inside `recruitInfo`. Should it be extracted into a dedicated `applicant_availability` table for easier querying?
-2. **Group interviews** — how should the algorithm handle multiple applicants per slot? Config toggle or separate algorithm?
-3. **Notifications** — should auto-scheduling trigger email notifications? (Requires email integration.)
-4. **Timezone handling** — all times stored in UTC and converted on display, or stored with timezone offset?
+See [scheduling-enhancements.md](scheduling-enhancements.md) for planned features:
+- Relaxed constraint second pass (schedule unmatched with flagged violations)
+- Attribute-based matching (pair applicants with interviewers by team/preference)
+- Applicant priority weighting
+- Custom algorithm editor (paste JS function)
+- Edge Function for cron-triggered auto-scheduling
