@@ -6,6 +6,9 @@
   let statusMessage = '';
   let statusError = false;
 
+  // Redirect param — used to send user to /register after login
+  $: redirectTo = $page.url.searchParams.get('redirect') || '';
+
   // Check URL params for status messages (e.g. after password reset email sent)
   $: {
     const msg = $page.url.searchParams.get('message');
@@ -17,6 +20,9 @@
 
 <div class="login-screen">
   <form method="POST" action="?/login" class="login">
+    {#if redirectTo}
+      <input type="hidden" name="redirect" value={redirectTo} />
+    {/if}
     <div class="login-top">
       {#if mode === 'login'}
         <h2>Recruiter Login</h2>

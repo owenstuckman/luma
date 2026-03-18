@@ -94,6 +94,35 @@
 
   $: activeEmails = activeTab === 'applicants' ? applicantEmails : interviewerEmails;
 
+  // ── Selection state ───────────────────────────────────────────────────────
+  let selectedEmails = new Set<string>();
+
+  // Reset selection when tab changes
+  $: {
+    activeTab;
+    selectedEmails = new Set();
+  }
+
+  $: allSelected = activeEmails.length > 0 && selectedEmails.size === activeEmails.length;
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      selectedEmails = new Set();
+    } else {
+      selectedEmails = new Set(activeEmails.map(e => e.to));
+    }
+  }
+
+  function toggleSelect(email: string) {
+    const next = new Set(selectedEmails);
+    if (next.has(email)) {
+      next.delete(email);
+    } else {
+      next.add(email);
+    }
+    selectedEmails = next;
+  }
+
   // ── ICS helpers ──────────────────────────────────────────────────────────
 
   function lookupApplicantName(email: string): string {
@@ -110,7 +139,6 @@
   }
 
   function buildApplicantEvents(applicantEmail: string): ICSEventParams[] {
-    // Deduplicate by (startTime, location) — group interviews create multiple rows per slot
     const seen = new Set<string>();
     return interviews
       .filter((iv) => iv.applicant === applicantEmail)
@@ -157,10 +185,15 @@
 
   let downloadingZip = false;
 
-  async function downloadAllICSZip(): Promise<void> {
+  async function downloadSelectedICSZip(): Promise<void> {
+    const targets = selectedEmails.size > 0
+      ? activeEmails.filter(e => selectedEmails.has(e.to))
+      : activeEmails;
+    if (targets.length === 0) return;
+
     downloadingZip = true;
     const folder = activeTab === 'applicants' ? 'applicants' : 'interviewers';
-    const files = activeEmails.map((e) => ({
+    const files = targets.map((e) => ({
       filename: `${folder}/${safeFilename(e.to)}.ics`,
       content: buildICSFile(
         activeTab === 'applicants' ? buildApplicantEvents(e.to) : buildInterviewerEvents(e.to)
@@ -180,299 +213,405 @@
   aria-modal="true"
   tabindex="-1"
 >
-  <div class="modal-content" on:click|stopPropagation on:keydown|stopPropagation>
+  <div class="modal-box" on:click|stopPropagation on:keydown|stopPropagation>
 
+    <!-- Sticky header -->
     <div class="modal-header">
-      <h6>Generate Notification Emails</h6>
-      <button class="modal-close" on:click={onClose}>×</button>
+      <h5 class="modal-title">Notification Emails</h5>
+      <button class="close-btn" on:click={onClose} aria-label="Close">&times;</button>
     </div>
 
+    <!-- Tabs -->
     <div class="tab-bar">
       <button
         class="tab-btn"
         class:active={activeTab === 'applicants'}
         on:click={() => activeTab = 'applicants'}
       >
-        Applicants <span class="tab-count">{applicantEmails.length}</span>
+        Applicants <span class="badge">{applicantEmails.length}</span>
       </button>
       <button
         class="tab-btn"
         class:active={activeTab === 'interviewers'}
         on:click={() => activeTab = 'interviewers'}
       >
-        Interviewers <span class="tab-count">{interviewerEmails.length}</span>
+        Interviewers <span class="badge">{interviewerEmails.length}</span>
       </button>
     </div>
 
     {#if activeEmails.length === 0}
-      <p class="empty-state">No interviews loaded. Schedule interviews first.</p>
+      <div class="empty-state">
+        <i class="fi fi-br-inbox-in"></i>
+        <p>No interviews loaded. Schedule interviews first.</p>
+      </div>
     {:else}
+      <!-- Toolbar: select all + bulk actions -->
+      <div class="toolbar">
+        <label class="select-all">
+          <input
+            type="checkbox"
+            checked={allSelected}
+            on:change={toggleSelectAll}
+          />
+          <span>Select all ({activeEmails.length})</span>
+        </label>
+
+        {#if selectedEmails.size > 0}
+          <span class="sel-count">{selectedEmails.size} selected</span>
+        {/if}
+
+        <div class="toolbar-spacer"></div>
+
+        <button
+          class="toolbar-btn"
+          on:click={downloadSelectedICSZip}
+          disabled={downloadingZip}
+          title={selectedEmails.size > 0 ? `Download ${selectedEmails.size} .ics files as ZIP` : 'Download all .ics files as ZIP'}
+        >
+          {#if downloadingZip}
+            Zipping...
+          {:else}
+            <i class="fi fi-br-download"></i>
+            Download {selectedEmails.size > 0 ? `${selectedEmails.size}` : 'All'} .ics
+          {/if}
+        </button>
+      </div>
+
+      <!-- Scrollable email list -->
       <div class="email-list">
         {#each activeEmails as email (email.to)}
-          <details class="email-card" open>
-            <summary class="card-summary">
-              <span class="to-label">To:</span>
-              <span class="to-email">{email.to}</span>
-              <button
-                class="btn btn-sm ics-btn"
-                on:click|stopPropagation={() => downloadRecipientICS(email.to)}
-                title="Download calendar invite (.ics)"
-              >
-                <i class="fi fi-br-calendar-download"></i> .ics
-              </button>
-              <button
-                class="btn btn-sm copy-btn"
-                class:copied={recentlyCopied[email.to]}
-                on:click|stopPropagation={() => copyEmail(email)}
-              >
-                {#if recentlyCopied[email.to]}
-                  <i class="fi fi-br-check"></i> Copied
-                {:else}
-                  <i class="fi fi-br-copy-alt"></i> Copy
-                {/if}
-              </button>
+          <details class="email-card">
+            <summary class="card-header">
+              <input
+                type="checkbox"
+                checked={selectedEmails.has(email.to)}
+                on:click|stopPropagation={() => toggleSelect(email.to)}
+                on:keydown|stopPropagation
+              />
+              <span class="card-chevron"></span>
+              <span class="card-email">{email.to}</span>
+              <div class="card-actions">
+                <button
+                  class="action-btn ics"
+                  on:click|stopPropagation={() => downloadRecipientICS(email.to)}
+                  title="Download .ics"
+                >
+                  .ics
+                </button>
+                <button
+                  class="action-btn copy"
+                  class:copied={recentlyCopied[email.to]}
+                  on:click|stopPropagation={() => copyEmail(email)}
+                >
+                  {recentlyCopied[email.to] ? 'Copied' : 'Copy'}
+                </button>
+              </div>
             </summary>
 
             <div class="card-body">
               <label class="field-label">Subject</label>
               <input
-                class="form-control form-control-sm subject-input"
+                class="form-control form-control-sm"
                 value={getSubject(email)}
                 on:input={(e) => { subjectOverrides[email.to] = (e.target as HTMLInputElement).value; }}
               />
-              <label class="field-label" style="margin-top: 10px;">Body</label>
+              <label class="field-label mt-2">Body</label>
               <textarea
                 class="form-control body-textarea"
                 value={getText(email)}
                 on:input={(e) => { textOverrides[email.to] = (e.target as HTMLTextAreaElement).value; }}
-                rows={getText(email).split('\n').length + 1}
+                rows={Math.min(getText(email).split('\n').length + 1, 12)}
               ></textarea>
             </div>
           </details>
         {/each}
       </div>
 
+      <!-- Sticky footer -->
       <div class="modal-footer">
-        <button
-          class="btn btn-sm btn-secondary"
-          on:click={() => copyAllBodies(activeEmails)}
-        >
-          {#if recentlyCopied['__all__']}
-            <i class="fi fi-br-check"></i> All Copied
-          {:else}
-            <i class="fi fi-br-copy-alt"></i> Copy All ({activeEmails.length})
-          {/if}
-        </button>
-        <button
-          class="btn btn-sm btn-outline-secondary"
-          on:click={downloadAllICSZip}
-          disabled={downloadingZip}
-          title="Download all calendar invites as a ZIP file"
-        >
-          {#if downloadingZip}
-            <i class="fi fi-br-spinner"></i> Zipping...
-          {:else}
-            <i class="fi fi-br-download"></i> Download All .ics (ZIP)
-          {/if}
-        </button>
-        {#if orgId && slug}
+        <div class="footer-row">
           <button
-            class="btn btn-sm btn-primary send-btn"
-            on:click={() => sendEmails(activeTab)}
-            disabled={sending}
-            title="Send emails via Resend (requires RESEND_API_KEY)"
+            class="footer-btn secondary"
+            on:click={() => copyAllBodies(activeEmails)}
           >
-            {#if sending}
-              <i class="fi fi-br-spinner"></i> Sending...
-            {:else}
-              <i class="fi fi-br-paper-plane"></i> Send {activeTab === 'applicants' ? 'Applicant' : 'Interviewer'} Emails
-            {/if}
+            {recentlyCopied['__all__'] ? 'All Copied!' : `Copy All (${activeEmails.length})`}
           </button>
-        {/if}
-        <span class="footer-hint">Each email is editable before copying.</span>
-      </div>
 
-      {#if sendResult}
-        <div class="send-result" class:has-errors={sendResult.failed > 0}>
-          {#if sendResult.dryRun}
-            <i class="fi fi-br-info"></i>
-            {sendResult.message} — would send to {sendResult.wouldSend?.applicants ?? 0} applicants and {sendResult.wouldSend?.interviewers ?? 0} interviewers.
-          {:else}
-            <i class="fi fi-br-check"></i>
-            Sent <strong>{sendResult.sent}</strong> email{sendResult.sent === 1 ? '' : 's'}.
-            {#if sendResult.failed > 0}
-              <strong>{sendResult.failed}</strong> failed.
-              {#each sendResult.errors as err}
-                <span class="send-error-line">{err}</span>
-              {/each}
-            {/if}
+          {#if orgId && slug}
+            <button
+              class="footer-btn primary"
+              on:click={() => sendEmails(activeTab)}
+              disabled={sending}
+            >
+              {#if sending}
+                Sending...
+              {:else}
+                Send {activeTab === 'applicants' ? 'Applicant' : 'Interviewer'} Emails ({activeEmails.length})
+              {/if}
+            </button>
           {/if}
         </div>
-      {/if}
 
-      {#if sendError}
-        <div class="send-result has-errors">
-          <i class="fi fi-br-cross-circle"></i> {sendError}
-        </div>
-      {/if}
+        {#if sendResult}
+          <div class="result-banner" class:error={sendResult.failed > 0}>
+            {#if sendResult.dryRun}
+              {sendResult.message} — would send to {sendResult.wouldSend?.applicants ?? 0} applicants and {sendResult.wouldSend?.interviewers ?? 0} interviewers.
+            {:else}
+              Sent <strong>{sendResult.sent}</strong> email{sendResult.sent === 1 ? '' : 's'}.
+              {#if sendResult.failed > 0}
+                <strong>{sendResult.failed}</strong> failed.
+                {#each sendResult.errors as err}
+                  <span class="error-detail">{err}</span>
+                {/each}
+              {/if}
+            {/if}
+          </div>
+        {/if}
+
+        {#if sendError}
+          <div class="result-banner error">{sendError}</div>
+        {/if}
+      </div>
     {/if}
 
   </div>
 </div>
 
 <style lang="scss">
+  @use 'sass:color';
   @use '../../../styles/col.scss' as *;
 
+  /* Overlay */
   .modal-overlay {
-    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background-color: rgba(0, 0, 0, 0.5);
-    display: flex; justify-content: center; align-items: center;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    justify-content: center;
+    align-items: center;
     z-index: 1000;
-  }
-  .modal-content {
-    background-color: white;
-    border-radius: 10px;
     padding: 24px;
-    width: min(700px, 95vw);
-    max-height: 85vh;
-    overflow-y: auto;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  }
+
+  /* Modal box — fixed layout with sticky header/footer */
+  .modal-box {
+    background: white;
+    border-radius: 12px;
+    width: min(780px, 100%);
+    max-height: calc(100vh - 48px);
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+    overflow: hidden;
   }
+
+  /* Header */
   .modal-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    h6 { margin: 0; }
+    padding: 18px 24px 14px;
+    border-bottom: 1px solid #e5e7eb;
+    flex-shrink: 0;
   }
-  .modal-close {
-    background: none; border: none; font-size: 20px; cursor: pointer;
-    color: $light-tertiary; line-height: 1;
+  .modal-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: $dark-primary;
+  }
+  .close-btn {
+    background: none;
+    border: none;
+    font-size: 22px;
+    color: $light-tertiary;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 4px;
     &:hover { color: $dark-primary; }
   }
 
   /* Tabs */
   .tab-bar {
     display: flex;
-    gap: 4px;
-    border-bottom: 2px solid #f1f5f9;
-    padding-bottom: 0;
+    gap: 0;
+    padding: 0 24px;
+    border-bottom: 1px solid #e5e7eb;
+    flex-shrink: 0;
   }
   .tab-btn {
     background: none;
     border: none;
-    padding: 8px 16px;
+    padding: 10px 18px;
     font-size: 13px;
     font-weight: 600;
     color: $light-tertiary;
     cursor: pointer;
     border-bottom: 2px solid transparent;
-    margin-bottom: -2px;
+    margin-bottom: -1px;
     display: flex;
     align-items: center;
     gap: 6px;
-    transition: color 0.15s;
+    transition: color 0.15s, border-color 0.15s;
     &:hover { color: $dark-primary; }
     &.active {
       color: $dark-primary;
       border-bottom-color: $dark-primary;
     }
   }
-  .tab-count {
+  .badge {
     background: #f1f5f9;
-    color: $light-secondary;
+    color: $light-tertiary;
     font-size: 11px;
     font-weight: 700;
-    padding: 1px 6px;
+    padding: 1px 7px;
     border-radius: 10px;
+    .active & {
+      background: $dark-primary;
+      color: white;
+    }
+  }
+
+  /* Toolbar */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 24px;
+    border-bottom: 1px solid #f1f5f9;
+    flex-shrink: 0;
+    background: #fafbfc;
+  }
+  .select-all {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: $dark-primary;
+    cursor: pointer;
+    input { cursor: pointer; width: 15px; height: 15px; accent-color: $dark-primary; }
+  }
+  .sel-count {
+    font-size: 11px;
+    color: $light-tertiary;
+    font-weight: 600;
+  }
+  .toolbar-spacer { flex: 1; }
+  .toolbar-btn {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 6px;
+    border: 1px solid #c7d2fe;
+    background: #eef2ff;
+    color: #4f46e5;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+    &:hover { background: #e0e7ff; border-color: #a5b4fc; }
+    &:disabled { opacity: 0.6; cursor: default; }
+  }
+
+  /* Scrollable email list */
+  .email-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 0;
   }
 
   /* Email cards */
-  .email-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    overflow-y: auto;
-    flex: 1;
-  }
   .email-card {
+    border: 1px solid #e5e7eb;
     border-radius: 8px;
-    box-shadow: 0 0px 12px rgba(0, 0, 0, 0.08);
-    background: white;
     overflow: hidden;
+    background: white;
+    transition: border-color 0.15s;
+    &:hover { border-color: #d1d5db; }
   }
-  .card-summary {
+  .card-header {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 12px 14px;
+    padding: 10px 14px;
     cursor: pointer;
     list-style: none;
     font-size: 13px;
-    background: #f8fafc;
-    border-radius: 8px;
+    background: #fafbfc;
     user-select: none;
-
     &::-webkit-details-marker { display: none; }
 
-    &::before {
-      content: '▶';
-      font-size: 9px;
-      color: $light-tertiary;
-      transition: transform 0.15s;
+    input[type="checkbox"] {
+      width: 15px;
+      height: 15px;
+      accent-color: $dark-primary;
+      cursor: pointer;
       flex-shrink: 0;
     }
   }
-  details[open] .card-summary::before {
-    transform: rotate(90deg);
-  }
-  .to-label {
-    font-weight: 700;
-    color: $light-tertiary;
+  .card-chevron {
     flex-shrink: 0;
+    width: 10px;
+    &::before {
+      content: '▸';
+      font-size: 11px;
+      color: $light-tertiary;
+    }
   }
-  .to-email {
+  details[open] .card-chevron::before {
+    content: '▾';
+  }
+  .card-email {
+    flex: 1;
     font-family: monospace;
     font-size: 13px;
-    flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    color: $dark-primary;
   }
-  .ics-btn {
-    flex-shrink: 0;
-    font-size: 12px;
-    padding: 3px 10px;
+  .card-actions {
     display: flex;
-    align-items: center;
     gap: 4px;
-    color: #4f46e5;
-    border-color: #c7d2fe;
-    background-color: #eef2ff;
-    &:hover {
-      background-color: #e0e7ff;
-      border-color: #a5b4fc;
-    }
+    flex-shrink: 0;
   }
-  .copy-btn {
-    flex-shrink: 0;
-    font-size: 12px;
+  .action-btn {
+    font-size: 11px;
+    font-weight: 600;
     padding: 3px 10px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    transition: background-color 0.15s;
+    border-radius: 5px;
+    border: 1px solid #e5e7eb;
+    background: white;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
 
-    &.copied {
-      background-color: #ecfdf5;
-      color: #065f46;
-      border-color: #6ee7b7;
+    &.ics {
+      color: #4f46e5;
+      border-color: #c7d2fe;
+      background: #eef2ff;
+      &:hover { background: #e0e7ff; }
+    }
+    &.copy {
+      color: $dark-primary;
+      &:hover { background: #f3f4f6; }
+      &.copied {
+        background: #ecfdf5;
+        color: #065f46;
+        border-color: #6ee7b7;
+      }
     }
   }
+
   .card-body {
-    padding: 12px 14px 14px;
+    padding: 12px 14px 16px;
+    border-top: 1px solid #f1f5f9;
   }
   .field-label {
     display: block;
@@ -483,66 +622,82 @@
     letter-spacing: 0.04em;
     margin-bottom: 4px;
   }
-  .subject-input {
-    font-size: 13px;
-  }
+  .mt-2 { margin-top: 10px; }
   .body-textarea {
     font-family: 'Courier New', Courier, monospace;
     font-size: 12px;
     resize: vertical;
-    min-height: 120px;
+    min-height: 100px;
     line-height: 1.6;
   }
 
   /* Footer */
   .modal-footer {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding-top: 4px;
-    border-top: 1px solid #f1f5f9;
-  }
-  .footer-hint {
-    font-size: 11px;
-    color: $light-tertiary;
-  }
-
-  .empty-state {
-    color: $light-tertiary;
-    font-size: 13px;
-    text-align: center;
-    padding: 24px 0;
-  }
-
-  .send-btn {
+    padding: 14px 24px 18px;
+    border-top: 1px solid #e5e7eb;
     flex-shrink: 0;
     display: flex;
-    align-items: center;
-    gap: 5px;
+    flex-direction: column;
+    gap: 10px;
   }
-
-  .send-result {
-    font-size: 12px;
-    padding: 8px 12px;
-    border-radius: 6px;
-    background-color: #ecfdf5;
-    color: #065f46;
+  .footer-row {
     display: flex;
-    align-items: flex-start;
-    gap: 6px;
+    gap: 10px;
     flex-wrap: wrap;
+  }
+  .footer-btn {
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 18px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
 
-    &.has-errors {
-      background-color: #fef2f2;
-      color: #991b1b;
+    &.secondary {
+      background: #f3f4f6;
+      color: $dark-primary;
+      border: 1px solid #e5e7eb;
+      &:hover { background: #e5e7eb; }
+    }
+    &.primary {
+      background: $dark-primary;
+      color: white;
+      &:hover { background: color.adjust($dark-primary, $lightness: 10%); }
+      &:disabled { opacity: 0.6; cursor: default; }
     }
   }
 
-  .send-error-line {
+  .result-banner {
+    font-size: 12px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: #ecfdf5;
+    color: #065f46;
+    &.error {
+      background: #fef2f2;
+      color: #991b1b;
+    }
+  }
+  .error-detail {
     display: block;
     font-family: monospace;
     font-size: 11px;
     margin-top: 2px;
     opacity: 0.85;
+  }
+
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 48px 24px;
+    color: $light-tertiary;
+    font-size: 13px;
+    i { font-size: 28px; }
+    p { margin: 0; }
   }
 </style>

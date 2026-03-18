@@ -48,6 +48,17 @@
           <button class="btn btn-primary">Recruiter Login</button>
         </a>
       </div>
+
+      <div class="divider">
+        <span class="divider-line"></span>
+        <span class="divider-text">or</span>
+        <span class="divider-line"></span>
+      </div>
+
+      <a href="/auth?redirect=/register" class="create-org-link">
+        <button class="btn btn-create">Create Your Organization</button>
+      </a>
+      <p class="create-hint">Set up your own recruiting portal — free and open source.</p>
     </div>
     <div class="login-bottom-right">
       <a href="/admin" class="underline" style="color: white;">Admin</a>
@@ -56,6 +67,7 @@
 </div>
 
 <style lang="scss">
+  @use 'sass:color';
   @use '../styles/col.scss' as *;
 
   .login-screen {
@@ -130,7 +142,7 @@
     transition: background-color 0.2s ease;
   }
   .org-card:hover {
-    background-color: lighten($dark-secondary, 5%);
+    background-color: color.adjust($dark-secondary, $lightness: 5%);
     color: white;
   }
   .org-dot {
@@ -148,5 +160,50 @@
   .org-arrow {
     font-size: 10px;
     color: $light-tertiary;
+  }
+
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    margin-top: 6px;
+  }
+  .divider-line {
+    flex: 1;
+    height: 1px;
+    background-color: $dark-secondary;
+  }
+  .divider-text {
+    color: $light-tertiary;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .create-org-link {
+    text-decoration: none;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+  .btn-create {
+    background-color: transparent;
+    border: 1px solid $light-tertiary;
+    color: white;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 8px 20px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    &:hover {
+      background-color: $dark-secondary;
+      border-color: white;
+      color: white;
+    }
+  }
+  .create-hint {
+    color: $light-tertiary;
+    font-size: 11px;
+    margin-top: 4px;
+    text-align: center;
   }
 </style>

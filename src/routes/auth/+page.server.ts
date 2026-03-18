@@ -7,26 +7,34 @@ export const actions: Actions = {
     const formData = await request.formData()
     const email = formData.get('email') as string
     const password = formData.get('password') as string
+    const redirectTo = formData.get('redirect') as string | null
 
     const { error } = await supabase.auth.signUp({ email, password })
     if (error) {
       console.error(error)
-      redirect(303, '/auth?error=' + encodeURIComponent(error.message))
+      const params = new URLSearchParams({ error: error.message })
+      if (redirectTo) params.set('redirect', redirectTo)
+      redirect(303, '/auth?' + params.toString())
     } else {
-      redirect(303, '/auth?message=' + encodeURIComponent('Check your email to confirm your account.'))
+      const params = new URLSearchParams({ message: 'Check your email to confirm your account.' })
+      if (redirectTo) params.set('redirect', redirectTo)
+      redirect(303, '/auth?' + params.toString())
     }
   },
-  login: async ({ request, locals: { supabase } }) => {
+  login: async ({ request, url, locals: { supabase } }) => {
     const formData = await request.formData()
     const email = formData.get('email') as string
     const password = formData.get('password') as string
+    const redirectTo = formData.get('redirect') as string | null
 
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
       console.error(error)
-      redirect(303, '/auth?error=' + encodeURIComponent(error.message))
+      const params = new URLSearchParams({ error: error.message })
+      if (redirectTo) params.set('redirect', redirectTo)
+      redirect(303, '/auth?' + params.toString())
     } else {
-      redirect(303, '/private')
+      redirect(303, redirectTo || '/private')
     }
   },
   resetPassword: async ({ request, url, locals: { supabase } }) => {

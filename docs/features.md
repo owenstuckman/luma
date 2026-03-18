@@ -29,6 +29,9 @@ All completed, production-ready features in LUMA.
 | Admin scheduling panel | Org selector, algorithm config, preview, apply, clear auto-scheduled |
 | No-availability fallback | Applicants without availability data are matched to any open slot |
 | Batch scheduler | Multi-room, multi-round scheduling for large cohorts (100+ applicants) |
+| Relaxed constraint fallback | Second pass schedules unmatched applicants with flagged violations |
+| Attribute-based matching | Pair applicants with interviewers by team/preference via configurable rules |
+| Applicant priority weighting | High-priority applicants scheduled first, configurable per applicant |
 
 ## Email & Notifications
 
@@ -61,6 +64,7 @@ All completed, production-ready features in LUMA.
 | Job posting CRUD | Create, edit, toggle active, delete |
 | Form builder | Add/remove/reorder steps and questions, all 8 question types |
 | Admin panel | Org CRUD, user management, job postings, analytics, scheduling, platform settings |
+| Self-service org signup | Homepage CTA → auth → create org flow, redirect param on login |
 
 ## Authentication
 

@@ -20,7 +20,7 @@
   onMount(async () => {
     const { data } = await supabase.auth.getUser();
     if (!data?.user) {
-      goto('/auth');
+      goto('/auth?redirect=/register');
       return;
     }
     isAuthenticated = true;

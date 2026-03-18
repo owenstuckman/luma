@@ -69,6 +69,7 @@
 {/if}
 
 <style lang="scss">
+  @use 'sass:color';
   @use '../../styles/col.scss' as *;
 
   .org-select-screen {
@@ -106,7 +107,7 @@
     transition: background-color 0.2s ease;
   }
   .org-item:hover {
-    background-color: lighten($dark-secondary, 5%);
+    background-color: color.adjust($dark-secondary, $lightness: 5%);
     color: white;
   }
   .org-dot {

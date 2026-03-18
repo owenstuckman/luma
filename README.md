@@ -6,13 +6,16 @@ Originally built for Virginia Tech's Archimedes Society, where it processed **40
 
 ## Features
 
-- **Multi-org support** — each organization gets its own portal, forms, and recruiter dashboard
+- **Multi-org support** — any organization can sign up from the homepage, get its own portal, forms, and recruiter dashboard
 - **Dynamic application forms** — build custom multi-step forms with a visual editor (text, radio, checkbox, dropdown, availability grid, and more)
 - **Recruiter dashboard** — review applicants, filter/search/sort, bulk status updates, CSV export
-- **Interview scheduling** — calendar views (day/week/month) for personal and team schedules
+- **Interview scheduling** — manual creation with conflict detection, plus auto-scheduling algorithms (greedy, balanced-load, round-robin, batch)
+- **Email notifications** — interview confirmations with ICS calendar invites via Resend API, bulk email, copy-paste fallback
+- **Realtime updates** — live dashboard counts, new applicant toasts, schedule change notifications
 - **Post-interview evaluations** — star ratings, recommendations, strengths/weaknesses notes
 - **Team management** — invite members by email, assign roles (Owner, Admin, Recruiter, Viewer)
 - **Role-based access** — RLS policies enforce org-scoped data isolation at the database level
+- **Admin panel** — platform-wide org/user/job management, analytics, auto-scheduling, platform settings
 
 ## Quick Start
 
@@ -53,9 +56,11 @@ Then:
 src/
 ├── lib/
 │   ├── components/
-│   │   ├── applicant/    # Applicant flow UI (Navbar, Sidebar, Footer)
-│   │   ├── recruiter/    # Recruiter dashboard UI (Navbar, Sidebar)
+│   │   ├── applicant/    # Applicant flow UI (Navbar, Sidebar, Footer, AvailabilityGrid)
+│   │   ├── recruiter/    # Recruiter dashboard UI (Navbar, Sidebar, Toast, EmailModal)
 │   │   └── card/         # Reusable form input components
+│   ├── email/            # Email templates, ICS generation, recipient grouping
+│   ├── scheduling/       # Auto-scheduling algorithms + registry
 │   ├── types/            # Shared TypeScript interfaces
 │   └── utils/            # Supabase client + query functions
 ├── routes/
@@ -76,16 +81,18 @@ supabase/
 
 ## Database
 
-Six core tables, all scoped by `org_id`:
+Core tables, all scoped by `org_id`:
 
 | Table | Purpose |
 |---|---|
-| `organizations` | Org profiles (name, slug, colors, owner) |
+| `organizations` | Org profiles (name, slug, colors, logo, owner) |
 | `org_members` | User-org membership with roles |
 | `job_posting` | Job listings with dynamic form schemas (JSON) |
 | `applicants` | Submitted applications with responses (JSON) |
-| `interviewers` | People conducting interviews |
 | `interviews` | Scheduled interviews with evaluations |
+| `interviewer_availability` | Interviewer time windows for auto-scheduling |
+| `scheduling_config` | Per-org algorithm configuration |
+| `email_log` | Sent email tracking |
 
 Row-Level Security enforces data isolation — users can only see data from orgs they belong to.
 
@@ -131,9 +138,16 @@ If you have data from before multi-tenancy (records with `org_id = NULL`), see t
 
 ## Documentation
 
-- [Usage Guide](docs/usage.md) — routes, workflows, database schema, RPC functions
-- [Architecture](docs/architecture.md) — multi-tenancy model, question engine, RLS, component patterns
-- [Scheduling System](docs/scheduling.md) — algorithm interface, built-in algorithms, admin UI, database schema
+| Doc | Contents |
+|---|---|
+| [Usage Guide](docs/usage.md) | Routes, workflows, database schema, RPC functions |
+| [Architecture](docs/architecture.md) | Multi-tenancy, question engine, RLS, realtime, email |
+| [Scheduling](docs/scheduling.md) | Algorithms, admin UI, interviewer availability, database |
+| [Email Notifications](docs/email-notifications.md) | Templates, ICS invites, Resend setup, email log |
+| [Multi-Tenant Signup](docs/multitenant.md) | Self-service org registration flow |
+| [Features](docs/features.md) | Complete list of implemented features |
+| [TODO](docs/TODO.md) | Remaining work and tech debt |
+| [Scheduling Enhancements](docs/scheduling-enhancements.md) | Advanced scheduler features (relaxed pass, attribute matching) |
 
 ## License
 
