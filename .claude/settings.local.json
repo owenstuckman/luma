@@ -20,7 +20,9 @@
       "Bash(npm rebuild:*)",
       "Bash(gh repo view:*)",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "mcp__supabase__list_edge_functions"
+      "mcp__supabase__list_edge_functions",
+      "Bash(ls -la /mnt/c/Users/ostuc/Documents/GitHub/luma/src/routes/private/[slug]/)",
+      "Bash(grep -r \"onMount\\\\|function\\\\|async\" /mnt/c/Users/ostuc/Documents/GitHub/luma/src/routes/private/[slug]/settings/scheduling/+page.svelte)"
     ]
   },
   "enableAllProjectMcpServers": true,

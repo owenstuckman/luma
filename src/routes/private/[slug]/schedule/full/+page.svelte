@@ -90,19 +90,19 @@
       return {
         id: String(iv.id),
         title: `${isFlagged ? '⚠ ' : ''}${iv.applicant || 'Unknown'} — ${iv.interviewer || '?'}`,
-        start: formatForCalendar(iv.startTime),
-        end: iv.endTime ? formatForCalendar(iv.endTime) : formatForCalendar(iv.startTime),
+        start: formatForCalendar(iv.start_time),
+        end: iv.end_time ? formatForCalendar(iv.end_time) : formatForCalendar(iv.start_time),
         location: iv.location || '',
         description: `Interviewer: ${iv.interviewer || 'TBD'}\nLocation: ${iv.location || 'TBD'}\nType: ${iv.type}${isFlagged ? '\n⚠ Needs review: ' + violationSummary : ''}`,
       };
     });
 
     const now = new Date();
-    const upcoming = filtered.find(iv => new Date(iv.startTime) >= now);
+    const upcoming = filtered.find(iv => new Date(iv.start_time) >= now);
     const defaultDate = upcoming
-      ? formatForCalendar(upcoming.startTime).split(' ')[0]
+      ? formatForCalendar(upcoming.start_time).split(' ')[0]
       : filtered.length > 0
-        ? formatForCalendar(filtered[0].startTime).split(' ')[0]
+        ? formatForCalendar(filtered[0].start_time).split(' ')[0]
         : getTodayStr();
 
     calendarApp = createCalendar({
@@ -222,8 +222,8 @@
       getApplicantName(iv.applicant),
       iv.applicant ?? '',
       iv.interviewer ?? '',
-      iv.startTime,
-      iv.endTime ?? '',
+      iv.start_time,
+      iv.end_time ?? '',
       iv.location,
       iv.type,
       iv.violations?.map(v => v.detail).join('; ') ?? ''
@@ -250,8 +250,8 @@
     const warnings: string[] = [];
 
     for (const iv of interviews) {
-      const ivStart = new Date(iv.startTime).getTime();
-      const ivEnd = iv.endTime ? new Date(iv.endTime).getTime() : ivStart;
+      const ivStart = new Date(iv.start_time).getTime();
+      const ivEnd = iv.end_time ? new Date(iv.end_time).getTime() : ivStart;
       if (newStart_ < ivEnd && newEnd_ > ivStart) {
         if (iv.interviewer === newInterviewerEmail) {
           warnings.push(`Interviewer ${iv.interviewer} already has an interview at this time (${iv.applicant || 'unknown applicant'}).`);
@@ -279,8 +279,8 @@
       const endISO = newEnd ? `${newDate}T${newEnd}:00` : startISO;
 
       await createInterview({
-        startTime: startISO,
-        endTime: endISO,
+        start_time: startISO,
+        end_time: endISO,
         location: newLocation,
         type: 'individual',
         job: newJobId ? parseInt(newJobId) : 0,

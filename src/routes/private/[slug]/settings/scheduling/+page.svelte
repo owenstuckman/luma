@@ -193,8 +193,8 @@
 
       const existingInterviews = await getInterviewsByOrg(org.id);
       const existingForScheduler = existingInterviews.map(iv => ({
-        startTime: iv.startTime,
-        endTime: iv.endTime || iv.startTime,
+        startTime: iv.start_time,
+        endTime: iv.end_time || iv.start_time,
         interviewer: iv.interviewer || '',
         applicant: iv.applicant || ''
       }));
@@ -254,8 +254,8 @@
 
     try {
       const rows = schedPreview.interviews.map(iv => ({
-        startTime: iv.startTime,
-        endTime: iv.endTime,
+        start_time: iv.startTime,
+        end_time: iv.endTime,
         location: iv.location,
         type: iv.type,
         job: iv.jobId,
@@ -275,8 +275,8 @@
       schedEmailInterviews = rows.map((r, i) => ({
         id: i,
         created_at: new Date().toISOString(),
-        startTime: r.startTime,
-        endTime: r.endTime,
+        start_time: r.start_time,
+        end_time: r.end_time,
         location: r.location,
         type: r.type as 'individual' | 'group',
         comments: null,

@@ -328,7 +328,7 @@ export const getInterviewsByOrg = async (orgId: number) => {
 		.from('interviews')
 		.select('*')
 		.eq('org_id', orgId)
-		.order('startTime', { ascending: true });
+		.order('start_time', { ascending: true });
 
 	if (error) {
 		console.error('Error fetching interviews:', error);
@@ -343,7 +343,7 @@ export const getInterviewsByInterviewer = async (orgId: number, email: string) =
 		.select('*')
 		.eq('org_id', orgId)
 		.eq('interviewer', email)
-		.order('startTime', { ascending: true });
+		.order('start_time', { ascending: true });
 
 	if (error) {
 		console.error('Error fetching interviews:', error);
@@ -380,8 +380,8 @@ export const deleteInterview = async (id: number) => {
 };
 
 export const createInterview = async (interviewData: {
-	startTime: string;
-	endTime?: string;
+	start_time: string;
+	end_time?: string;
 	location: string;
 	type: string;
 	comments?: string;
@@ -774,8 +774,8 @@ export const upsertSchedulingConfig = async (
 
 export const bulkCreateInterviews = async (
 	interviews: {
-		startTime: string;
-		endTime: string;
+		start_time: string;
+		end_time: string;
 		location: string;
 		type: string;
 		job: number;

@@ -51,7 +51,7 @@
       .from('interviews')
       .select('*')
       .eq('org_id', orgId)
-      .order('startTime', { ascending: false });
+      .order('start_time', { ascending: false });
 
     if (userEmail) {
       query = query.eq('interviewer', userEmail);
@@ -208,7 +208,7 @@
             </div>
             <p class="card-meta">{iv.applicant || ''}</p>
             <p class="card-meta">
-              {new Date(iv.startTime).toLocaleDateString()} at {new Date(iv.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {new Date(iv.start_time).toLocaleDateString()} at {new Date(iv.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               &middot; {iv.location} &middot; {iv.type}
             </p>
             {#if hasEvaluation(iv)}

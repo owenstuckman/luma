@@ -70,8 +70,8 @@ export interface Interviewer {
 export interface Interview {
 	id: number;
 	created_at: string;
-	startTime: string;
-	endTime: string | null;
+	start_time: string;
+	end_time: string | null;
 	location: string;
 	type: 'individual' | 'group';
 	comments: Record<string, unknown> | null;

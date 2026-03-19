@@ -29,7 +29,7 @@ export function generateApplicantEmails(
 		const existing = byApplicant.get(iv.applicant) ?? [];
 		// Avoid duplicating the same slot if the applicant appears across multiple interviewer rows
 		const alreadyHasSlot = existing.some(
-			(e) => e.startTime === iv.startTime && e.location === iv.location
+			(e) => e.start_time === iv.start_time && e.location === iv.location
 		);
 		if (!alreadyHasSlot) existing.push(iv);
 		byApplicant.set(iv.applicant, existing);
@@ -48,8 +48,8 @@ export function generateApplicantEmails(
 			orgName,
 			jobTitle: getJobTitle(primaryJobId, jobs),
 			slots: ivs.map((iv) => ({
-				startTime: new Date(iv.startTime),
-				endTime: iv.endTime ? new Date(iv.endTime) : null,
+				startTime: new Date(iv.start_time),
+				endTime: iv.end_time ? new Date(iv.end_time) : null,
 				location: iv.location,
 				type: iv.type
 			}))
@@ -97,8 +97,8 @@ export function generateInterviewerEmails(
 			orgName,
 			jobTitle: getJobTitle(primaryJobId, jobs),
 			slots: ivs.map((iv) => ({
-				startTime: new Date(iv.startTime),
-				endTime: iv.endTime ? new Date(iv.endTime) : null,
+				startTime: new Date(iv.start_time),
+				endTime: iv.end_time ? new Date(iv.end_time) : null,
 				location: iv.location,
 				type: iv.type,
 				applicantName: getApplicantName(iv.applicant ?? '', applicants)

@@ -47,18 +47,18 @@
     const events = source.map(iv => ({
       id: String(iv.id),
       title: `${iv.applicant || 'Unknown'} — ${iv.type}`,
-      start: formatForCalendar(iv.startTime),
-      end: iv.endTime ? formatForCalendar(iv.endTime) : formatForCalendar(iv.startTime),
+      start: formatForCalendar(iv.start_time),
+      end: iv.end_time ? formatForCalendar(iv.end_time) : formatForCalendar(iv.start_time),
       location: iv.location || '',
       description: `Location: ${iv.location || 'TBD'}`,
     }));
 
     const now = new Date();
-    const upcoming = source.find(iv => new Date(iv.startTime) >= now);
+    const upcoming = source.find(iv => new Date(iv.start_time) >= now);
     const defaultDate = upcoming
-      ? formatForCalendar(upcoming.startTime).split(' ')[0]
+      ? formatForCalendar(upcoming.start_time).split(' ')[0]
       : source.length > 0
-        ? formatForCalendar(source[0].startTime).split(' ')[0]
+        ? formatForCalendar(source[0].start_time).split(' ')[0]
         : getTodayStr();
 
     calendarApp = createCalendar({

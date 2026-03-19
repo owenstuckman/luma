@@ -153,15 +153,15 @@
     return interviews
       .filter((iv) => iv.applicant === applicantEmail)
       .filter((iv) => {
-        const key = `${iv.startTime}|${iv.location}`;
+        const key = `${iv.start_time}|${iv.location}`;
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
       })
       .map((iv) => ({
         uid: `${iv.id}-applicant@luma`,
-        dtStart: iv.startTime,
-        dtEnd: iv.endTime ?? null,
+        dtStart: iv.start_time,
+        dtEnd: iv.end_time ?? null,
         summary: `Interview – ${lookupJobTitle(iv.job)} @ ${orgName}`,
         description: `Format: ${iv.type === 'group' ? 'Group Interview' : 'Individual Interview'}\nLocation: ${iv.location || 'TBD'}`,
         location: iv.location || ''
@@ -175,8 +175,8 @@
         const applicantName = lookupApplicantName(iv.applicant ?? '');
         return {
           uid: `${iv.id}-interviewer@luma`,
-          dtStart: iv.startTime,
-          dtEnd: iv.endTime ?? null,
+          dtStart: iv.start_time,
+          dtEnd: iv.end_time ?? null,
           summary: `Interview with ${applicantName} – ${lookupJobTitle(iv.job)}`,
           description: `Applicant: ${iv.applicant || 'TBD'}\nFormat: ${iv.type === 'group' ? 'Group Interview' : 'Individual Interview'}\nLocation: ${iv.location || 'TBD'}`,
           location: iv.location || ''

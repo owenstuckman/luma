@@ -12,8 +12,8 @@ interface RequestBody {
 
 interface InterviewRow {
 	id: number;
-	startTime: string;
-	endTime: string | null;
+	start_time: string;
+	end_time: string | null;
 	location: string;
 	type: 'individual' | 'group';
 	job: number | null;
@@ -82,7 +82,7 @@ Deno.serve(async (req: Request) => {
 
 		let interviewQuery = supabase
 			.from('interviews')
-			.select('id, startTime, endTime, location, type, job, applicant, interviewer')
+			.select('id, start_time, end_time, location, type, job, applicant, interviewer')
 			.eq('org_id', orgId);
 
 		if (interviewIds && interviewIds.length > 0) {
@@ -187,7 +187,7 @@ Deno.serve(async (req: Request) => {
 			for (const iv of interviews as InterviewRow[]) {
 				if (!iv.applicant) continue;
 				const existing = byApplicant.get(iv.applicant) ?? [];
-				const isDup = existing.some((e) => e.startTime === iv.startTime && e.location === iv.location);
+				const isDup = existing.some((e) => e.start_time === iv.start_time && e.location === iv.location);
 				if (!isDup) existing.push(iv);
 				byApplicant.set(iv.applicant, existing);
 			}
@@ -202,8 +202,8 @@ Deno.serve(async (req: Request) => {
 					orgName,
 					jobTitle: getJobTitle(primaryJobId),
 					slots: ivs.map((iv) => ({
-						startTime: new Date(iv.startTime),
-						endTime: iv.endTime ? new Date(iv.endTime) : null,
+						startTime: new Date(iv.start_time),
+						endTime: iv.end_time ? new Date(iv.end_time) : null,
 						location: iv.location,
 						type: iv.type
 					})),
@@ -216,15 +216,15 @@ Deno.serve(async (req: Request) => {
 				const seen = new Set<string>();
 				const events = ivs
 					.filter(iv => {
-						const key = `${iv.startTime}|${iv.location}`;
+						const key = `${iv.start_time}|${iv.location}`;
 						if (seen.has(key)) return false;
 						seen.add(key);
 						return true;
 					})
 					.map(iv => ({
 						uid: `${iv.id}-applicant@luma`,
-						start: iv.startTime,
-						end: iv.endTime ?? iv.startTime,
+						start: iv.start_time,
+						end: iv.end_time ?? iv.start_time,
 						summary: `Interview – ${getJobTitle(iv.job)} @ ${orgName}`,
 						description: `Format: ${iv.type === 'group' ? 'Group Interview' : 'Individual Interview'}\nLocation: ${iv.location || 'TBD'}`,
 						location: iv.location || ''
@@ -286,8 +286,8 @@ Deno.serve(async (req: Request) => {
 					orgName,
 					jobTitle: getJobTitle(primaryJobId),
 					slots: ivs.map((iv) => ({
-						startTime: new Date(iv.startTime),
-						endTime: iv.endTime ? new Date(iv.endTime) : null,
+						startTime: new Date(iv.start_time),
+						endTime: iv.end_time ? new Date(iv.end_time) : null,
 						location: iv.location,
 						type: iv.type,
 						applicantName: getApplicantName(iv.applicant ?? '')
@@ -299,8 +299,8 @@ Deno.serve(async (req: Request) => {
 			if (attachICS) {
 				const events = ivs.map(iv => ({
 					uid: `${iv.id}-interviewer@luma`,
-					start: iv.startTime,
-					end: iv.endTime ?? iv.startTime,
+					start: iv.start_time,
+					end: iv.end_time ?? iv.start_time,
 					summary: `Interview with ${getApplicantName(iv.applicant ?? '')} – ${getJobTitle(iv.job)}`,
 					description: `Applicant: ${iv.applicant || 'TBD'}\nFormat: ${iv.type === 'group' ? 'Group Interview' : 'Individual Interview'}\nLocation: ${iv.location || 'TBD'}`,
 					location: iv.location || ''
