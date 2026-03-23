@@ -151,4 +151,4 @@ If you have data from before multi-tenancy (records with `org_id = NULL`), see t
 
 ## License
 
-MIT
+This project is licensed under the [GNU General Public License v3.0](LICENSE).
