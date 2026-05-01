@@ -13,23 +13,21 @@
   let saveError = '';
   let initialRanges: { date: string; start: string; end: string }[] = [];
   let gridRef: AvailabilityGrid;
+  let weekOffset = 0;
 
   $: slug = $page.params.slug;
 
-  // Compute current week Monday through Sunday
-  function getCurrentWeekDates(): { start: Date; end: Date } {
+  function getWeekDates(offset: number): { start: Date; end: Date } {
     const now = new Date();
     const day = now.getDay(); // 0=Sun, 1=Mon, ...
     const diffToMon = day === 0 ? -6 : 1 - day;
     const start = new Date(now);
-    start.setDate(now.getDate() + diffToMon);
+    start.setDate(now.getDate() + diffToMon + offset * 7);
     start.setHours(0, 0, 0, 0);
     const end = new Date(start);
     end.setDate(start.getDate() + 6);
     return { start, end };
   }
-
-  const weekDates = getCurrentWeekDates();
 
   function fmt(d: Date): string {
     const y = d.getFullYear();
@@ -38,8 +36,26 @@
     return `${y}-${m}-${day}`;
   }
 
-  const startDate = fmt(weekDates.start);
-  const endDate = fmt(weekDates.end);
+  $: weekDates = getWeekDates(weekOffset);
+  $: startDate = fmt(weekDates.start);
+  $: endDate = fmt(weekDates.end);
+  $: weekLabel = `${weekDates.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${weekDates.end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+
+  function prevWeek() { weekOffset--; reloadAvailability(); }
+  function nextWeek() { weekOffset++; reloadAvailability(); }
+  function goToCurrentWeek() { weekOffset = 0; reloadAvailability(); }
+
+  async function reloadAvailability() {
+    if (!orgId) return;
+    loading = true;
+    const rows = await getMyInterviewerAvailability(orgId);
+    initialRanges = rows.map(r => ({
+      date: r.date,
+      start: r.start_time.substring(0, 5),
+      end: r.end_time.substring(0, 5)
+    }));
+    loading = false;
+  }
 
   onMount(async () => {
     const { data: orgData } = await supabase
@@ -86,6 +102,21 @@
       Set your weekly availability for interviews. Select the time slots when you're free.
     </p>
 
+    <div class="week-nav">
+      <button class="btn btn-quaternary btn-sm" on:click={prevWeek}>
+        <i class="fi fi-br-arrow-left"></i> Prev
+      </button>
+      <span class="week-label">{weekLabel}</span>
+      {#if weekOffset !== 0}
+        <button class="btn btn-quaternary btn-sm" on:click={goToCurrentWeek}>
+          Today
+        </button>
+      {/if}
+      <button class="btn btn-quaternary btn-sm" on:click={nextWeek}>
+        Next <i class="fi fi-br-arrow-right"></i>
+      </button>
+    </div>
+
     {#if loading}
       <p class="placeholder">Loading availability...</p>
     {:else}
@@ -125,6 +156,21 @@
     font-size: 13px;
     color: $light-tertiary;
     margin-bottom: 15px;
+  }
+  .week-nav {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 15px;
+  }
+  .week-label {
+    font-size: 14px;
+    font-weight: 700;
+    color: $dark-primary;
+  }
+  .btn-sm {
+    font-size: 11px !important;
+    padding: 4px 10px !important;
   }
   .placeholder {
     color: $light-tertiary;

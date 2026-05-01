@@ -363,9 +363,11 @@
         </div>
 
         {#if sendResult}
-          <div class="result-banner" class:error={sendResult.failed > 0}>
+          <div class="result-banner" class:warning={sendResult.dryRun} class:error={!sendResult.dryRun && sendResult.failed > 0}>
             {#if sendResult.dryRun}
-              {sendResult.message} — would send to {sendResult.wouldSend?.applicants ?? 0} applicants and {sendResult.wouldSend?.interviewers ?? 0} interviewers.
+              <strong>No emails were sent.</strong> {sendResult.message}
+              <br />Would send to {sendResult.wouldSend?.applicants ?? 0} applicant(s) and {sendResult.wouldSend?.interviewers ?? 0} interviewer(s).
+              <br /><span class="hint">Set RESEND_API_KEY in your Supabase Edge Function secrets to enable real sending.</span>
             {:else}
               Sent <strong>{sendResult.sent}</strong> email{sendResult.sent === 1 ? '' : 's'}.
               {#if sendResult.failed > 0}
@@ -689,6 +691,14 @@
       background: #fef2f2;
       color: #991b1b;
     }
+    &.warning {
+      background: #fef3c7;
+      color: #92400e;
+    }
+  }
+  .hint {
+    font-size: 11px;
+    opacity: 0.8;
   }
   .error-detail {
     display: block;

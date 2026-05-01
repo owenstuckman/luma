@@ -271,11 +271,18 @@
       createError = 'Applicant, interviewer, date, and start time are required.';
       return;
     }
+
+    // Prevent scheduling in the past
+    const startISO = `${newDate}T${newStart}:00`;
+    if (new Date(startISO) < new Date()) {
+      createError = 'Cannot schedule an interview in the past. Please select a future date and time.';
+      return;
+    }
+
     createError = '';
     creating = true;
 
     try {
-      const startISO = `${newDate}T${newStart}:00`;
       const endISO = newEnd ? `${newDate}T${newEnd}:00` : startISO;
 
       await createInterview({

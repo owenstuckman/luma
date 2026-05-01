@@ -9,6 +9,9 @@
   let submitting = false;
   let isAuthenticated = false;
   let loading = true;
+  let slugAvailable: boolean | null = null;
+  let checkingSlug = false;
+  let slugCheckTimer: ReturnType<typeof setTimeout> | null = null;
 
   $: orgSlug = orgName
     .toLowerCase()
@@ -16,6 +19,29 @@
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-')
     .trim();
+
+  // Debounced slug availability check
+  $: if (orgSlug.length >= 2) {
+    slugAvailable = null;
+    if (slugCheckTimer) clearTimeout(slugCheckTimer);
+    slugCheckTimer = setTimeout(() => checkSlugAvailability(orgSlug), 400);
+  } else {
+    slugAvailable = null;
+  }
+
+  async function checkSlugAvailability(slug: string) {
+    checkingSlug = true;
+    const { data } = await supabase
+      .from('organizations')
+      .select('id')
+      .eq('slug', slug)
+      .maybeSingle();
+    // Only update if slug hasn't changed since we started
+    if (orgSlug === slug) {
+      slugAvailable = !data;
+      checkingSlug = false;
+    }
+  }
 
   onMount(async () => {
     const { data } = await supabase.auth.getUser();
@@ -30,6 +56,10 @@
   async function handleCreate() {
     if (!orgName.trim() || !orgSlug.trim()) {
       error = 'Please enter an organization name.';
+      return;
+    }
+    if (slugAvailable === false) {
+      error = 'This URL slug is already taken. Please choose a different name.';
       return;
     }
     submitting = true;
@@ -50,7 +80,11 @@
       .single();
 
     if (orgError) {
-      error = orgError.message;
+      if (orgError.message?.includes('duplicate') || orgError.code === '23505') {
+        error = 'This URL slug is already taken. Please choose a different name.';
+      } else {
+        error = orgError.message;
+      }
       submitting = false;
       return;
     }
@@ -105,6 +139,17 @@
             style="font-family: monospace;"
           />
         </div>
+        {#if orgSlug.length >= 2}
+          <div class="slug-status">
+            {#if checkingSlug}
+              <span style="color: #878fa1; font-size: 11px;">Checking availability...</span>
+            {:else if slugAvailable === true}
+              <span style="color: #22c55e; font-size: 11px;">&#10003; Slug is available</span>
+            {:else if slugAvailable === false}
+              <span style="color: #ef4444; font-size: 11px;">&#10007; Slug is already taken</span>
+            {/if}
+          </div>
+        {/if}
       </div>
 
       {#if error}
@@ -115,7 +160,7 @@
         <a href="/private">
           <button type="button" class="btn btn-primary">Back</button>
         </a>
-        <button class="btn btn-primary" on:click={handleCreate} disabled={submitting}>
+        <button class="btn btn-primary" on:click={handleCreate} disabled={submitting || slugAvailable === false}>
           {submitting ? 'Creating...' : 'Create'}
         </button>
       </div>
@@ -163,6 +208,9 @@
     font-size: 13px;
     font-family: monospace;
     white-space: nowrap;
+  }
+  .slug-status {
+    margin-top: 4px;
   }
   .input-dark {
     background-color: $dark-primary;

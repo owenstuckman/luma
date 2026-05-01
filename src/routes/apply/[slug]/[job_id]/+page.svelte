@@ -21,6 +21,7 @@
   let firstName = '';
   let lastName = '';
   let email = '';
+  let step0Errors: { firstName?: string; lastName?: string; email?: string } = {};
 
   $: totalSteps = steps.length + 2; // +1 for personal info, +1 for review/submit
   $: isFirstStep = currentStep === 0;
@@ -77,8 +78,21 @@
     loading = false;
   });
 
+  function validateStep0(): boolean {
+    step0Errors = {};
+    if (!firstName.trim()) step0Errors.firstName = 'First name is required.';
+    if (!lastName.trim()) step0Errors.lastName = 'Last name is required.';
+    if (!email.trim()) {
+      step0Errors.email = 'Email is required.';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      step0Errors.email = 'Please enter a valid email address.';
+    }
+    return Object.keys(step0Errors).length === 0;
+  }
+
   function nextStep() {
     if (currentStep === 0) {
+      if (!validateStep0()) return;
       localStorage.setItem(`${storagePrefix}_firstName`, firstName);
       localStorage.setItem(`${storagePrefix}_lastName`, lastName);
       localStorage.setItem(`${storagePrefix}_email`, email);
@@ -214,16 +228,19 @@
         <!-- Personal Info (always required) -->
         <h4>Personal Information</h4>
         <div class="card">
-          <h5>First Name</h5>
-          <input type="text" class="form-control" bind:value={firstName} placeholder="First name" />
+          <h5>First Name <span class="required">*</span></h5>
+          <input type="text" class="form-control" class:is-invalid={step0Errors.firstName} bind:value={firstName} placeholder="First name" />
+          {#if step0Errors.firstName}<p class="field-error">{step0Errors.firstName}</p>{/if}
         </div>
         <div class="card">
-          <h5>Last Name</h5>
-          <input type="text" class="form-control" bind:value={lastName} placeholder="Last name" />
+          <h5>Last Name <span class="required">*</span></h5>
+          <input type="text" class="form-control" class:is-invalid={step0Errors.lastName} bind:value={lastName} placeholder="Last name" />
+          {#if step0Errors.lastName}<p class="field-error">{step0Errors.lastName}</p>{/if}
         </div>
         <div class="card">
-          <h5>Email Address</h5>
-          <input type="email" class="form-control" bind:value={email} placeholder="you@example.com" />
+          <h5>Email Address <span class="required">*</span></h5>
+          <input type="email" class="form-control" class:is-invalid={step0Errors.email} bind:value={email} placeholder="you@example.com" />
+          {#if step0Errors.email}<p class="field-error">{step0Errors.email}</p>{/if}
         </div>
       {:else if isReviewStep}
         <!-- Review & Submit -->
@@ -470,5 +487,16 @@
     color: $light-tertiary;
     font-style: italic;
     font-size: 13px;
+  }
+  .required {
+    color: #ef4444;
+  }
+  .field-error {
+    color: #ef4444;
+    font-size: 12px;
+    margin: 4px 0 0;
+  }
+  .is-invalid {
+    border-color: #ef4444 !important;
   }
 </style>

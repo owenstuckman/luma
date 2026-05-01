@@ -140,7 +140,17 @@
 <div class="layout">
   <div class="content-left">
     {#if loading}
-      <p class="placeholder">Loading...</p>
+      <div class="skeleton-block" style="height: 28px; width: 200px; margin-bottom: 10px;"></div>
+      <div class="skeleton-block" style="height: 16px; width: 350px; margin-bottom: 25px;"></div>
+      <div class="job-grid">
+        {#each [1, 2, 3] as _}
+          <div class="skeleton-card">
+            <div class="skeleton-block" style="height: 18px; width: 60%; margin-bottom: 10px;"></div>
+            <div class="skeleton-block" style="height: 14px; width: 80%; margin-bottom: 14px;"></div>
+            <div class="skeleton-block" style="height: 14px; width: 40%;"></div>
+          </div>
+        {/each}
+      </div>
 
     {:else if !$selectedJob}
       <!-- Job Picker -->
@@ -230,6 +240,23 @@
   .placeholder {
     color: $light-tertiary;
     padding: 20px;
+  }
+  .skeleton-block {
+    background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 6px;
+  }
+  .skeleton-card {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 0px 12px rgba(0, 0, 0, 0.08);
+    border-left: 4px solid #e5e7eb;
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
   }
 
   /* Job picker */

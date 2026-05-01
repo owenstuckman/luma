@@ -19,6 +19,10 @@
   let jobs: (JobPosting & { applicantCount: number })[] = [];
   let loading = true;
 
+  // Pagination
+  const PAGE_SIZE = 50;
+  let currentPage = 0;
+
   // Bulk selection
   let selectedIds: Set<number> = new Set();
   let selectMode = false;
@@ -59,7 +63,13 @@
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
-  $: allSelected = filteredApplicants.length > 0 && filteredApplicants.every(a => selectedIds.has(a.id));
+  // Reset page when filters change
+  $: { searchQuery; statusFilter; sortBy; currentPage = 0; }
+
+  $: totalPages = Math.ceil(filteredApplicants.length / PAGE_SIZE);
+  $: pagedApplicants = filteredApplicants.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
+
+  $: allSelected = pagedApplicants.length > 0 && pagedApplicants.every(a => selectedIds.has(a.id));
 
   onMount(async () => {
     const { data: orgData } = await supabase
@@ -331,7 +341,16 @@
 <div class="layout">
   <div class="content-left">
     {#if loading}
-      <p class="placeholder-text">Loading...</p>
+      <div class="skeleton-block" style="height: 28px; width: 240px; margin-bottom: 10px;"></div>
+      <div class="skeleton-block" style="height: 14px; width: 300px; margin-bottom: 20px;"></div>
+      <div class="job-grid">
+        {#each [1, 2, 3] as _}
+          <div class="skeleton-card">
+            <div class="skeleton-block" style="height: 18px; width: 60%; margin-bottom: 10px;"></div>
+            <div class="skeleton-block" style="height: 14px; width: 40%;"></div>
+          </div>
+        {/each}
+      </div>
 
     {:else if !$selectedJob}
       <!-- Job Picker -->
@@ -514,7 +533,7 @@
     {/if}
 
     <div class="applicant-grid">
-      {#each filteredApplicants as applicant}
+      {#each pagedApplicants as applicant}
         <div
           class="applicant-card"
           class:card-selected={selectedIds.has(applicant.id)}
@@ -547,6 +566,18 @@
         <p style="color: #878fa1; padding: 20px;">No applicants found.</p>
       {/if}
     </div>
+
+    {#if totalPages > 1}
+      <div class="pagination">
+        <button class="btn btn-quaternary btn-sm" on:click={() => currentPage = Math.max(0, currentPage - 1)} disabled={currentPage === 0}>
+          &laquo; Prev
+        </button>
+        <span class="page-info">Page {currentPage + 1} of {totalPages} ({filteredApplicants.length} total)</span>
+        <button class="btn btn-quaternary btn-sm" on:click={() => currentPage = Math.min(totalPages - 1, currentPage + 1)} disabled={currentPage >= totalPages - 1}>
+          Next &raquo;
+        </button>
+      </div>
+    {/if}
     {/if}
   </div>
 
@@ -564,6 +595,23 @@
   .placeholder-text {
     color: $light-tertiary;
     padding: 20px;
+  }
+  .skeleton-block {
+    background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 6px;
+  }
+  .skeleton-card {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 0px 12px rgba(0, 0, 0, 0.08);
+    border-left: 4px solid #e5e7eb;
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
   }
   .subtitle {
     font-size: 13px;
@@ -735,5 +783,18 @@
     padding: 16px;
     box-shadow: 0 0px 12px rgba(0, 0, 0, 0.08);
     margin-bottom: 15px;
+  }
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 20px;
+    padding: 12px 0;
+  }
+  .page-info {
+    font-size: 12px;
+    color: $light-tertiary;
+    font-weight: 600;
   }
 </style>
