@@ -311,14 +311,14 @@
     <div class="page-header">
       <h4>Full Schedule</h4>
       <div class="header-actions">
-        <button class="btn btn-secondary btn-sm" on:click={() => showEmailModal = true} disabled={interviews.length === 0}>
-          <i class="fi fi-br-envelope"></i> Generate Emails
+        <button class="btn btn-secondary btn-sm" on:click={() => showEmailModal = true} disabled={interviews.length === 0} aria-label="Generate notification emails">
+          <i class="fi fi-br-envelope" aria-hidden="true"></i> Generate Emails
         </button>
-        <button class="btn btn-secondary btn-sm" on:click={exportCSV} disabled={interviews.length === 0}>
-          <i class="fi fi-br-file-spreadsheet"></i> Export CSV
+        <button class="btn btn-secondary btn-sm" on:click={exportCSV} disabled={interviews.length === 0} aria-label="Export schedule as CSV">
+          <i class="fi fi-br-file-spreadsheet" aria-hidden="true"></i> Export CSV
         </button>
-        <button class="btn btn-primary btn-sm" on:click={openModal}>
-          <i class="fi fi-br-calendar-plus"></i> Schedule Interview
+        <button class="btn btn-primary btn-sm" on:click={openModal} aria-label="Schedule a new interview">
+          <i class="fi fi-br-calendar-plus" aria-hidden="true"></i> Schedule Interview
         </button>
       </div>
     </div>
@@ -393,10 +393,10 @@
 <!-- Create individual interview modal -->
 {#if showModal}
   <div class="modal-overlay" on:click={() => showModal = false} on:keydown={(e) => e.key === 'Escape' && (showModal = false)}>
-    <div class="modal-content" on:click|stopPropagation on:keydown|stopPropagation>
+    <div class="modal-content" on:click|stopPropagation on:keydown|stopPropagation role="dialog" aria-modal="true" aria-label="Schedule Individual Interview">
       <div class="modal-header">
         <h6>Schedule Individual Interview</h6>
-        <button class="modal-close" on:click={() => showModal = false}>×</button>
+        <button class="modal-close" on:click={() => showModal = false} aria-label="Close dialog">×</button>
       </div>
 
       {#if createSuccess}

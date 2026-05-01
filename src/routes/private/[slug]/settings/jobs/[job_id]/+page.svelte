@@ -6,6 +6,7 @@
   import { updateJobPosting } from '$lib/utils/supabase';
   import Sidebar from '$lib/components/recruiter/Sidebar.svelte';
   import Navbar from '$lib/components/recruiter/Navbar.svelte';
+  import QuestionRenderer from '$lib/components/QuestionRenderer.svelte';
   import type { JobPosting, FormStep, FormQuestion } from '$lib/types';
 
   let job: JobPosting | null = null;
@@ -157,6 +158,15 @@
   function getTypeLabel(type: string) {
     return questionTypes.find(t => t.value === type)?.label || type;
   }
+
+  let showPreview = false;
+  let previewStep = 0;
+  $: previewSteps = [
+    { title: 'Personal Info', icon: 'fi-br-file-user', questions: [] as FormQuestion[] },
+    ...steps,
+    { title: 'Review & Submit', icon: 'fi-br-paper-plane', questions: [] as FormQuestion[] },
+  ];
+  $: currentPreviewStep = previewSteps[previewStep] ?? null;
 </script>
 
 <div class="layout">
@@ -172,6 +182,9 @@
         {#if saveMessage}
           <span class="save-msg" class:error={saveMessage.startsWith('Error')}>{saveMessage}</span>
         {/if}
+        <button class="btn btn-quaternary" on:click={() => { showPreview = true; previewStep = 0; }} disabled={loading}>
+          <i class="fi fi-br-eye"></i> Preview
+        </button>
         <button class="btn btn-tertiary" on:click={saveAll} disabled={saving}>
           {saving ? 'Saving...' : 'Save All Changes'}
         </button>
@@ -249,14 +262,14 @@
               <span class="question-count">{step.questions.length} question{step.questions.length !== 1 ? 's' : ''}</span>
             </div>
             <div class="step-actions">
-              <button class="icon-action" on:click={() => moveStep(stepIndex, -1)} disabled={stepIndex === 0} title="Move up">
-                <i class="fi fi-br-angle-up"></i>
+              <button class="icon-action" on:click={() => moveStep(stepIndex, -1)} disabled={stepIndex === 0} title="Move up" aria-label="Move step up">
+                <i class="fi fi-br-angle-up" aria-hidden="true"></i>
               </button>
-              <button class="icon-action" on:click={() => moveStep(stepIndex, 1)} disabled={stepIndex === steps.length - 1} title="Move down">
-                <i class="fi fi-br-angle-down"></i>
+              <button class="icon-action" on:click={() => moveStep(stepIndex, 1)} disabled={stepIndex === steps.length - 1} title="Move down" aria-label="Move step down">
+                <i class="fi fi-br-angle-down" aria-hidden="true"></i>
               </button>
-              <button class="icon-action danger" on:click={() => removeStep(stepIndex)} title="Remove step">
-                <i class="fi fi-br-trash"></i>
+              <button class="icon-action danger" on:click={() => removeStep(stepIndex)} title="Remove step" aria-label="Remove step">
+                <i class="fi fi-br-trash" aria-hidden="true"></i>
               </button>
             </div>
           </div>
@@ -278,14 +291,14 @@
                 </div>
               </div>
               <div class="question-actions">
-                <button class="icon-action" on:click={() => moveQuestion(stepIndex, qIndex, -1)} disabled={qIndex === 0}>
-                  <i class="fi fi-br-angle-up"></i>
+                <button class="icon-action" on:click={() => moveQuestion(stepIndex, qIndex, -1)} disabled={qIndex === 0} aria-label="Move question up">
+                  <i class="fi fi-br-angle-up" aria-hidden="true"></i>
                 </button>
-                <button class="icon-action" on:click={() => moveQuestion(stepIndex, qIndex, 1)} disabled={qIndex === step.questions.length - 1}>
-                  <i class="fi fi-br-angle-down"></i>
+                <button class="icon-action" on:click={() => moveQuestion(stepIndex, qIndex, 1)} disabled={qIndex === step.questions.length - 1} aria-label="Move question down">
+                  <i class="fi fi-br-angle-down" aria-hidden="true"></i>
                 </button>
-                <button class="icon-action danger" on:click={() => removeQuestion(stepIndex, qIndex)}>
-                  <i class="fi fi-br-trash"></i>
+                <button class="icon-action danger" on:click={() => removeQuestion(stepIndex, qIndex)} aria-label="Remove question">
+                  <i class="fi fi-br-trash" aria-hidden="true"></i>
                 </button>
               </div>
             </div>
@@ -399,6 +412,97 @@
   <Navbar />
   <Sidebar currentStep={6} />
 </div>
+
+{#if showPreview}
+  <div
+    class="preview-overlay"
+    on:click={() => showPreview = false}
+    on:keydown={(e) => e.key === 'Escape' && (showPreview = false)}
+    role="dialog"
+    aria-modal="true"
+    tabindex="-1"
+  >
+    <div class="preview-modal" on:click|stopPropagation on:keydown|stopPropagation>
+      <!-- Header -->
+      <div class="preview-header">
+        <div class="preview-header-left">
+          <span class="preview-label">Form Preview</span>
+          <span class="preview-job">{jobName}</span>
+        </div>
+        <button class="preview-close" on:click={() => showPreview = false} aria-label="Close preview">&times;</button>
+      </div>
+
+      <!-- Step sidebar -->
+      <div class="preview-layout">
+        <div class="preview-sidebar">
+          {#each previewSteps as step, i}
+            <button
+              class="preview-step-btn"
+              class:active={previewStep === i}
+              on:click={() => previewStep = i}
+            >
+              <i class="fi {step.icon}"></i>
+              <span>{step.title}</span>
+            </button>
+          {/each}
+        </div>
+
+        <!-- Step content -->
+        <div class="preview-content">
+          {#if currentPreviewStep}
+            <h4 style="margin-bottom: 16px;">{currentPreviewStep.title}</h4>
+
+            {#if previewStep === 0}
+              <!-- Personal info step mock -->
+              <div class="card">
+                <h5>First Name <span style="color:#ef4444">*</span></h5>
+                <input type="text" class="form-control" placeholder="First name" disabled />
+              </div>
+              <div class="card">
+                <h5>Last Name <span style="color:#ef4444">*</span></h5>
+                <input type="text" class="form-control" placeholder="Last name" disabled />
+              </div>
+              <div class="card">
+                <h5>Email Address <span style="color:#ef4444">*</span></h5>
+                <input type="email" class="form-control" placeholder="you@example.com" disabled />
+              </div>
+            {:else if previewStep === previewSteps.length - 1}
+              <!-- Review step mock -->
+              <p style="font-size: 13px; color: #878fa1;">Applicants review all answers here before submitting.</p>
+              <div class="card" style="opacity: 0.6;">
+                <h5>Personal Information</h5>
+                <p style="font-size: 13px; color: #878fa1;">Name and email will appear here.</p>
+              </div>
+              {#each steps as step}
+                <div class="card" style="opacity: 0.6;">
+                  <h5>{step.title}</h5>
+                  {#each step.questions as q}
+                    <p style="font-size: 12px; color: #878fa1;">{q.title}</p>
+                  {/each}
+                </div>
+              {/each}
+            {:else if currentPreviewStep.questions.length === 0}
+              <p style="color: #878fa1; font-size: 13px;">No questions in this step yet.</p>
+            {:else}
+              {#each currentPreviewStep.questions as question (question.id)}
+                <QuestionRenderer {question} storagePrefix="__preview__" />
+              {/each}
+            {/if}
+
+            <div style="display: flex; justify-content: space-between; margin-top: 20px; max-width: 500px;">
+              <button class="btn btn-quaternary" disabled={previewStep === 0} on:click={() => previewStep--}>
+                <i class="fi fi-br-arrow-left"></i> Back
+              </button>
+              <button class="btn btn-tertiary" disabled={previewStep === previewSteps.length - 1} on:click={() => previewStep++}>
+                Next <i class="fi fi-br-arrow-right"></i>
+              </button>
+            </div>
+          {/if}
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style lang="scss">
   @use '../../../../../../styles/col.scss' as *;
@@ -627,5 +731,101 @@
   .empty-steps {
     text-align: center;
     padding: 40px;
+  }
+
+  /* Preview modal */
+  .preview-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    padding: 24px;
+  }
+  .preview-modal {
+    background: $light-secondary;
+    border-radius: 12px;
+    width: min(900px, 100%);
+    max-height: calc(100vh - 48px);
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+  }
+  .preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 20px;
+    background: $dark-primary;
+    flex-shrink: 0;
+  }
+  .preview-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .preview-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: $yellow-primary;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .preview-job {
+    font-size: 14px;
+    font-weight: 600;
+    color: white;
+  }
+  .preview-close {
+    background: none;
+    border: none;
+    color: $light-tertiary;
+    font-size: 24px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 4px;
+    &:hover { color: white; }
+  }
+  .preview-layout {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+  }
+  .preview-sidebar {
+    width: 200px;
+    flex-shrink: 0;
+    background: $dark-primary;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow-y: auto;
+  }
+  .preview-step-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: $light-tertiary;
+    background: none;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    &:hover { background: $dark-secondary; color: white; }
+    &.active { background: $dark-secondary; color: white; }
+    i { font-size: 14px; flex-shrink: 0; }
+  }
+  .preview-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    background: $light-secondary;
   }
 </style>

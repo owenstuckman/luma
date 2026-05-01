@@ -18,13 +18,19 @@
 </script>
 
 {#if visible}
-  <div class="toast toast-{type}" on:click={() => { visible = false; onDismiss(); }} role="status">
+  <div
+    class="toast toast-{type}"
+    on:click={() => { visible = false; onDismiss(); }}
+    role="status"
+    aria-live="polite"
+    aria-atomic="true"
+  >
     {#if type === 'success'}
-      <i class="fi fi-br-check"></i>
+      <i class="fi fi-br-check" aria-hidden="true"></i>
     {:else if type === 'error'}
-      <i class="fi fi-br-cross-circle"></i>
+      <i class="fi fi-br-cross-circle" aria-hidden="true"></i>
     {:else}
-      <i class="fi fi-br-info"></i>
+      <i class="fi fi-br-info" aria-hidden="true"></i>
     {/if}
     <span>{message}</span>
   </div>

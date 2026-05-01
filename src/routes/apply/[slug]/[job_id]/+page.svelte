@@ -222,6 +222,16 @@
       </ul>
     </div>
 
+    <!-- Mobile step progress bar (hidden on large screens where sidebar is visible) -->
+    <div class="mobile-progress show-on-small">
+      <div class="mobile-progress-text">
+        Step {currentStep + 1} of {totalSteps} — {sidebarSteps[currentStep]?.title ?? ''}
+      </div>
+      <div class="mobile-progress-bar">
+        <div class="mobile-progress-fill" style="width: {((currentStep + 1) / totalSteps) * 100}%"></div>
+      </div>
+    </div>
+
     <!-- Content -->
     <div class="content">
       {#if currentStep === 0}
@@ -498,5 +508,33 @@
   }
   .is-invalid {
     border-color: #ef4444 !important;
+  }
+
+  .mobile-progress {
+    grid-area: content;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: $dark-primary;
+    padding: 10px 16px 6px;
+    border-bottom: 1px solid $dark-secondary;
+  }
+  .mobile-progress-text {
+    font-size: 12px;
+    font-weight: 600;
+    color: white;
+    margin-bottom: 6px;
+  }
+  .mobile-progress-bar {
+    height: 4px;
+    background-color: $dark-secondary;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .mobile-progress-fill {
+    height: 100%;
+    background-color: $yellow-primary;
+    border-radius: 2px;
+    transition: width 0.3s ease;
   }
 </style>

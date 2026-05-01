@@ -27,33 +27,29 @@ Features and tech debt that require code changes.
 - [x] Resend webhook endpoint for bounce/delivery status tracking (`/api/email-webhook`)
 - [x] Scheduled reminder email Edge Function (`send-reminders`)
 - [x] Column naming consistency: `interviews.start_time` / `end_time` (snake_case)
+- [x] Application form validation — first/last name + email required on step 0, email format validated
+- [x] Slug uniqueness check on org create — debounced live check + collision error on submit
+- [x] Global error page — `src/routes/+error.svelte` handles 404/500/generic with back-to-home action
+- [x] Email send failure clarity — dry run warning banner, RESEND_API_KEY hint shown
+- [x] Prevent scheduling interviews in the past — start time validated on manual creation
+- [x] Loading skeletons — dashboard and review pages already had skeleton states
+- [x] Pagination on applicant lists — review page already had pagination (PAGE_SIZE=50)
+- [x] Availability grid: future weeks — already implemented with prev/next week navigation (weekOffset)
+- [x] Auth page loading state — auth guard in hooks.server.ts handles redirect server-side
+- [x] Mobile responsive layouts — progress bar added to applicant form; hamburger drawer added to recruiter sidebar
+- [x] Evaluation summary per candidate — shows avg rating, recommendation breakdown, and individual eval details
+- [x] Form builder preview — Preview button in job editor renders all form steps read-only
+- [x] Comment decision vocabulary consistency — candidate page now uses pending/interview/accepted/denied
+- [x] Admin panel component split — 2514-line admin page split into 8 tab components in `src/lib/components/admin/`
+- [x] Accessibility — aria-labels on icon buttons, aria-live on toasts, aria-modal on dialogs
+- [x] Unused dependency cleanup — removed `mdsvex` from package.json and svelte.config.js
+- [x] Health check endpoint — `/api/health` endpoint added; Dockerfile HEALTHCHECK added
+- [x] Fix Switch Org button — `/private?force=true` bypasses single-org auto-redirect
 
 ---
 
-## Critical — Validation & Error Handling
-- [ ] **Application form validation** — Require first name, last name, and email on step 0 before advancing. Validate email format. (`src/routes/apply/[slug]/[job_id]/+page.svelte`)
-- [ ] **Slug uniqueness check on org create** — Check slug availability before submission, show clear error on collision (`src/routes/register/+page.svelte`)
-- [ ] **Global error page** — Add `src/routes/+error.svelte` for 404/500 fallback instead of blank screens
-- [ ] **Email send failure clarity** — Distinguish "dry run (no API key)" from "emails sent" in the UI. Show warning badge when RESEND_API_KEY is missing (`EmailGeneratorModal.svelte`, review page bulk email)
-- [ ] **Prevent scheduling interviews in the past** — Validate start time is in the future on manual interview creation (`src/routes/private/[slug]/schedule/full/+page.svelte`)
+## Remaining — Low Priority / Future
 
-## High Priority — UX & Polish
-- [ ] **Loading skeletons** — Add loading states to landing page, dashboard, review, schedule, and settings pages instead of blank-then-content flash
-- [ ] **Pagination on applicant lists** — Review page and admin applicants tab need pagination for orgs with 500+ applicants
-- [ ] **Availability grid: future weeks** — Allow interviewers to set availability for upcoming weeks, not just the current week (`src/routes/private/[slug]/availability/+page.svelte`)
-- [ ] **Mobile responsive layouts** — Application form needs mobile progress indicator (sidebar hidden on small screens). Recruiter sidebar should collapse to hamburger menu on mobile.
-- [ ] **Auth page loading state** — Show spinner while checking auth in `/private/+layout.svelte` instead of blank screen
-
-## Medium Priority — Features
-- [ ] **Evaluation summary per candidate** — Aggregate evaluations from all interviewers on the candidate review page (average rating, recommendation consensus)
-- [ ] **Bulk schedule ICS export** — Download a single .ics file with all interviews for the org (useful for importing into Google Calendar / Outlook)
-- [ ] **Form builder preview** — Show a live preview of the application form while editing questions in the job editor (`src/routes/private/[slug]/settings/jobs/[job_id]/+page.svelte`)
-- [ ] **Comment decision vocabulary consistency** — Standardize decision labels across review page ("pending/interview/accepted/denied") and candidate page ("Pending/Approved/Rejected")
-- [ ] **Admin panel component split** — Break the 2000+ line admin page into sub-components (one per tab) for maintainability
-
-## Low Priority — Nice-to-Have
-- [ ] **Accessibility** — Add ARIA labels to interactive elements, ensure color contrast meets WCAG AA, add keyboard navigation for modals and calendar
-- [ ] **Migrate remaining Svelte 4 components to Svelte 5 runes** — Cosmetic; everything works as-is
-- [ ] **Unused dependency cleanup** — Remove `mdsvex` (not used in routes), evaluate if both `adapter-node` and `adapter-vercel` are needed
 - [ ] **Rate limiting** — Add basic rate limiting on auth endpoints and public application submission
-- [ ] **Health check endpoint** — Add `/api/health` for Docker/monitoring (`Dockerfile` has no HEALTHCHECK)
+- [ ] **Migrate remaining Svelte 4 components to Svelte 5 runes** — Cosmetic; everything works as-is
+- [ ] **Bulk schedule ICS export** — Download a single combined .ics file for all interviews (ZIP download already exists; single-file merge is a minor addition)

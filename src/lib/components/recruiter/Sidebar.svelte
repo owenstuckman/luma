@@ -1,5 +1,6 @@
 <script>
   import { page } from '$app/stores';
+  import { mobileMenuOpen } from '$lib/stores/mobileMenu';
 
   export let currentStep = 0;
   export let collapse = '';
@@ -9,6 +10,8 @@
 
   // Start open if currently on a schedule page
   let scheduleOpen = currentStep >= 2 && currentStep <= 4;
+
+  function closeMenu() { mobileMenuOpen.set(false); }
 </script>
 
 <div class="sidebar hide-on-small">
@@ -62,6 +65,63 @@
     </li>
   </ul>
 </div>
+
+<!-- Mobile drawer -->
+{#if $mobileMenuOpen}
+  <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+  <div class="mobile-overlay" on:click={closeMenu}></div>
+  <div class="mobile-drawer" role="navigation" aria-label="Mobile navigation">
+    <ul class="list-unstyled">
+      <li>
+        <a href="{base}/dashboard" class="btn btn-sidebar" class:sidebar-selected={currentStep === 0} on:click={closeMenu}>
+          <i class="fi fi-br-home"></i>
+          Home
+        </a>
+      </li>
+      <li>
+        <a href="{base}/review" class="btn btn-sidebar" class:sidebar-selected={currentStep === 1} on:click={closeMenu}>
+          <i class="fi fi-br-assessment-alt"></i>
+          Review
+        </a>
+      </li>
+      <li>
+        <button
+          class="btn btn-sidebar"
+          class:sidebar-selected={currentStep >= 2 && currentStep <= 4}
+          on:click={() => scheduleOpen = !scheduleOpen}
+        >
+          <i class="fi fi-br-calendar-clock"></i>
+          Schedule
+          <i class="fi fi-br-angle-small-{scheduleOpen ? 'up' : 'down'} chevron"></i>
+        </button>
+        {#if scheduleOpen}
+          <ul class="list-unstyled sidebar-submenu">
+            <li><a href="{base}/schedule/my" class:submenu-selected={currentStep === 2} on:click={closeMenu}>My Schedule</a></li>
+            <li><a href="{base}/schedule/full" class:submenu-selected={currentStep === 3} on:click={closeMenu}>Full Schedule</a></li>
+          </ul>
+        {/if}
+      </li>
+      <li>
+        <a href="{base}/evaluate" class="btn btn-sidebar" class:sidebar-selected={currentStep === 5} on:click={closeMenu}>
+          <i class="fi fi-br-tachometer-fast"></i>
+          Evaluate
+        </a>
+      </li>
+      <li>
+        <a href="{base}/availability" class="btn btn-sidebar" class:sidebar-selected={currentStep === 7} on:click={closeMenu}>
+          <i class="fi fi-br-clock"></i>
+          Availability
+        </a>
+      </li>
+      <li>
+        <a href="{base}/settings" class="btn btn-sidebar" class:sidebar-selected={currentStep === 6} on:click={closeMenu}>
+          <i class="fi fi-br-settings"></i>
+          Settings
+        </a>
+      </li>
+    </ul>
+  </div>
+{/if}
 
 <style lang="scss">
   @use '../../../styles/col.scss' as *;
@@ -136,5 +196,23 @@
   .sidebar-selected {
     background-color: $dark-secondary !important;
     cursor: default;
+  }
+
+  .mobile-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 200;
+  }
+  .mobile-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 240px;
+    background: $dark-primary;
+    z-index: 201;
+    padding: 60px 8px 20px;
+    overflow-y: auto;
   }
 </style>

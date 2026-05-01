@@ -1,16 +1,52 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
-  import { getApplicantData, addComment, getCurrentUserEmail, updateApplicantStatus } from '$lib/utils/supabase';
+  import { supabase, getApplicantData, addComment, getCurrentUserEmail, updateApplicantStatus } from '$lib/utils/supabase';
   import type { Applicant, CommentEntry } from '$lib/types';
+
+  interface Evaluation {
+    rating: number;
+    strengths: string;
+    weaknesses: string;
+    notes: string;
+    recommendation: string;
+    evaluator: string;
+    evaluatedAt: string;
+  }
+
+  interface InterviewWithEval {
+    id: number;
+    interviewer: string | null;
+    start_time: string;
+    comments: Record<string, unknown> | null;
+  }
 
   let applicant: Applicant | null = null;
   let commentsArray: CommentEntry[] = [];
   let newComment = '';
-  let newStatus = 'Pending';
+  let newStatus = 'pending';
   let loading = true;
+  let interviews: InterviewWithEval[] = [];
 
   $: slug = $page.params.slug;
+
+  $: evaluations = interviews
+    .filter(iv => iv.comments && (iv.comments as Record<string, unknown>).evaluation)
+    .map(iv => ({
+      interviewer: iv.interviewer,
+      interviewTime: iv.start_time,
+      eval: (iv.comments as Record<string, unknown>).evaluation as Evaluation,
+    }));
+
+  $: avgRating = evaluations.length > 0
+    ? evaluations.reduce((sum, e) => sum + (e.eval.rating || 0), 0) / evaluations.length
+    : 0;
+
+  $: recommendationCounts = evaluations.reduce<Record<string, number>>((acc, e) => {
+    const r = e.eval.recommendation || 'neutral';
+    acc[r] = (acc[r] || 0) + 1;
+    return acc;
+  }, {});
 
   onMount(async () => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -26,6 +62,24 @@
       } catch (error) {
         console.error('Failed to load applicant data:', error);
       }
+
+      // Fetch interviews for this applicant to show evaluation summary
+      if (applicant?.email) {
+        const { data: orgData } = await supabase
+          .from('organizations')
+          .select('id')
+          .eq('slug', slug)
+          .single();
+
+        if (orgData) {
+          const { data: ivData } = await supabase
+            .from('interviews')
+            .select('id, interviewer, start_time, comments')
+            .eq('org_id', orgData.id)
+            .eq('applicant', applicant.email);
+          interviews = (ivData || []) as InterviewWithEval[];
+        }
+      }
     }
     loading = false;
   });
@@ -38,7 +92,7 @@
       await addComment(applicant.id, newID, newComment, email, newStatus);
       commentsArray = [...commentsArray, { id: newID, email, comment: newComment, decision: newStatus }];
       newComment = '';
-      newStatus = 'Pending';
+      newStatus = 'pending';
     } catch (error) {
       console.error('Failed to add comment:', error);
     }
@@ -63,6 +117,30 @@
       default: return '#878fa1';
     }
   }
+
+  function getRecommendationLabel(rec: string): string {
+    switch (rec) {
+      case 'strong_yes': return 'Strong Yes';
+      case 'yes': return 'Yes';
+      case 'neutral': return 'Neutral';
+      case 'no': return 'No';
+      case 'strong_no': return 'Strong No';
+      default: return rec;
+    }
+  }
+
+  function getRecommendationColor(rec: string): string {
+    switch (rec) {
+      case 'strong_yes': return '#16a34a';
+      case 'yes': return '#22c55e';
+      case 'neutral': return '#878fa1';
+      case 'no': return '#f59e0b';
+      case 'strong_no': return '#ef4444';
+      default: return '#878fa1';
+    }
+  }
+
+  const recommendationOrder = ['strong_yes', 'yes', 'neutral', 'no', 'strong_no'];
 </script>
 
 <div class="candidate-page">
@@ -112,6 +190,73 @@
             {/each}
           </div>
         {/if}
+
+        <!-- Evaluation Summary -->
+        {#if interviews.length > 0}
+          <div class="card">
+            <h5>Evaluation Summary</h5>
+            <p class="meta" style="margin-bottom: 12px;">
+              {evaluations.length} of {interviews.length} interview{interviews.length !== 1 ? 's' : ''} evaluated
+            </p>
+
+            {#if evaluations.length > 0}
+              <!-- Average rating -->
+              <div class="eval-row">
+                <span class="eval-label">Avg Rating</span>
+                <div class="star-row">
+                  {#each [1, 2, 3, 4, 5] as star}
+                    <span class="star" class:filled={avgRating >= star - 0.5}>&#9733;</span>
+                  {/each}
+                  <span class="rating-num">{avgRating.toFixed(1)}</span>
+                </div>
+              </div>
+
+              <!-- Recommendation breakdown -->
+              <div class="eval-row" style="margin-top: 10px;">
+                <span class="eval-label">Recommendations</span>
+                <div class="rec-pills">
+                  {#each recommendationOrder as rec}
+                    {#if recommendationCounts[rec]}
+                      <span class="rec-pill" style="background-color: {getRecommendationColor(rec)};">
+                        {getRecommendationLabel(rec)} &times;{recommendationCounts[rec]}
+                      </span>
+                    {/if}
+                  {/each}
+                </div>
+              </div>
+
+              <!-- Individual evaluations -->
+              <div class="eval-list">
+                {#each evaluations as ev}
+                  <div class="eval-item">
+                    <div class="eval-item-header">
+                      <span class="eval-interviewer">{ev.interviewer || 'Unknown'}</span>
+                      <span class="rec-pill" style="background-color: {getRecommendationColor(ev.eval.recommendation)};">
+                        {getRecommendationLabel(ev.eval.recommendation)}
+                      </span>
+                    </div>
+                    <div class="star-row" style="margin: 4px 0;">
+                      {#each [1, 2, 3, 4, 5] as star}
+                        <span class="star" class:filled={ev.eval.rating >= star}>&#9733;</span>
+                      {/each}
+                    </div>
+                    {#if ev.eval.strengths}
+                      <p class="eval-text"><strong>+</strong> {ev.eval.strengths}</p>
+                    {/if}
+                    {#if ev.eval.weaknesses}
+                      <p class="eval-text"><strong>−</strong> {ev.eval.weaknesses}</p>
+                    {/if}
+                    {#if ev.eval.notes}
+                      <p class="eval-text" style="color: #878fa1;">{ev.eval.notes}</p>
+                    {/if}
+                  </div>
+                {/each}
+              </div>
+            {:else}
+              <p style="color: #878fa1; font-size: 13px;">No evaluations submitted yet.</p>
+            {/if}
+          </div>
+        {/if}
       </div>
 
       <!-- Right: Comments -->
@@ -141,9 +286,10 @@
             <textarea bind:value={newComment} placeholder="Add a comment..." class="form-control" rows="3"></textarea>
             <div style="display: flex; gap: 10px; align-items: center; margin-top: 8px;">
               <select bind:value={newStatus} class="form-control" style="max-width: 150px;">
-                <option value="Pending">Pending</option>
-                <option value="Approved">Approved</option>
-                <option value="Rejected">Rejected</option>
+                <option value="pending">Pending</option>
+                <option value="interview">Interview</option>
+                <option value="accepted">Accepted</option>
+                <option value="denied">Denied</option>
               </select>
               <button on:click={handleAddComment} class="btn btn-tertiary">Add Comment</button>
             </div>
@@ -249,5 +395,76 @@
     margin-top: 15px;
     padding-top: 15px;
     border-top: 1px solid #e5e7eb;
+  }
+
+  /* Evaluation summary */
+  .eval-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .eval-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: $light-tertiary;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .star-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .star {
+    font-size: 16px;
+    color: #d1d5db;
+  }
+  .star.filled {
+    color: #fbbf24;
+  }
+  .rating-num {
+    font-size: 13px;
+    font-weight: 700;
+    color: $dark-primary;
+    margin-left: 6px;
+  }
+  .rec-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  .rec-pill {
+    font-size: 10px;
+    font-weight: 700;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
+  .eval-list {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .eval-item {
+    padding: 10px;
+    background-color: $light-secondary;
+    border-radius: 6px;
+  }
+  .eval-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  .eval-interviewer {
+    font-size: 12px;
+    font-weight: 700;
+    color: $dark-primary;
+  }
+  .eval-text {
+    font-size: 12px;
+    color: $dark-primary;
+    margin: 3px 0 0;
   }
 </style>

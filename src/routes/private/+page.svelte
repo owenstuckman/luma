@@ -19,8 +19,8 @@
       .select('*, organizations(*)')
       .eq('user_id', userData.user.id);
 
-    if (memberData && memberData.length === 1) {
-      // Single org — go straight to dashboard
+    const force = new URLSearchParams(window.location.search).get('force');
+    if (!force && memberData && memberData.length === 1) {
       goto(`/private/${memberData[0].organizations.slug}/dashboard`);
       return;
     }

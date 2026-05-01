@@ -4,6 +4,7 @@
   import { getActiveRoles, getOrgBySlug } from '$lib/utils/supabase';
   import { goto } from '$app/navigation';
   import { selectedJob } from '$lib/stores/jobFilter';
+  import { mobileMenuOpen } from '$lib/stores/mobileMenu';
 
   $: slug = $page.params.slug || '';
 
@@ -47,7 +48,7 @@
     </div>
     {#if slug}
       <div class="navbar-year">
-        <a href="/private" class="btn btn-secondary" style="width: 145px; font-size: 11px;">
+        <a href="/private?force=true" class="btn btn-secondary" style="width: 145px; font-size: 11px;">
           Switch Org
         </a>
       </div>
@@ -70,6 +71,13 @@
   <div class="navbar-right">
     <button class="btn btn-secondary" style="font-size: 11px; margin-right: 10px;" on:click={logout}>
       Logout
+    </button>
+    <button
+      class="hamburger show-on-small"
+      aria-label="Toggle navigation menu"
+      on:click={() => mobileMenuOpen.update(v => !v)}
+    >
+      <i class="fi fi-br-menu-burger"></i>
     </button>
   </div>
 </div>
@@ -112,6 +120,20 @@
   .navbar-right {
     display: flex;
     align-items: center;
+  }
+  .hamburger {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 45px;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 18px;
+    cursor: pointer;
+    margin-right: 4px;
+    &:hover { background-color: rgba(255,255,255,0.08); }
   }
   .job-select {
     background-color: $dark-secondary;
