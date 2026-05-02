@@ -4,12 +4,12 @@
     adminTransferOwnership, getPlatformSettings
   } from '$lib/utils/supabase';
   import type { Organization, PlatformSettings } from '$lib/types';
-  import { createEventDispatcher } from 'svelte';
 
-  export let organizations: (Organization & { member_count?: number; applicant_count?: number })[];
-  export let platformSettings: PlatformSettings;
-
-  const dispatch = createEventDispatcher<{ reload: void }>();
+  let { organizations, platformSettings, onreload = () => {} }: {
+    organizations: (Organization & { member_count?: number; applicant_count?: number })[];
+    platformSettings: PlatformSettings;
+    onreload?: () => void;
+  } = $props();
 
   let newOrgName = '';
   let newOrgSlug = '';
@@ -48,7 +48,7 @@
       newOrgPrimaryColor = platformSettings.default_primary_color || '#ffc800';
       newOrgSecondaryColor = platformSettings.default_secondary_color || '#0F1112';
       showCreateOrg = false;
-      dispatch('reload');
+      onreload();
     } catch (e: any) { orgCreateError = e.message; }
   }
 
@@ -63,7 +63,7 @@
     try {
       await adminUpdateOrganization(editingOrgId, { name: editOrgName, slug: editOrgSlug, primary_color: editOrgPrimary, secondary_color: editOrgSecondary });
       editingOrgId = null;
-      dispatch('reload');
+      onreload();
     } catch (e: any) { orgEditError = e.message; }
   }
 
@@ -72,7 +72,7 @@
     try {
       await adminDeleteOrganization(deletingOrg.id);
       deletingOrg = null; deleteConfirmName = '';
-      dispatch('reload');
+      onreload();
     } catch (e: any) { orgEditError = e.message; }
   }
 
@@ -82,7 +82,7 @@
     try {
       await adminTransferOwnership(transferOrgId, transferEmail);
       transferOrgId = null; transferEmail = '';
-      dispatch('reload');
+      onreload();
     } catch (e: any) { transferError = e.message; }
   }
 </script>

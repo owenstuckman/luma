@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import type { FormQuestion } from '$lib/types';
   import Input from '$lib/components/card/Input.svelte';
   import InputDual from '$lib/components/card/InputDual.svelte';
@@ -9,19 +10,16 @@
   import Dropdown from '$lib/components/card/Dropdown.svelte';
   import AvailabilityGrid from '$lib/components/applicant/AvailabilityGrid.svelte';
 
-  export let question: FormQuestion;
-  export let storagePrefix: string = '';
+  let { question, storagePrefix = '' }: { question: FormQuestion; storagePrefix?: string } = $props();
 
-  $: storageKey = storagePrefix ? `${storagePrefix}_${question.id}` : question.id;
+  const storageKey = $derived(storagePrefix ? `${storagePrefix}_${question.id}` : question.id);
 
-  // State
-  let stringVal: string = '';
-  let arrayVal: string[] = [];
-  let dualVal1: string = '';
-  let dualVal2: string = '';
-  let availabilityRanges: { date: string; start: string; end: string }[] = [];
+  let stringVal = $state('');
+  let arrayVal = $state<string[]>([]);
+  let dualVal1 = $state('');
+  let dualVal2 = $state('');
+  let availabilityRanges = $state<{ date: string; start: string; end: string }[]>([]);
 
-  import { onMount } from 'svelte';
   onMount(() => {
     if (question.type === 'checkbox' || question.type === 'checkbox_image') {
       const stored = localStorage.getItem(storageKey);
@@ -37,23 +35,23 @@
     }
   });
 
-  const handleStringChange = () => {
+  function handleStringChange() {
     localStorage.setItem(storageKey, stringVal);
-  };
+  }
 
-  const handleArrayChange = () => {
+  function handleArrayChange() {
     localStorage.setItem(storageKey, arrayVal.join(','));
-  };
+  }
 
-  const handleDualChange = () => {
+  function handleDualChange() {
     localStorage.setItem(`${storageKey}_1`, dualVal1);
     localStorage.setItem(`${storageKey}_2`, dualVal2);
-  };
+  }
 
-  const handleAvailabilityChange = (e: CustomEvent<{ ranges: { date: string; start: string; end: string }[] }>) => {
-    availabilityRanges = e.detail.ranges;
+  function handleAvailabilityChange(detail: { slots: string[]; ranges: { date: string; start: string; end: string }[] }) {
+    availabilityRanges = detail.ranges;
     localStorage.setItem(storageKey, JSON.stringify(availabilityRanges));
-  };
+  }
 </script>
 
 {#if question.type === 'input'}
@@ -133,7 +131,7 @@
       dayEnd={question.dayEnd || '17:00'}
       stepMinutes={question.stepMinutes || 30}
       initialRanges={availabilityRanges}
-      on:change={handleAvailabilityChange}
+      onchange={handleAvailabilityChange}
     />
   </div>
 {/if}

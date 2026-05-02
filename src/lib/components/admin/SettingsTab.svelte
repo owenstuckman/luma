@@ -2,9 +2,9 @@
   import { updatePlatformSettings } from '$lib/utils/supabase';
   import type { PlatformSettings } from '$lib/types';
 
-  export let platformSettings: PlatformSettings;
+  let { platformSettings }: { platformSettings: PlatformSettings } = $props();
 
-  let editSettings: PlatformSettings = { ...platformSettings };
+  let editSettings: PlatformSettings = $state({ ...platformSettings });
   let settingsLoading = false;
   let settingsError = '';
   let settingsSuccess = '';

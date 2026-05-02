@@ -5,19 +5,30 @@
   import { buildICSFile, downloadICS, downloadICSZip } from '$lib/email/ics';
   import type { ICSEventParams } from '$lib/email/ics';
 
-  export let interviews: Interview[];
-  export let applicants: Applicant[];
-  export let orgMembers: (OrgMember & { email: string })[];
-  export let jobs: JobPosting[];
-  export let orgName: string;
-  export let orgId: number | null = null;
-  export let slug: string = '';
-  export let onClose: () => void;
+  let {
+    interviews,
+    applicants,
+    orgMembers,
+    jobs,
+    orgName,
+    orgId = null,
+    slug = '',
+    onClose
+  }: {
+    interviews: Interview[];
+    applicants: Applicant[];
+    orgMembers: (OrgMember & { email: string })[];
+    jobs: JobPosting[];
+    orgName: string;
+    orgId?: number | null;
+    slug?: string;
+    onClose: () => void;
+  } = $props();
 
   // ── Send state ───────────────────────────────────────────────────────────
-  let sending = false;
-  let sendResult: { sent: number; failed: number; errors: string[]; dryRun?: boolean; message?: string; wouldSend?: { applicants: number; interviewers: number } } | null = null;
-  let sendError = '';
+  let sending = $state(false);
+  let sendResult = $state<{ sent: number; failed: number; errors: string[]; dryRun?: boolean; message?: string; wouldSend?: { applicants: number; interviewers: number } } | null>(null);
+  let sendError = $state('');
 
   async function sendEmails(recipientType: 'applicants' | 'interviewers' | 'both') {
     if (!orgId || !slug) {
@@ -56,21 +67,19 @@
   }
 
   type Tab = 'applicants' | 'interviewers';
-  let activeTab: Tab = 'applicants';
+  let activeTab = $state<Tab>('applicants');
 
-  $: applicantEmails = generateApplicantEmails(interviews, applicants, jobs, orgName);
-  $: interviewerEmails = generateInterviewerEmails(interviews, orgMembers, applicants, jobs, orgName);
+  const applicantEmails = $derived(generateApplicantEmails(interviews, applicants, jobs, orgName));
+  const interviewerEmails = $derived(generateInterviewerEmails(interviews, orgMembers, applicants, jobs, orgName));
 
-  // Per-card editable state: store overrides indexed by recipient email
-  let subjectOverrides: Record<string, string> = {};
-  let textOverrides: Record<string, string> = {};
+  let subjectOverrides = $state<Record<string, string>>({});
+  let textOverrides = $state<Record<string, string>>({});
 
-  // Reset overrides when interviews change
-  $: {
+  $effect(() => {
     interviews;
     subjectOverrides = {};
     textOverrides = {};
-  }
+  });
 
   function getSubject(email: RecipientEmail): string {
     return subjectOverrides[email.to] ?? email.subject;
@@ -79,16 +88,13 @@
     return textOverrides[email.to] ?? email.text;
   }
 
-  // Copy state: track which card recently copied
-  let recentlyCopied: Record<string, boolean> = {};
+  let recentlyCopied = $state<Record<string, boolean>>({});
 
   async function copyEmail(email: RecipientEmail) {
     const body = `To: ${email.to}\nSubject: ${getSubject(email)}\n\n${getText(email)}`;
     await navigator.clipboard.writeText(body);
     recentlyCopied = { ...recentlyCopied, [email.to]: true };
-    setTimeout(() => {
-      recentlyCopied = { ...recentlyCopied, [email.to]: false };
-    }, 1500);
+    setTimeout(() => { recentlyCopied = { ...recentlyCopied, [email.to]: false }; }, 1500);
   }
 
   async function copyAllBodies(emails: RecipientEmail[]) {
@@ -97,23 +103,19 @@
       .join('\n\n' + '─'.repeat(60) + '\n\n');
     await navigator.clipboard.writeText(combined);
     recentlyCopied = { ...recentlyCopied, __all__: true };
-    setTimeout(() => {
-      recentlyCopied = { ...recentlyCopied, __all__: false };
-    }, 1500);
+    setTimeout(() => { recentlyCopied = { ...recentlyCopied, __all__: false }; }, 1500);
   }
 
-  $: activeEmails = activeTab === 'applicants' ? applicantEmails : interviewerEmails;
+  const activeEmails = $derived(activeTab === 'applicants' ? applicantEmails : interviewerEmails);
 
-  // ── Selection state ───────────────────────────────────────────────────────
-  let selectedEmails = new Set<string>();
+  let selectedEmails = $state(new Set<string>());
 
-  // Reset selection when tab changes
-  $: {
+  $effect(() => {
     activeTab;
     selectedEmails = new Set();
-  }
+  });
 
-  $: allSelected = activeEmails.length > 0 && selectedEmails.size === activeEmails.length;
+  const allSelected = $derived(activeEmails.length > 0 && selectedEmails.size === activeEmails.length);
 
   function toggleSelectAll() {
     if (allSelected) {
@@ -193,7 +195,20 @@
     downloadICS(`${safeFilename(recipientEmail)}.ics`, content);
   }
 
-  let downloadingZip = false;
+  function downloadAllAsSingleICS(): void {
+    const targets = selectedEmails.size > 0
+      ? activeEmails.filter(e => selectedEmails.has(e.to))
+      : activeEmails;
+    if (targets.length === 0) return;
+
+    const allEvents = targets.flatMap(e =>
+      activeTab === 'applicants' ? buildApplicantEvents(e.to) : buildInterviewerEvents(e.to)
+    );
+    const label = activeTab === 'applicants' ? 'applicants' : 'interviewers';
+    downloadICS(`${orgName.replace(/\s+/g, '-')}-${label}-invites.ics`, buildICSFile(allEvents));
+  }
+
+  let downloadingZip = $state(false);
 
   async function downloadSelectedICSZip(): Promise<void> {
     const targets = selectedEmails.size > 0
@@ -217,18 +232,18 @@
 
 <div
   class="modal-overlay"
-  on:click={onClose}
-  on:keydown={(e) => e.key === 'Escape' && onClose()}
+  onclick={onClose}
+  onkeydown={(e) => e.key === 'Escape' && onClose()}
   role="dialog"
   aria-modal="true"
   tabindex="-1"
 >
-  <div class="modal-box" on:click|stopPropagation on:keydown|stopPropagation>
+  <div class="modal-box" onclick|stopPropagation onkeydown|stopPropagation>
 
     <!-- Sticky header -->
     <div class="modal-header">
       <h5 class="modal-title">Notification Emails</h5>
-      <button class="close-btn" on:click={onClose} aria-label="Close">&times;</button>
+      <button class="close-btn" onclick={onClose} aria-label="Close">&times;</button>
     </div>
 
     <!-- Tabs -->
@@ -236,14 +251,14 @@
       <button
         class="tab-btn"
         class:active={activeTab === 'applicants'}
-        on:click={() => activeTab = 'applicants'}
+        onclick={() => activeTab = 'applicants'}
       >
         Applicants <span class="badge">{applicantEmails.length}</span>
       </button>
       <button
         class="tab-btn"
         class:active={activeTab === 'interviewers'}
-        on:click={() => activeTab = 'interviewers'}
+        onclick={() => activeTab = 'interviewers'}
       >
         Interviewers <span class="badge">{interviewerEmails.length}</span>
       </button>
@@ -261,7 +276,7 @@
           <input
             type="checkbox"
             checked={allSelected}
-            on:change={toggleSelectAll}
+            onchange={toggleSelectAll}
           />
           <span>Select all ({activeEmails.length})</span>
         </label>
@@ -274,7 +289,15 @@
 
         <button
           class="toolbar-btn"
-          on:click={downloadSelectedICSZip}
+          onclick={downloadAllAsSingleICS}
+          title={selectedEmails.size > 0 ? `Download ${selectedEmails.size} events as single .ics` : 'Download all events as single .ics'}
+        >
+          <i class="fi fi-br-calendar-lines"></i>
+          Single .ics
+        </button>
+        <button
+          class="toolbar-btn"
+          onclick={downloadSelectedICSZip}
           disabled={downloadingZip}
           title={selectedEmails.size > 0 ? `Download ${selectedEmails.size} .ics files as ZIP` : 'Download all .ics files as ZIP'}
         >
@@ -282,7 +305,7 @@
             Zipping...
           {:else}
             <i class="fi fi-br-download"></i>
-            Download {selectedEmails.size > 0 ? `${selectedEmails.size}` : 'All'} .ics
+            ZIP ({selectedEmails.size > 0 ? selectedEmails.size : 'All'})
           {/if}
         </button>
       </div>
@@ -295,15 +318,15 @@
               <input
                 type="checkbox"
                 checked={selectedEmails.has(email.to)}
-                on:click|stopPropagation={() => toggleSelect(email.to)}
-                on:keydown|stopPropagation
+                onclick|stopPropagation={() => toggleSelect(email.to)}
+                onkeydown|stopPropagation
               />
               <span class="card-chevron"></span>
               <span class="card-email">{email.to}</span>
               <div class="card-actions">
                 <button
                   class="action-btn ics"
-                  on:click|stopPropagation={() => downloadRecipientICS(email.to)}
+                  onclick|stopPropagation={() => downloadRecipientICS(email.to)}
                   title="Download .ics"
                 >
                   .ics
@@ -311,7 +334,7 @@
                 <button
                   class="action-btn copy"
                   class:copied={recentlyCopied[email.to]}
-                  on:click|stopPropagation={() => copyEmail(email)}
+                  onclick|stopPropagation={() => copyEmail(email)}
                 >
                   {recentlyCopied[email.to] ? 'Copied' : 'Copy'}
                 </button>
@@ -323,13 +346,13 @@
               <input
                 class="form-control form-control-sm"
                 value={getSubject(email)}
-                on:input={(e) => { subjectOverrides[email.to] = (e.target as HTMLInputElement).value; }}
+                oninput={(e) => { subjectOverrides[email.to] = (e.target as HTMLInputElement).value; }}
               />
               <label class="field-label mt-2">Body</label>
               <textarea
                 class="form-control body-textarea"
                 value={getText(email)}
-                on:input={(e) => { textOverrides[email.to] = (e.target as HTMLTextAreaElement).value; }}
+                oninput={(e) => { textOverrides[email.to] = (e.target as HTMLTextAreaElement).value; }}
                 rows={Math.min(getText(email).split('\n').length + 1, 12)}
               ></textarea>
             </div>
@@ -342,7 +365,7 @@
         <div class="footer-row">
           <button
             class="footer-btn secondary"
-            on:click={() => copyAllBodies(activeEmails)}
+            onclick={() => copyAllBodies(activeEmails)}
           >
             {recentlyCopied['__all__'] ? 'All Copied!' : `Copy All (${activeEmails.length})`}
           </button>
@@ -350,7 +373,7 @@
           {#if orgId && slug}
             <button
               class="footer-btn primary"
-              on:click={() => sendEmails(activeTab)}
+              onclick={() => sendEmails(activeTab)}
               disabled={sending}
             >
               {#if sending}

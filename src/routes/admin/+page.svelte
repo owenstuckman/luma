@@ -101,8 +101,8 @@
     platformSettings = await getPlatformSettings();
   }
 
-  function handleOpenEmailModal(event: CustomEvent<typeof emailModalData>) {
-    emailModalData = event.detail;
+  function handleOpenEmailModal(data: NonNullable<typeof emailModalData>) {
+    emailModalData = data;
     showEmailModal = true;
   }
 </script>
@@ -177,22 +177,22 @@
         {#if activeTab === 'overview'}
           <OverviewTab
             {analytics} {analyticsLoaded} {analyticsError}
-            on:retryAnalytics={loadAnalytics}
+            onretryAnalytics={loadAnalytics}
           />
         {:else if activeTab === 'orgs'}
-          <OrgsTab {organizations} {platformSettings} on:reload={loadOrgs} />
+          <OrgsTab {organizations} {platformSettings} onreload={loadOrgs} />
         {:else if activeTab === 'users'}
           <UsersTab {users} {organizations} />
         {:else if activeTab === 'jobs'}
-          <JobsTab {jobPostings} {organizations} on:reload={loadJobs} />
+          <JobsTab {jobPostings} {organizations} onreload={loadJobs} />
         {:else if activeTab === 'applicants'}
-          <ApplicantsTab {applicants} on:reload={loadApplicants} />
+          <ApplicantsTab {applicants} onreload={loadApplicants} />
         {:else if activeTab === 'scheduling'}
-          <SchedulingTab {organizations} on:openEmailModal={handleOpenEmailModal} />
+          <SchedulingTab {organizations} onOpenEmailModal={handleOpenEmailModal} />
         {:else if activeTab === 'settings'}
           <SettingsTab {platformSettings} />
         {:else if activeTab === 'admins'}
-          <AdminsTab {platformAdmins} on:reload={loadAdmins} />
+          <AdminsTab {platformAdmins} onreload={loadAdmins} />
         {/if}
       </div>
     </main>

@@ -7,9 +7,6 @@
   import { algorithms, getAlgorithm } from '$lib/scheduling/registry';
   import type { SchedulerInput, SchedulerOutput, TimeRange, BatchRound, BatchSessionWindow, AttributeMatchRule } from '$lib/scheduling/types';
   import type { Organization, JobPosting, Interview, Applicant, OrgMember } from '$lib/types';
-  import { createEventDispatcher } from 'svelte';
-
-  export let organizations: (Organization & { member_count?: number; applicant_count?: number })[];
 
   interface EmailModalPayload {
     interviews: Interview[];
@@ -21,7 +18,10 @@
     slug: string;
   }
 
-  const dispatch = createEventDispatcher<{ openEmailModal: EmailModalPayload }>();
+  let { organizations, onOpenEmailModal = () => {} }: {
+    organizations: (Organization & { member_count?: number; applicant_count?: number })[];
+    onOpenEmailModal?: (data: EmailModalPayload) => void;
+  } = $props();
 
   let schedOrgId: number | null = null;
   let schedJobId: number | null = null;
@@ -185,7 +185,7 @@
       }));
       const emailApplicants = await getAllApplicants(schedOrgId!);
       const emailOrgMembers = await getOrgMembersWithEmail(schedOrgId!);
-      dispatch('openEmailModal', {
+      onOpenEmailModal({
         interviews: emailInterviews, applicants: emailApplicants,
         orgMembers: emailOrgMembers, jobs: schedJobs,
         orgName: org?.name ?? '', orgId: schedOrgId!, slug: org?.slug ?? ''
@@ -204,7 +204,7 @@
         getInterviewsByOrg(schedOrgId), getAllApplicants(schedOrgId),
         getOrgMembersWithEmail(schedOrgId), getActiveRoles(schedOrgId)
       ]);
-      dispatch('openEmailModal', {
+      onOpenEmailModal({
         interviews, applicants, orgMembers, jobs,
         orgName: org?.name ?? '', orgId: schedOrgId!, slug: org?.slug ?? ''
       });

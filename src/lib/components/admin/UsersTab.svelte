@@ -2,8 +2,7 @@
   import { getUserMembershipsAdmin, adminAddUserToOrg, adminRemoveUserFromOrg, adminChangeUserRole } from '$lib/utils/supabase';
   import type { AdminUser, UserMembership, Organization, OrgRole } from '$lib/types';
 
-  export let users: AdminUser[];
-  export let organizations: Organization[];
+  let { users, organizations }: { users: AdminUser[]; organizations: Organization[] } = $props();
 
   let userSearch = '';
   let selectedUser: AdminUser | null = null;

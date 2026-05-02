@@ -1,7 +1,5 @@
-<script>
-  export let nextNav = "";
-  export let backNav = "";
-  export let nextText = "Next";
+<script lang="ts">
+  let { nextNav = '', backNav = '', nextText = 'Next' } = $props();
 </script>
 
 <div class="footer-buttons">

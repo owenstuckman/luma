@@ -1,12 +1,12 @@
 <script lang="ts">
   import { supabase, toggleJobPostingActive, deleteJobPosting, adminCreateJobPosting } from '$lib/utils/supabase';
   import type { AdminJobPosting, Organization } from '$lib/types';
-  import { createEventDispatcher } from 'svelte';
 
-  export let jobPostings: AdminJobPosting[];
-  export let organizations: Organization[];
-
-  const dispatch = createEventDispatcher<{ reload: void }>();
+  let { jobPostings, organizations, onreload = () => {} }: {
+    jobPostings: AdminJobPosting[];
+    organizations: Organization[];
+    onreload?: () => void;
+  } = $props();
 
   let jobOrgFilter = '';
   let jobStatusFilter: 'all' | 'active' | 'inactive' = 'all';
@@ -27,13 +27,13 @@
   });
 
   async function toggleJob(jobId: number, currentActive: boolean) {
-    try { await toggleJobPostingActive(jobId, !currentActive); dispatch('reload'); }
+    try { await toggleJobPostingActive(jobId, !currentActive); onreload(); }
     catch (e: any) { console.error(e); }
   }
 
   async function deleteJob(jobId: number) {
     if (!confirm('Delete this job posting? This cannot be undone.')) return;
-    try { await deleteJobPosting(jobId); dispatch('reload'); }
+    try { await deleteJobPosting(jobId); onreload(); }
     catch (e: any) { console.error(e); }
   }
 
@@ -55,7 +55,7 @@
       jobCreateSuccess = `Created "${newJobName}" successfully.`;
       newJobName = ''; newJobDescription = ''; newJobOrgId = '';
       showCreateJob = false;
-      dispatch('reload');
+      onreload();
     } catch (e: any) { jobCreateError = e.message; }
     jobCreating = false;
   }

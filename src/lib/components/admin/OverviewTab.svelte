@@ -1,18 +1,18 @@
 <script lang="ts">
   import type { AdminAnalytics } from '$lib/types';
-  import { createEventDispatcher } from 'svelte';
 
-  export let analytics: AdminAnalytics | null;
-  export let analyticsLoaded: boolean;
-  export let analyticsError: string;
+  let { analytics, analyticsLoaded, analyticsError, onretryAnalytics = () => {} }: {
+    analytics: AdminAnalytics | null;
+    analyticsLoaded: boolean;
+    analyticsError: string;
+    onretryAnalytics?: () => void;
+  } = $props();
 
-  const dispatch = createEventDispatcher<{ retryAnalytics: void }>();
-
-  $: statusCounts = analytics?.applicants_by_status || {};
-  $: maxStatusCount = Math.max(...Object.values(statusCounts as Record<string, number>).map(Number), 1);
-  $: maxDayCount = analytics?.applicants_last_30_days
+  const statusCounts = $derived(analytics?.applicants_by_status || {});
+  const maxStatusCount = $derived(Math.max(...Object.values(statusCounts as Record<string, number>).map(Number), 1));
+  const maxDayCount = $derived(analytics?.applicants_last_30_days
     ? Math.max(...analytics.applicants_last_30_days.map(d => d.count), 1)
-    : 1;
+    : 1);
 
   function statusColor(status: string): string {
     switch (status) {
@@ -36,7 +36,7 @@
 {#if analyticsError}
   <div class="alert-error">
     <p><strong>Could not load analytics:</strong> {analyticsError}</p>
-    <button class="btn btn-primary btn-sm" style="margin-top: 8px;" on:click={() => dispatch('retryAnalytics')}>Retry</button>
+    <button class="btn btn-primary btn-sm" style="margin-top: 8px;" onclick={onretryAnalytics}>Retry</button>
   </div>
 {:else if !analyticsLoaded}
   <p class="muted">Loading analytics...</p>

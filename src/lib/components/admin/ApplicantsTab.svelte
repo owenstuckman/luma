@@ -1,11 +1,11 @@
 <script lang="ts">
   import { adminBulkUpdateStatus, adminBulkDeleteApplicants } from '$lib/utils/supabase';
   import type { AdminApplicant } from '$lib/types';
-  import { createEventDispatcher } from 'svelte';
 
-  export let applicants: AdminApplicant[];
-
-  const dispatch = createEventDispatcher<{ reload: void }>();
+  let { applicants, onreload = () => {} }: {
+    applicants: AdminApplicant[];
+    onreload?: () => void;
+  } = $props();
 
   let appSearch = '';
   let appOrgFilter = '';
@@ -45,7 +45,7 @@
       await adminBulkUpdateStatus([...selectedApplicantIds], bulkStatusValue);
       appActionSuccess = `Updated ${selectedApplicantIds.size} applicants to "${bulkStatusValue}".`;
       selectedApplicantIds = new Set();
-      dispatch('reload');
+      onreload();
     } catch (e: any) { appActionError = e.message; }
   }
 
@@ -57,7 +57,7 @@
       await adminBulkDeleteApplicants([...selectedApplicantIds]);
       appActionSuccess = `Deleted ${selectedApplicantIds.size} applicants.`;
       selectedApplicantIds = new Set();
-      dispatch('reload');
+      onreload();
     } catch (e: any) { appActionError = e.message; }
   }
 

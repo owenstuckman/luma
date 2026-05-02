@@ -1,11 +1,8 @@
 <script lang="ts">
   import { addPlatformAdminByEmail, removePlatformAdminById } from '$lib/utils/supabase';
   import type { PlatformAdmin } from '$lib/types';
-  import { createEventDispatcher } from 'svelte';
 
-  export let platformAdmins: PlatformAdmin[];
-
-  const dispatch = createEventDispatcher<{ reload: void }>();
+  let { platformAdmins, onreload = () => {} }: { platformAdmins: PlatformAdmin[]; onreload?: () => void } = $props();
 
   let newAdminEmail = '';
   let adminError = '';
@@ -18,13 +15,13 @@
       await addPlatformAdminByEmail(newAdminEmail);
       adminSuccess = `Added ${newAdminEmail} as platform admin.`;
       newAdminEmail = '';
-      dispatch('reload');
+      onreload();
     } catch (e: any) { adminError = e.message; }
   }
 
   async function removeAdmin(admin: PlatformAdmin) {
     if (!confirm(`Remove ${admin.email} as platform admin?`)) return;
-    try { await removePlatformAdminById(admin.user_id); dispatch('reload'); }
+    try { await removePlatformAdminById(admin.user_id); onreload(); }
     catch (e: any) { adminError = e.message; }
   }
 </script>

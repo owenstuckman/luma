@@ -1,12 +1,19 @@
 <script lang="ts">
   import { onMount } from 'svelte';
 
-  export let message: string;
-  export let type: 'info' | 'success' | 'error' = 'info';
-  export let duration: number = 4000;
-  export let onDismiss: () => void = () => {};
+  let {
+    message,
+    type = 'info' as 'info' | 'success' | 'error',
+    duration = 4000,
+    onDismiss = () => {}
+  }: {
+    message: string;
+    type?: 'info' | 'success' | 'error';
+    duration?: number;
+    onDismiss?: () => void;
+  } = $props();
 
-  let visible = true;
+  let visible = $state(true);
 
   onMount(() => {
     const timer = setTimeout(() => {
@@ -20,7 +27,7 @@
 {#if visible}
   <div
     class="toast toast-{type}"
-    on:click={() => { visible = false; onDismiss(); }}
+    onclick={() => { visible = false; onDismiss(); }}
     role="status"
     aria-live="polite"
     aria-atomic="true"
@@ -56,22 +63,9 @@
     animation: slideIn 0.25s ease-out;
     max-width: 400px;
   }
-
-  .toast-info {
-    background-color: #eef2ff;
-    color: #3730a3;
-    border: 1px solid #c7d2fe;
-  }
-  .toast-success {
-    background-color: #ecfdf5;
-    color: #065f46;
-    border: 1px solid #6ee7b7;
-  }
-  .toast-error {
-    background-color: #fef2f2;
-    color: #991b1b;
-    border: 1px solid #fca5a5;
-  }
+  .toast-info { background-color: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe; }
+  .toast-success { background-color: #ecfdf5; color: #065f46; border: 1px solid #6ee7b7; }
+  .toast-error { background-color: #fef2f2; color: #991b1b; border: 1px solid #fca5a5; }
 
   @keyframes slideIn {
     from { transform: translateX(100%); opacity: 0; }

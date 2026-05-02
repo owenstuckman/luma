@@ -50,6 +50,10 @@ Features and tech debt that require code changes.
 
 ## Remaining — Low Priority / Future
 
-- [ ] **Rate limiting** — Add basic rate limiting on auth endpoints and public application submission
-- [ ] **Migrate remaining Svelte 4 components to Svelte 5 runes** — Cosmetic; everything works as-is
-- [ ] **Bulk schedule ICS export** — Download a single combined .ics file for all interviews (ZIP download already exists; single-file merge is a minor addition)
+- [x] **Rate limiting** — In-memory IP-based limiter in `hooks.server.ts`: 10 auth attempts/15 min, 5 apply submissions/10 min, 60 webhook POSTs/min
+- [x] **Migrate remaining Svelte 4 components to Svelte 5 runes** — All 24 components in `src/lib/components/` migrated: `$props()`, `$state()`, `$derived()`, `$effect()`, callback props replacing `createEventDispatcher`
+- [x] **Bulk schedule ICS export** — "Single .ics" button added to EmailGeneratorModal toolbar; merges all events for the active tab into one downloadable file
+
+---
+
+All items in CLAUDE-TODO.md are complete.

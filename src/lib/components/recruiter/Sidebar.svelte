@@ -1,15 +1,12 @@
-<script>
+<script lang="ts">
   import { page } from '$app/stores';
   import { mobileMenuOpen } from '$lib/stores/mobileMenu';
 
-  export let currentStep = 0;
-  export let collapse = '';
+  let { currentStep = 0, collapse = '' } = $props();
 
-  $: slug = $page.params.slug || '';
-  $: base = `/private/${slug}`;
-
-  // Start open if currently on a schedule page
-  let scheduleOpen = currentStep >= 2 && currentStep <= 4;
+  let slug = $derived($page.params.slug || '');
+  let base = $derived(`/private/${slug}`);
+  let scheduleOpen = $state(currentStep >= 2 && currentStep <= 4);
 
   function closeMenu() { mobileMenuOpen.set(false); }
 </script>
@@ -32,7 +29,7 @@
       <button
         class="btn btn-sidebar"
         class:sidebar-selected={currentStep >= 2 && currentStep <= 4}
-        on:click={() => scheduleOpen = !scheduleOpen}
+        onclick={() => scheduleOpen = !scheduleOpen}
       >
         <i class="fi fi-br-calendar-clock"></i>
         Schedule
@@ -69,17 +66,17 @@
 <!-- Mobile drawer -->
 {#if $mobileMenuOpen}
   <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
-  <div class="mobile-overlay" on:click={closeMenu}></div>
+  <div class="mobile-overlay" onclick={closeMenu}></div>
   <div class="mobile-drawer" role="navigation" aria-label="Mobile navigation">
     <ul class="list-unstyled">
       <li>
-        <a href="{base}/dashboard" class="btn btn-sidebar" class:sidebar-selected={currentStep === 0} on:click={closeMenu}>
+        <a href="{base}/dashboard" class="btn btn-sidebar" class:sidebar-selected={currentStep === 0} onclick={closeMenu}>
           <i class="fi fi-br-home"></i>
           Home
         </a>
       </li>
       <li>
-        <a href="{base}/review" class="btn btn-sidebar" class:sidebar-selected={currentStep === 1} on:click={closeMenu}>
+        <a href="{base}/review" class="btn btn-sidebar" class:sidebar-selected={currentStep === 1} onclick={closeMenu}>
           <i class="fi fi-br-assessment-alt"></i>
           Review
         </a>
@@ -88,7 +85,7 @@
         <button
           class="btn btn-sidebar"
           class:sidebar-selected={currentStep >= 2 && currentStep <= 4}
-          on:click={() => scheduleOpen = !scheduleOpen}
+          onclick={() => scheduleOpen = !scheduleOpen}
         >
           <i class="fi fi-br-calendar-clock"></i>
           Schedule
@@ -96,25 +93,25 @@
         </button>
         {#if scheduleOpen}
           <ul class="list-unstyled sidebar-submenu">
-            <li><a href="{base}/schedule/my" class:submenu-selected={currentStep === 2} on:click={closeMenu}>My Schedule</a></li>
-            <li><a href="{base}/schedule/full" class:submenu-selected={currentStep === 3} on:click={closeMenu}>Full Schedule</a></li>
+            <li><a href="{base}/schedule/my" class:submenu-selected={currentStep === 2} onclick={closeMenu}>My Schedule</a></li>
+            <li><a href="{base}/schedule/full" class:submenu-selected={currentStep === 3} onclick={closeMenu}>Full Schedule</a></li>
           </ul>
         {/if}
       </li>
       <li>
-        <a href="{base}/evaluate" class="btn btn-sidebar" class:sidebar-selected={currentStep === 5} on:click={closeMenu}>
+        <a href="{base}/evaluate" class="btn btn-sidebar" class:sidebar-selected={currentStep === 5} onclick={closeMenu}>
           <i class="fi fi-br-tachometer-fast"></i>
           Evaluate
         </a>
       </li>
       <li>
-        <a href="{base}/availability" class="btn btn-sidebar" class:sidebar-selected={currentStep === 7} on:click={closeMenu}>
+        <a href="{base}/availability" class="btn btn-sidebar" class:sidebar-selected={currentStep === 7} onclick={closeMenu}>
           <i class="fi fi-br-clock"></i>
           Availability
         </a>
       </li>
       <li>
-        <a href="{base}/settings" class="btn btn-sidebar" class:sidebar-selected={currentStep === 6} on:click={closeMenu}>
+        <a href="{base}/settings" class="btn btn-sidebar" class:sidebar-selected={currentStep === 6} onclick={closeMenu}>
           <i class="fi fi-br-settings"></i>
           Settings
         </a>

@@ -1,21 +1,20 @@
-<script lang='ts'>
+<script lang="ts">
   import { createEventDispatcher } from 'svelte';
 
-  export let title: string = "";
-  export let subtitle: string = "";
-  export let description: string = "";
-  export let linkURL: string = "";
-  export let linkName: string = "";
-  export let options: string[] = [""];
-  export let imageSrc: string = "";
-  export let imageAlt: string = "";
-  export let name: string = "";
-  export let selected: string[] = [];
+  let {
+    title = '',
+    subtitle = '',
+    description = '',
+    linkURL = '',
+    linkName = '',
+    options = [] as string[],
+    imageSrc = '',
+    imageAlt = '',
+    name = '',
+    selected = $bindable([] as string[])
+  } = $props();
 
   const dispatch = createEventDispatcher();
-
-  // Watch for changes in the selected array
-  $: dispatch('change', selected);
 </script>
 
 <div class="img-card">
@@ -34,15 +33,13 @@
         <input
           class="form-check-input pointer"
           type="checkbox"
-          name={name}
+          {name}
           id={`${name}${i}`}
           value={option}
           bind:group={selected}
-          on:change={() => dispatch('change', selected)}
+          onchange={() => dispatch('change', selected)}
         />
-        <label class="form-check-label" for={`checkbox-${i}`}>
-          {option}
-        </label>
+        <label class="form-check-label" for={`${name}${i}`}>{option}</label>
       </div>
     {/each}
   </div>
@@ -73,13 +70,8 @@
     border: none;
     border-radius: 0 5px 5px 0;
   }
-
   @media (max-width: 799px) {
-    .img-card img {
-      display: none;
-    }
-    .img-card-content {
-      border-radius: 5px;
-    }
+    .img-card img { display: none; }
+    .img-card-content { border-radius: 5px; }
   }
 </style>
