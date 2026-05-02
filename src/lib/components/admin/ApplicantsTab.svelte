@@ -7,25 +7,25 @@
     onreload?: () => void;
   } = $props();
 
-  let appSearch = '';
-  let appOrgFilter = '';
-  let appStatusFilter: 'all' | 'pending' | 'interview' | 'accepted' | 'denied' = 'all';
-  let selectedApplicantIds: Set<number> = new Set();
-  let bulkStatusValue = 'pending';
-  let appActionError = '';
-  let appActionSuccess = '';
-  let expandedApplicantId: number | null = null;
+  let appSearch = $state('');
+  let appOrgFilter = $state('');
+  let appStatusFilter = $state<'all' | 'pending' | 'interview' | 'accepted' | 'denied'>('all');
+  let selectedApplicantIds = $state(new Set<number>());
+  let bulkStatusValue = $state('pending');
+  let appActionError = $state('');
+  let appActionSuccess = $state('');
+  let expandedApplicantId = $state<number | null>(null);
 
-  $: filteredApplicants = applicants.filter(a => {
+  const filteredApplicants = $derived(applicants.filter(a => {
     const searchMatch = !appSearch ||
       a.name?.toLowerCase().includes(appSearch.toLowerCase()) ||
       a.email?.toLowerCase().includes(appSearch.toLowerCase());
     const orgMatch = !appOrgFilter || a.org_name?.toLowerCase().includes(appOrgFilter.toLowerCase());
     const statusMatch = appStatusFilter === 'all' || a.status === appStatusFilter;
     return searchMatch && orgMatch && statusMatch;
-  });
+  }));
 
-  $: allSelected = filteredApplicants.length > 0 && filteredApplicants.every(a => selectedApplicantIds.has(a.id));
+  const allSelected = $derived(filteredApplicants.length > 0 && filteredApplicants.every(a => selectedApplicantIds.has(a.id)));
 
   function toggleApplicantSelect(id: number) {
     if (selectedApplicantIds.has(id)) selectedApplicantIds.delete(id);
@@ -118,10 +118,10 @@
       <option value="accepted">Accepted</option>
       <option value="denied">Denied</option>
     </select>
-    <button class="btn btn-primary btn-sm" on:click={bulkUpdateStatus}>Update Status</button>
-    <button class="btn btn-quaternary btn-sm" on:click={exportApplicantsCsv}>Export CSV</button>
-    <button class="btn btn-danger btn-sm" on:click={bulkDelete}>Delete</button>
-    <button class="btn btn-quaternary btn-sm" on:click={() => selectedApplicantIds = new Set()}>Clear</button>
+    <button class="btn btn-primary btn-sm" onclick={bulkUpdateStatus}>Update Status</button>
+    <button class="btn btn-quaternary btn-sm" onclick={exportApplicantsCsv}>Export CSV</button>
+    <button class="btn btn-danger btn-sm" onclick={bulkDelete}>Delete</button>
+    <button class="btn btn-quaternary btn-sm" onclick={() => selectedApplicantIds = new Set()}>Clear</button>
   </div>
 {/if}
 
@@ -130,7 +130,7 @@
 
 <div class="jobs-table">
   <div class="table-header app-table-header">
-    <span class="col-check"><input type="checkbox" checked={allSelected} on:change={toggleAllApplicants} /></span>
+    <span class="col-check"><input type="checkbox" checked={allSelected} onchange={toggleAllApplicants} /></span>
     <span class="col-name">Name</span>
     <span class="col-org">Organization</span>
     <span class="col-job">Job</span>
@@ -140,10 +140,10 @@
   {#each filteredApplicants as app}
     <div class="table-row app-table-row" class:row-selected={selectedApplicantIds.has(app.id)}>
       <span class="col-check">
-        <input type="checkbox" checked={selectedApplicantIds.has(app.id)} on:change={() => toggleApplicantSelect(app.id)} />
+        <input type="checkbox" checked={selectedApplicantIds.has(app.id)} onchange={() => toggleApplicantSelect(app.id)} />
       </span>
       <span class="col-name">
-        <button class="app-name-btn" on:click={() => expandedApplicantId = expandedApplicantId === app.id ? null : app.id}>
+        <button class="app-name-btn" onclick={() => expandedApplicantId = expandedApplicantId === app.id ? null : app.id}>
           <span class="row-name">{app.name}</span>
           <span class="row-sub">{app.email}</span>
         </button>
@@ -187,12 +187,12 @@
 
 {#if selectedApplicantIds.size === 0}
   <div style="margin-top: 12px;">
-    <button class="btn btn-quaternary btn-sm" on:click={exportApplicantsCsv}>Export All as CSV</button>
+    <button class="btn btn-quaternary btn-sm" onclick={exportApplicantsCsv}>Export All as CSV</button>
   </div>
 {/if}
 
 <style lang="scss">
-  @use '../../../../styles/col.scss' as *;
+  @use '../../../styles/col.scss' as *;
 
   .filter-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
   .bulk-bar {

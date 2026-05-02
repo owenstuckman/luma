@@ -4,9 +4,9 @@
 
   let { platformAdmins, onreload = () => {} }: { platformAdmins: PlatformAdmin[]; onreload?: () => void } = $props();
 
-  let newAdminEmail = '';
-  let adminError = '';
-  let adminSuccess = '';
+  let newAdminEmail = $state('');
+  let adminError = $state('');
+  let adminSuccess = $state('');
 
   async function addAdmin() {
     adminError = ''; adminSuccess = '';
@@ -30,8 +30,8 @@
   <h6>Add Platform Admin</h6>
   <div class="add-admin-form">
     <input class="form-control" bind:value={newAdminEmail} placeholder="user@example.com"
-      on:keydown={(e) => e.key === 'Enter' && addAdmin()} />
-    <button class="btn btn-primary btn-sm" on:click={addAdmin}>Add Admin</button>
+      onkeydown={(e) => e.key === 'Enter' && addAdmin()} />
+    <button class="btn btn-primary btn-sm" onclick={addAdmin}>Add Admin</button>
   </div>
   {#if adminError}<p class="error-text">{adminError}</p>{/if}
   {#if adminSuccess}<div class="alert-success">{adminSuccess}</div>{/if}
@@ -48,7 +48,7 @@
       </div>
     </div>
     <div class="row-actions">
-      <button class="btn btn-danger btn-sm" on:click={() => removeAdmin(admin)}>Remove</button>
+      <button class="btn btn-danger btn-sm" onclick={() => removeAdmin(admin)}>Remove</button>
     </div>
   </div>
 {/each}
@@ -57,7 +57,7 @@
 {/if}
 
 <style lang="scss">
-  @use '../../../../styles/col.scss' as *;
+  @use '../../../styles/col.scss' as *;
 
   .form-card {
     background: white;

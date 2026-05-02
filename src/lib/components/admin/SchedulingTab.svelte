@@ -23,41 +23,41 @@
     onOpenEmailModal?: (data: EmailModalPayload) => void;
   } = $props();
 
-  let schedOrgId: number | null = null;
-  let schedJobId: number | null = null;
-  let schedJobs: JobPosting[] = [];
-  let schedAlgorithmId = 'batch-scheduler';
-  let schedConfig: Record<string, unknown> = {
+  let schedOrgId = $state<number | null>(null);
+  let schedJobId = $state<number | null>(null);
+  let schedJobs = $state<JobPosting[]>([]);
+  let schedAlgorithmId = $state('batch-scheduler');
+  let schedConfig = $state<Record<string, unknown>>({
     slotDurationMinutes: 30, breakBetweenMinutes: 10,
     maxInterviewsPerInterviewer: 0, interviewType: 'individual', location: ''
-  };
-  let schedPreview: SchedulerOutput | null = null;
-  let schedPreviewing = false;
-  let schedApplying = false;
-  let schedClearing = false;
-  let schedError = '';
-  let schedSuccess = '';
-  let schedEmailLoading = false;
+  });
+  let schedPreview = $state<SchedulerOutput | null>(null);
+  let schedPreviewing = $state(false);
+  let schedApplying = $state(false);
+  let schedClearing = $state(false);
+  let schedError = $state('');
+  let schedSuccess = $state('');
+  let schedEmailLoading = $state(false);
 
-  let batchRoomsText = 'MCB230\nMCB231\nMCB232';
-  let batchRounds: BatchRound[] = [
+  let batchRoomsText = $state('MCB230\nMCB231\nMCB232');
+  let batchRounds = $state<BatchRound[]>([
     { id: 'r1', label: 'Individual Interview', type: 'individual', durationMinutes: 20, breakBeforeMinutes: 0, groupSize: 1, interviewersPerRoom: 1 }
-  ];
-  let batchSessions: BatchSessionWindow[] = [];
-  let newSessionDate = '';
-  let newSessionStart = '09:00';
-  let newSessionEnd = '17:00';
-  let batchSlotStep = 15;
-  let batchBlockBreak = 5;
-  let batchRequireAll = false;
-  let batchRelaxedFallback = false;
-  let batchRelaxedPenalty = 10;
-  let batchAttrEnabled = false;
-  let batchAttrRules: AttributeMatchRule[] = [];
-  let newRuleQId = '';
-  let newRuleAttrKey = '';
-  let newRuleWeight = 20;
-  let newRuleHard = false;
+  ]);
+  let batchSessions = $state<BatchSessionWindow[]>([]);
+  let newSessionDate = $state('');
+  let newSessionStart = $state('09:00');
+  let newSessionEnd = $state('17:00');
+  let batchSlotStep = $state(15);
+  let batchBlockBreak = $state(5);
+  let batchRequireAll = $state(false);
+  let batchRelaxedFallback = $state(false);
+  let batchRelaxedPenalty = $state(10);
+  let batchAttrEnabled = $state(false);
+  let batchAttrRules = $state<AttributeMatchRule[]>([]);
+  let newRuleQId = $state('');
+  let newRuleAttrKey = $state('');
+  let newRuleWeight = $state(20);
+  let newRuleHard = $state(false);
 
   async function onSchedOrgChange() {
     schedJobs = []; schedJobId = null; schedPreview = null; schedError = ''; schedSuccess = '';
@@ -250,7 +250,7 @@
 
   <div class="form-row">
     <label>Organization</label>
-    <select class="form-select" bind:value={schedOrgId} on:change={onSchedOrgChange}>
+    <select class="form-select" bind:value={schedOrgId} onchange={onSchedOrgChange}>
       <option value={null}>Select organization...</option>
       {#each organizations as org}
         <option value={org.id}>{org.name} (/{org.slug})</option>
@@ -276,7 +276,7 @@
           <button
             class="algo-card"
             class:algo-selected={schedAlgorithmId === algo.id}
-            on:click={() => schedAlgorithmId = algo.id}
+            onclick={() => schedAlgorithmId = algo.id}
           >
             <span class="algo-name">{algo.name}</span>
             <span class="algo-desc">{algo.description}</span>
@@ -298,7 +298,7 @@
           <div class="session-row">
             <span class="row-name">{session.date}</span>
             <span class="row-sub">{session.startTime} – {session.endTime}</span>
-            <button class="btn btn-danger btn-sm" on:click={() => removeSession(i)}>×</button>
+            <button class="btn btn-danger btn-sm" onclick={() => removeSession(i)}>×</button>
           </div>
         {/each}
         {#if batchSessions.length === 0}
@@ -309,7 +309,7 @@
           <input type="time" class="form-control" bind:value={newSessionStart} style="max-width: 110px;" />
           <span class="muted" style="font-size: 12px;">to</span>
           <input type="time" class="form-control" bind:value={newSessionEnd} style="max-width: 110px;" />
-          <button class="btn btn-primary btn-sm" on:click={addSession}>Add</button>
+          <button class="btn btn-primary btn-sm" onclick={addSession}>Add</button>
         </div>
       </div>
 
@@ -324,7 +324,7 @@
                 <option value="group">Group</option>
               </select>
               {#if batchRounds.length > 1}
-                <button class="btn btn-danger btn-sm" on:click={() => removeRound(i)}>Remove</button>
+                <button class="btn btn-danger btn-sm" onclick={() => removeRound(i)}>Remove</button>
               {/if}
             </div>
             <div class="round-fields">
@@ -349,7 +349,7 @@
             </div>
           </div>
         {/each}
-        <button class="btn btn-quaternary btn-sm" on:click={addRound} style="margin-top: 8px;">+ Add Round</button>
+        <button class="btn btn-quaternary btn-sm" onclick={addRound} style="margin-top: 8px;">+ Add Round</button>
       </div>
 
       <div class="config-grid">
@@ -403,7 +403,7 @@
                 <span class="rule-weight">+{rule.weight}</span>
                 {#if rule.hard}<span class="rule-hard">hard</span>{/if}
               </span>
-              <button class="btn-icon-sm" on:click={() => removeAttrRule(i)} aria-label="Remove rule">×</button>
+              <button class="btn-icon-sm" onclick={() => removeAttrRule(i)} aria-label="Remove rule">×</button>
             </div>
           {/each}
           {#if batchAttrRules.length === 0}
@@ -417,7 +417,7 @@
             <label class="toggle-label" style="font-size: 11px; white-space: nowrap; gap: 4px;">
               <input type="checkbox" bind:checked={newRuleHard} style="width: 14px; height: 14px;" /> Hard
             </label>
-            <button class="btn btn-quaternary btn-sm" on:click={addAttrRule}>Add</button>
+            <button class="btn btn-quaternary btn-sm" onclick={addAttrRule}>Add</button>
           </div>
         </div>
       {/if}
@@ -454,18 +454,18 @@
 
 {#if schedOrgId}
   <div class="sched-actions">
-    <button class="btn btn-primary" on:click={runPreview} disabled={schedPreviewing}>
+    <button class="btn btn-primary" onclick={runPreview} disabled={schedPreviewing}>
       {schedPreviewing ? 'Running...' : 'Preview Schedule'}
     </button>
     {#if schedPreview && schedPreview.interviews.length > 0}
-      <button class="btn btn-primary" on:click={applySchedule} disabled={schedApplying}>
+      <button class="btn btn-primary" onclick={applySchedule} disabled={schedApplying}>
         {schedApplying ? 'Applying...' : `Apply ${schedPreview.interviews.length} Interviews`}
       </button>
     {/if}
-    <button class="btn btn-primary" on:click={openEmailModal} disabled={schedEmailLoading}>
+    <button class="btn btn-primary" onclick={openEmailModal} disabled={schedEmailLoading}>
       <i class="fi fi-br-paper-plane" aria-hidden="true"></i> {schedEmailLoading ? 'Loading...' : 'Send Emails'}
     </button>
-    <button class="btn btn-danger btn-sm" on:click={clearAutoInterviews} disabled={schedClearing}>
+    <button class="btn btn-danger btn-sm" onclick={clearAutoInterviews} disabled={schedClearing}>
       {schedClearing ? 'Clearing...' : 'Clear Auto-Scheduled'}
     </button>
   </div>
@@ -572,7 +572,7 @@
 {/if}
 
 <style lang="scss">
-  @use '../../../../styles/col.scss' as *;
+  @use '../../../styles/col.scss' as *;
 
   .form-card {
     background: white; border-radius: 8px; padding: 20px;

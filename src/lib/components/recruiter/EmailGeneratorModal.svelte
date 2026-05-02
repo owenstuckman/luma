@@ -238,7 +238,7 @@
   aria-modal="true"
   tabindex="-1"
 >
-  <div class="modal-box" onclick|stopPropagation onkeydown|stopPropagation>
+  <div class="modal-box" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
 
     <!-- Sticky header -->
     <div class="modal-header">
@@ -318,15 +318,15 @@
               <input
                 type="checkbox"
                 checked={selectedEmails.has(email.to)}
-                onclick|stopPropagation={() => toggleSelect(email.to)}
-                onkeydown|stopPropagation
+                onclick={(e) => { e.stopPropagation(); toggleSelect(email.to); }}
+                onkeydown={(e) => e.stopPropagation()}
               />
               <span class="card-chevron"></span>
               <span class="card-email">{email.to}</span>
               <div class="card-actions">
                 <button
                   class="action-btn ics"
-                  onclick|stopPropagation={() => downloadRecipientICS(email.to)}
+                  onclick={(e) => { e.stopPropagation(); downloadRecipientICS(email.to); }}
                   title="Download .ics"
                 >
                   .ics
@@ -334,7 +334,7 @@
                 <button
                   class="action-btn copy"
                   class:copied={recentlyCopied[email.to]}
-                  onclick|stopPropagation={() => copyEmail(email)}
+                  onclick={(e) => { e.stopPropagation(); copyEmail(email); }}
                 >
                   {recentlyCopied[email.to] ? 'Copied' : 'Copy'}
                 </button>

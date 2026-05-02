@@ -8,23 +8,23 @@
     onreload?: () => void;
   } = $props();
 
-  let jobOrgFilter = '';
-  let jobStatusFilter: 'all' | 'active' | 'inactive' = 'all';
-  let showCreateJob = false;
-  let newJobName = '';
-  let newJobDescription = '';
-  let newJobOrgId = '';
-  let jobCreateError = '';
-  let jobCreateSuccess = '';
-  let jobCreating = false;
+  let jobOrgFilter = $state('');
+  let jobStatusFilter = $state<'all' | 'active' | 'inactive'>('all');
+  let showCreateJob = $state(false);
+  let newJobName = $state('');
+  let newJobDescription = $state('');
+  let newJobOrgId = $state('');
+  let jobCreateError = $state('');
+  let jobCreateSuccess = $state('');
+  let jobCreating = $state(false);
 
-  $: filteredJobs = jobPostings.filter(j => {
+  const filteredJobs = $derived(jobPostings.filter(j => {
     const orgMatch = !jobOrgFilter || j.org_name?.toLowerCase().includes(jobOrgFilter.toLowerCase());
     const statusMatch = jobStatusFilter === 'all' ||
       (jobStatusFilter === 'active' && j.active_flg) ||
       (jobStatusFilter === 'inactive' && !j.active_flg);
     return orgMatch && statusMatch;
-  });
+  }));
 
   async function toggleJob(jobId: number, currentActive: boolean) {
     try { await toggleJobPostingActive(jobId, !currentActive); onreload(); }
@@ -71,7 +71,7 @@
     </select>
     <span class="muted" style="font-size: 12px;">{filteredJobs.length} postings</span>
   </div>
-  <button class="btn btn-primary" on:click={() => showCreateJob = !showCreateJob}>
+  <button class="btn btn-primary" onclick={() => showCreateJob = !showCreateJob}>
     {showCreateJob ? 'Cancel' : '+ New Job Posting'}
   </button>
 </div>
@@ -103,7 +103,7 @@
     {#if jobCreateError}
       <p class="error-text">{jobCreateError}</p>
     {/if}
-    <button class="btn btn-primary" on:click={createJob} disabled={jobCreating}>
+    <button class="btn btn-primary" onclick={createJob} disabled={jobCreating}>
       {jobCreating ? 'Creating...' : 'Create Job Posting'}
     </button>
   </div>
@@ -138,13 +138,13 @@
       </span>
       <span class="col-apps">{job.applicant_count}</span>
       <span class="col-actions">
-        <button class="btn btn-quaternary btn-sm" on:click={() => toggleJob(job.id, job.active_flg)}>
+        <button class="btn btn-quaternary btn-sm" onclick={() => toggleJob(job.id, job.active_flg)}>
           {job.active_flg ? 'Deactivate' : 'Activate'}
         </button>
         {#if job.org_slug}
           <a href="/private/{job.org_slug}/settings/jobs/{job.id}" class="btn btn-quaternary btn-sm">Edit</a>
         {/if}
-        <button class="btn btn-danger btn-sm" on:click={() => deleteJob(job.id)}>Delete</button>
+        <button class="btn btn-danger btn-sm" onclick={() => deleteJob(job.id)}>Delete</button>
       </span>
     </div>
   {/each}
@@ -154,7 +154,7 @@
 </div>
 
 <style lang="scss">
-  @use '../../../../styles/col.scss' as *;
+  @use '../../../styles/col.scss' as *;
 
   .filter-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .form-card {

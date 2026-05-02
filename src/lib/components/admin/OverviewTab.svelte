@@ -155,7 +155,7 @@
 {/if}
 
 <style lang="scss">
-  @use '../../../../styles/col.scss' as *;
+  @use '../../../styles/col.scss' as *;
 
   .stats-grid {
     display: grid;

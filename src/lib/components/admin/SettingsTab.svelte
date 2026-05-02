@@ -5,11 +5,11 @@
   let { platformSettings }: { platformSettings: PlatformSettings } = $props();
 
   let editSettings: PlatformSettings = $state({ ...platformSettings });
-  let settingsLoading = false;
-  let settingsError = '';
-  let settingsSuccess = '';
+  let settingsLoading = $state(false);
+  let settingsError = $state('');
+  let settingsSuccess = $state('');
 
-  $: editSettings = { ...platformSettings };
+  $effect(() => { editSettings = { ...platformSettings }; });
 
   async function saveSettings() {
     settingsLoading = true; settingsError = ''; settingsSuccess = '';
@@ -62,12 +62,12 @@
 {#if settingsError}<p class="error-text">{settingsError}</p>{/if}
 {#if settingsSuccess}<div class="alert-success">{settingsSuccess}</div>{/if}
 
-<button class="btn btn-primary" on:click={saveSettings} disabled={settingsLoading}>
+<button class="btn btn-primary" onclick={saveSettings} disabled={settingsLoading}>
   {settingsLoading ? 'Saving...' : 'Save Settings'}
 </button>
 
 <style lang="scss">
-  @use '../../../../styles/col.scss' as *;
+  @use '../../../styles/col.scss' as *;
 
   .form-card {
     background: white;

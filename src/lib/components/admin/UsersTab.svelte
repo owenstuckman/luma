@@ -4,15 +4,15 @@
 
   let { users, organizations }: { users: AdminUser[]; organizations: Organization[] } = $props();
 
-  let userSearch = '';
-  let selectedUser: AdminUser | null = null;
-  let selectedUserMemberships: UserMembership[] = [];
-  let addToOrgId = '';
-  let addToOrgRole: OrgRole = 'recruiter';
-  let userActionError = '';
-  let userActionSuccess = '';
+  let userSearch = $state('');
+  let selectedUser = $state<AdminUser | null>(null);
+  let selectedUserMemberships = $state<UserMembership[]>([]);
+  let addToOrgId = $state('');
+  let addToOrgRole = $state<OrgRole>('recruiter');
+  let userActionError = $state('');
+  let userActionSuccess = $state('');
 
-  $: filteredUsers = users.filter(u => u.email?.toLowerCase().includes(userSearch.toLowerCase()));
+  const filteredUsers = $derived(users.filter(u => u.email?.toLowerCase().includes(userSearch.toLowerCase())));
 
   async function selectUser(user: AdminUser) {
     selectedUser = user; userActionError = ''; userActionSuccess = '';
@@ -55,7 +55,7 @@
   <div class="user-list">
     <p class="muted" style="font-size: 12px; margin-bottom: 8px;">{filteredUsers.length} users</p>
     {#each filteredUsers as user}
-      <button class="user-row" class:selected={selectedUser?.id === user.id} on:click={() => selectUser(user)}>
+      <button class="user-row" class:selected={selectedUser?.id === user.id} onclick={() => selectUser(user)}>
         <span class="row-name">{user.email}</span>
         <span class="row-sub">Joined {new Date(user.created_at).toLocaleDateString()}</span>
       </button>
@@ -86,13 +86,13 @@
                 <span class="row-sub">/apply/{mem.org_slug}</span>
               </div>
               <select class="form-select form-select-sm" value={mem.role}
-                on:change={(e) => changeUserRole(mem.org_id, e.currentTarget.value)}>
+                onchange={(e) => changeUserRole(mem.org_id, e.currentTarget.value)}>
                 <option value="viewer">Viewer</option>
                 <option value="recruiter">Recruiter</option>
                 <option value="admin">Admin</option>
                 <option value="owner">Owner</option>
               </select>
-              <button class="btn btn-danger btn-sm" on:click={() => removeUserFromOrg(mem.org_id)}>Remove</button>
+              <button class="btn btn-danger btn-sm" onclick={() => removeUserFromOrg(mem.org_id)}>Remove</button>
             </div>
           {/each}
         {/if}
@@ -111,7 +111,7 @@
             <option value="admin">Admin</option>
             <option value="owner">Owner</option>
           </select>
-          <button class="btn btn-primary btn-sm" on:click={addUserToOrg}>Add</button>
+          <button class="btn btn-primary btn-sm" onclick={addUserToOrg}>Add</button>
         </div>
         {#if userActionError}<p class="error-text">{userActionError}</p>{/if}
         {#if userActionSuccess}<div class="alert-success">{userActionSuccess}</div>{/if}
@@ -125,7 +125,7 @@
 </div>
 
 <style lang="scss">
-  @use '../../../../styles/col.scss' as *;
+  @use '../../../styles/col.scss' as *;
 
   .search-bar { margin-bottom: 16px; }
   .users-layout { display: grid; grid-template-columns: 1fr 1.5fr; gap: 20px; }

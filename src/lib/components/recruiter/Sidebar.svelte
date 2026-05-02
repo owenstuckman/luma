@@ -6,7 +6,8 @@
 
   let slug = $derived($page.params.slug || '');
   let base = $derived(`/private/${slug}`);
-  let scheduleOpen = $state(currentStep >= 2 && currentStep <= 4);
+  let scheduleOpen = $state(false);
+  $effect(() => { scheduleOpen = currentStep >= 2 && currentStep <= 4; });
 
   function closeMenu() { mobileMenuOpen.set(false); }
 </script>
@@ -65,7 +66,7 @@
 
 <!-- Mobile drawer -->
 {#if $mobileMenuOpen}
-  <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div class="mobile-overlay" onclick={closeMenu}></div>
   <div class="mobile-drawer" role="navigation" aria-label="Mobile navigation">
     <ul class="list-unstyled">

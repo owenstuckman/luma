@@ -11,28 +11,28 @@
     onreload?: () => void;
   } = $props();
 
-  let newOrgName = '';
-  let newOrgSlug = '';
-  let newOrgOwnerEmail = '';
-  let newOrgPrimaryColor = platformSettings.default_primary_color || '#ffc800';
-  let newOrgSecondaryColor = platformSettings.default_secondary_color || '#0F1112';
-  let orgCreateError = '';
-  let orgCreateSuccess = '';
-  let showCreateOrg = false;
+  let newOrgName = $state('');
+  let newOrgSlug = $state('');
+  let newOrgOwnerEmail = $state('');
+  let newOrgPrimaryColor = $state(platformSettings.default_primary_color || '#ffc800');
+  let newOrgSecondaryColor = $state(platformSettings.default_secondary_color || '#0F1112');
+  let orgCreateError = $state('');
+  let orgCreateSuccess = $state('');
+  let showCreateOrg = $state(false);
 
-  let editingOrgId: number | null = null;
-  let editOrgName = '';
-  let editOrgSlug = '';
-  let editOrgPrimary = '';
-  let editOrgSecondary = '';
-  let orgEditError = '';
+  let editingOrgId = $state<number | null>(null);
+  let editOrgName = $state('');
+  let editOrgSlug = $state('');
+  let editOrgPrimary = $state('');
+  let editOrgSecondary = $state('');
+  let orgEditError = $state('');
 
-  let deletingOrg: (Organization & { member_count?: number; applicant_count?: number }) | null = null;
-  let deleteConfirmName = '';
+  let deletingOrg = $state<(Organization & { member_count?: number; applicant_count?: number }) | null>(null);
+  let deleteConfirmName = $state('');
 
-  let transferOrgId: number | null = null;
-  let transferEmail = '';
-  let transferError = '';
+  let transferOrgId = $state<number | null>(null);
+  let transferEmail = $state('');
+  let transferError = $state('');
 
   function autoSlug() {
     newOrgSlug = newOrgName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -88,7 +88,7 @@
 </script>
 
 <div style="margin-bottom: 20px;">
-  <button class="btn btn-primary" on:click={() => showCreateOrg = !showCreateOrg}>
+  <button class="btn btn-primary" onclick={() => showCreateOrg = !showCreateOrg}>
     {showCreateOrg ? 'Cancel' : '+ New Organization'}
   </button>
 </div>
@@ -102,7 +102,7 @@
     <h6>Create Organization</h6>
     <div class="form-row">
       <label>Name</label>
-      <input class="form-control" bind:value={newOrgName} on:input={autoSlug} placeholder="My Organization" />
+      <input class="form-control" bind:value={newOrgName} oninput={autoSlug} placeholder="My Organization" />
     </div>
     <div class="form-row">
       <label>Slug</label>
@@ -125,7 +125,7 @@
     {#if orgCreateError}
       <p class="error-text">{orgCreateError}</p>
     {/if}
-    <button class="btn btn-primary" on:click={createOrg}>Create</button>
+    <button class="btn btn-primary" onclick={createOrg}>Create</button>
   </div>
 {/if}
 
@@ -155,8 +155,8 @@
           <p class="error-text">{orgEditError}</p>
         {/if}
         <div class="btn-group">
-          <button class="btn btn-primary btn-sm" on:click={saveEditOrg}>Save</button>
-          <button class="btn btn-quaternary btn-sm" on:click={() => editingOrgId = null}>Cancel</button>
+          <button class="btn btn-primary btn-sm" onclick={saveEditOrg}>Save</button>
+          <button class="btn btn-quaternary btn-sm" onclick={() => editingOrgId = null}>Cancel</button>
         </div>
       </div>
     {:else}
@@ -173,17 +173,17 @@
       </div>
       <div class="row-actions">
         <a href="/private/{org.slug}/dashboard" class="btn btn-quaternary btn-sm">Dashboard</a>
-        <button class="btn btn-quaternary btn-sm" on:click={() => startEditOrg(org)}>Edit</button>
-        <button class="btn btn-quaternary btn-sm" on:click={() => { transferOrgId = org.id; transferEmail = ''; transferError = ''; }}>Transfer</button>
-        <button class="btn btn-danger btn-sm" on:click={() => { deletingOrg = org; deleteConfirmName = ''; }}>Delete</button>
+        <button class="btn btn-quaternary btn-sm" onclick={() => startEditOrg(org)}>Edit</button>
+        <button class="btn btn-quaternary btn-sm" onclick={() => { transferOrgId = org.id; transferEmail = ''; transferError = ''; }}>Transfer</button>
+        <button class="btn btn-danger btn-sm" onclick={() => { deletingOrg = org; deleteConfirmName = ''; }}>Delete</button>
       </div>
     {/if}
   </div>
 {/each}
 
 {#if transferOrgId}
-  <div class="modal-overlay" on:click={() => transferOrgId = null} on:keydown={(e) => e.key === 'Escape' && (transferOrgId = null)}>
-    <div class="modal-content" on:click|stopPropagation on:keydown|stopPropagation role="dialog" aria-modal="true">
+  <div class="modal-overlay" onclick={() => transferOrgId = null} onkeydown={(e) => e.key === 'Escape' && (transferOrgId = null)}>
+    <div class="modal-content" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
       <h6>Transfer Ownership</h6>
       <p class="muted" style="font-size: 13px;">The new owner must already have an account. The current owner will be demoted to admin.</p>
       <div class="form-row">
@@ -194,16 +194,16 @@
         <p class="error-text">{transferError}</p>
       {/if}
       <div class="btn-group">
-        <button class="btn btn-primary btn-sm" on:click={handleTransferOwnership}>Transfer</button>
-        <button class="btn btn-quaternary btn-sm" on:click={() => transferOrgId = null}>Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick={handleTransferOwnership}>Transfer</button>
+        <button class="btn btn-quaternary btn-sm" onclick={() => transferOrgId = null}>Cancel</button>
       </div>
     </div>
   </div>
 {/if}
 
 {#if deletingOrg}
-  <div class="modal-overlay" on:click={() => deletingOrg = null} on:keydown={(e) => e.key === 'Escape' && (deletingOrg = null)}>
-    <div class="modal-content modal-danger" on:click|stopPropagation on:keydown|stopPropagation role="dialog" aria-modal="true">
+  <div class="modal-overlay" onclick={() => deletingOrg = null} onkeydown={(e) => e.key === 'Escape' && (deletingOrg = null)}>
+    <div class="modal-content modal-danger" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
       <h6>Delete Organization</h6>
       <p style="font-size: 13px;">This will permanently delete <strong>{deletingOrg.name}</strong> and all associated data:</p>
       <ul style="font-size: 13px; color: #ef4444;">
@@ -215,15 +215,15 @@
         <input class="form-control" bind:value={deleteConfirmName} placeholder={deletingOrg.name} />
       </div>
       <div class="btn-group">
-        <button class="btn btn-danger btn-sm" disabled={deleteConfirmName !== deletingOrg.name} on:click={confirmDeleteOrg}>Delete Forever</button>
-        <button class="btn btn-quaternary btn-sm" on:click={() => deletingOrg = null}>Cancel</button>
+        <button class="btn btn-danger btn-sm" disabled={deleteConfirmName !== deletingOrg.name} onclick={confirmDeleteOrg}>Delete Forever</button>
+        <button class="btn btn-quaternary btn-sm" onclick={() => deletingOrg = null}>Cancel</button>
       </div>
     </div>
   </div>
 {/if}
 
 <style lang="scss">
-  @use '../../../../styles/col.scss' as *;
+  @use '../../../styles/col.scss' as *;
 
   .form-card {
     background: white; border-radius: 8px; padding: 20px;
