@@ -60,11 +60,11 @@ No schema changes needed. The existing tables support multi-tenancy:
 - `org_members` — membership + roles (owner, admin, recruiter, viewer)
 - All data tables have `org_id` FK with RLS via `is_org_member(org_id)`
 
-## Implementation (Complete)
+## Key Files
 
-All changes are implemented and tested:
-
-1. **Homepage** (`/+page.svelte`) — "Create Your Organization" button links to `/auth?redirect=/register`
-2. **Auth page** (`/auth/+page.svelte`) — Reads `redirect` query param via hidden form field
-3. **Auth server** (`/auth/+page.server.ts`) — Preserves redirect param through login/signup/error flows, redirects to target URL on success
-4. **Register page** (`/register/+page.svelte`) — Redirects unauthenticated users to `/auth?redirect=/register`
+| File | Purpose |
+|---|---|
+| `src/routes/+page.svelte` | "Create Your Organization" button → `/auth?redirect=/register` |
+| `src/routes/auth/+page.svelte` | Reads `redirect` query param via hidden form field |
+| `src/routes/auth/+page.server.ts` | Preserves redirect param through login/signup/error flows |
+| `src/routes/register/+page.svelte` | Redirects unauthenticated users to `/auth?redirect=/register` |

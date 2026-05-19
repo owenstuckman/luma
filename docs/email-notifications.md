@@ -195,8 +195,5 @@ supabase functions deploy notify-interviews
 
 ## Future Enhancements
 
-- Resend webhook endpoint for bounce/delivery status tracking
-- Email address verification with sending provider
-- Scheduled reminder emails (24h before interview via pg_cron)
 - Per-org email templates (custom footer, branding)
 - Send rate limiting for large batches

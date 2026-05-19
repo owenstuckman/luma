@@ -222,9 +222,7 @@ Auto-scheduling inserts with `source = 'auto'`. The "Clear" button only deletes 
 
 ## Future Enhancements
 
-See [scheduling-enhancements.md](scheduling-enhancements.md) for planned features:
-- Relaxed constraint second pass (schedule unmatched with flagged violations)
-- Attribute-based matching (pair applicants with interviewers by team/preference)
-- Applicant priority weighting
-- Custom algorithm editor (paste JS function)
-- Edge Function for cron-triggered auto-scheduling
+- Custom algorithm editor — admin pastes a JS function body; runs sandboxed against `SchedulerInput`/`SchedulerOutput`
+- Edge Function for cron-triggered auto-scheduling — reads `scheduling_config`, runs algorithm, inserts with `source = 'auto'`
+
+See [scheduling-enhancements.md](scheduling-enhancements.md) for implementation details on attribute matching, relaxed fallback, and priority weighting.

@@ -60,7 +60,7 @@ High-priority applicants are scheduled first, even if less constrained.
 
 ---
 
-## Remaining / Future
+## Future Enhancements
 
 ### Custom Algorithm Editor
 

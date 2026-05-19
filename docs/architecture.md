@@ -139,9 +139,7 @@ Each org gets a URL slug (e.g. `archimedes-society`) as its namespace:
 
 ## Component Patterns
 
-- **Most components**: Svelte 4 style (`export let`, `$:`, `createEventDispatcher`)
-- **Root layout**: Svelte 5 runes (`$props()`, `$derived()`, `{@render}`)
-- Match the style of the file you're editing.
+All components use Svelte 5 runes (`$props()`, `$state()`, `$derived()`, `$effect()`). Callback props replace `createEventDispatcher`.
 
 **Applicant page template**:
 ```svelte
