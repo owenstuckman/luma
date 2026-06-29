@@ -29,24 +29,30 @@ setInterval(() => {
 const rateLimiter: Handle = async ({ event, resolve }) => {
 	const { method } = event.request;
 	const path = event.url.pathname;
-	const ip = event.getClientAddress();
 
-	// Auth actions: 10 attempts per 15 minutes per IP
-	if (method === 'POST' && path === '/auth') {
+	// Only the three POST routes below are rate-limited — skip the address lookup
+	// for everything else. getClientAddress() can throw in some dev setups (e.g. WSL).
+	const isLimited =
+		method === 'POST' &&
+		(path === '/auth' || path.startsWith('/apply/') || path.startsWith('/api/email-webhook'));
+	if (!isLimited) return resolve(event);
+
+	let ip: string;
+	try {
+		ip = event.getClientAddress();
+	} catch {
+		ip = 'unknown';
+	}
+
+	if (path === '/auth') {
 		if (!checkRateLimit(`auth:${ip}`, 10, 15 * 60 * 1000)) {
 			error(429, 'Too many login attempts. Please wait 15 minutes before trying again.');
 		}
-	}
-
-	// Public application submission (apply pages POST): 5 per 10 minutes per IP
-	if (method === 'POST' && path.startsWith('/apply/')) {
+	} else if (path.startsWith('/apply/')) {
 		if (!checkRateLimit(`apply:${ip}`, 5, 10 * 60 * 1000)) {
 			error(429, 'Too many submissions. Please wait before trying again.');
 		}
-	}
-
-	// Email webhook: 60 per minute per IP (Resend sends many events)
-	if (method === 'POST' && path.startsWith('/api/email-webhook')) {
+	} else if (path.startsWith('/api/email-webhook')) {
 		if (!checkRateLimit(`webhook:${ip}`, 60, 60 * 1000)) {
 			error(429, 'Rate limit exceeded.');
 		}

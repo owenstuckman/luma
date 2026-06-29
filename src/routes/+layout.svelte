@@ -2,8 +2,6 @@
 	import { invalidate } from '$app/navigation';
 	import { onMount } from 'svelte';
 
-	export const trailingSlash = 'always';
-
 	import '../styles/luma.scss';
 
 	let { data, children } = $props();
