@@ -24,14 +24,14 @@ Homepage (/)
 
 ## Pages Involved
 
-| Page | Purpose |
-|---|---|
-| `/` | Homepage — org listing + "Create Your Organization" CTA |
-| `/auth` | Login / signup / magic link / password reset |
-| `/register` | Create organization form (auth-required) |
-| `/private/[slug]/dashboard` | New org's dashboard (post-creation landing) |
-| `/private/[slug]/settings` | Org config: name, colors, logo, email, team |
-| `/private/[slug]/settings/jobs` | Job posting CRUD + form builder |
+| Page                            | Purpose                                                 |
+| ------------------------------- | ------------------------------------------------------- |
+| `/`                             | Homepage — org listing + "Create Your Organization" CTA |
+| `/auth`                         | Login / signup / magic link / password reset            |
+| `/register`                     | Create organization form (auth-required)                |
+| `/private/[slug]/dashboard`     | New org's dashboard (post-creation landing)             |
+| `/private/[slug]/settings`      | Org config: name, colors, logo, email, team             |
+| `/private/[slug]/settings/jobs` | Job posting CRUD + form builder                         |
 
 ## Auth Page Integration
 
@@ -62,9 +62,9 @@ No schema changes needed. The existing tables support multi-tenancy:
 
 ## Key Files
 
-| File | Purpose |
-|---|---|
-| `src/routes/+page.svelte` | "Create Your Organization" button → `/auth?redirect=/register` |
-| `src/routes/auth/+page.svelte` | Reads `redirect` query param via hidden form field |
-| `src/routes/auth/+page.server.ts` | Preserves redirect param through login/signup/error flows |
-| `src/routes/register/+page.svelte` | Redirects unauthenticated users to `/auth?redirect=/register` |
+| File                               | Purpose                                                        |
+| ---------------------------------- | -------------------------------------------------------------- |
+| `src/routes/+page.svelte`          | "Create Your Organization" button → `/auth?redirect=/register` |
+| `src/routes/auth/+page.svelte`     | Reads `redirect` query param via hidden form field             |
+| `src/routes/auth/+page.server.ts`  | Preserves redirect param through login/signup/error flows      |
+| `src/routes/register/+page.svelte` | Redirects unauthenticated users to `/auth?redirect=/register`  |

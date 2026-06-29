@@ -1,10 +1,16 @@
-import type { SchedulingAlgorithm, SchedulerInput, SchedulerOutput, ProposedInterview } from '../types';
+import type {
+	SchedulingAlgorithm,
+	SchedulerInput,
+	SchedulerOutput,
+	ProposedInterview
+} from '../types';
 import { findOverlappingSlots, findFirstAvailableSlot, toISO } from '../utils';
 
 export const roundRobin: SchedulingAlgorithm = {
 	id: 'round-robin',
 	name: 'Round Robin',
-	description: 'Cycles through interviewers in a fixed order, assigning one applicant per cycle for strict rotation.',
+	description:
+		'Cycles through interviewers in a fixed order, assigning one applicant per cycle for strict rotation.',
 	configSchema: [],
 	run(input: SchedulerInput): SchedulerOutput {
 		const { applicants, interviewers, existingInterviews, config } = input;
@@ -14,7 +20,7 @@ export const roundRobin: SchedulingAlgorithm = {
 
 		if (interviewers.length === 0) {
 			warnings.push('No interviewers with availability found.');
-			return { interviews: proposed, unmatched: applicants.map(a => a.email), warnings };
+			return { interviews: proposed, unmatched: applicants.map((a) => a.email), warnings };
 		}
 
 		// Count existing assignments per interviewer
@@ -24,8 +30,9 @@ export const roundRobin: SchedulingAlgorithm = {
 		}
 
 		function getCount(email: string): number {
-			return (assignmentCount.get(email) || 0) +
-				proposed.filter(p => p.interviewer === email).length;
+			return (
+				(assignmentCount.get(email) || 0) + proposed.filter((p) => p.interviewer === email).length
+			);
 		}
 
 		let interviewerIdx = 0;
@@ -40,7 +47,10 @@ export const roundRobin: SchedulingAlgorithm = {
 				interviewerIdx++;
 				attempts++;
 
-				if (config.maxInterviewsPerInterviewer > 0 && getCount(interviewer.email) >= config.maxInterviewsPerInterviewer) {
+				if (
+					config.maxInterviewsPerInterviewer > 0 &&
+					getCount(interviewer.email) >= config.maxInterviewsPerInterviewer
+				) {
 					continue;
 				}
 
@@ -81,7 +91,9 @@ export const roundRobin: SchedulingAlgorithm = {
 		}
 
 		if (unmatched.length > 0) {
-			warnings.push(`${unmatched.length} applicant(s) could not be scheduled due to no overlapping availability.`);
+			warnings.push(
+				`${unmatched.length} applicant(s) could not be scheduled due to no overlapping availability.`
+			);
 		}
 
 		return { interviews: proposed, unmatched, warnings };

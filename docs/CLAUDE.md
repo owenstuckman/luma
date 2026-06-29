@@ -17,7 +17,7 @@ Rebuild LUMA into a **generalized, multi-tenant ATS** that handles Archimedes' f
 ## Non-negotiables (from Questions.md answers)
 
 1. **Multi-tenant stays.** Do not collapse `organizations` / `org_members` / `slug` routing. Generalize anything Archimedes-specific behind org settings — no hardcoded team names, no hardcoded counts.
-2. **Archimedes is just the first tenant.** Teams (Infinitum, Astra, Terra, Juvo) are seed data for the Archimedes org, *not* schema constants.
+2. **Archimedes is just the first tenant.** Teams (Infinitum, Astra, Terra, Juvo) are seed data for the Archimedes org, _not_ schema constants.
 3. **Everything configurable per-org** by an admin: review thresholds (approves + rejects), auto-reject rules, scheduling algorithm, buffer time, email-on-decision toggles, blinded-review toggle.
 4. **Scrap the cohort scheduler** from `docs/v1/LUMA Auto-Scheduler Problem.pdf`. R1 is simple: 1 applicant per interview slot, scheduled against interviewer availability.
 5. **Quality > velocity if forced to choose**, but velocity is preferred. No half-finished features merged.
@@ -93,9 +93,12 @@ On submit, server evaluates all `reject_if` rules → if any fire, applicant sta
 
 ## Email & Calendar
 
-- **Resend** is the provider (existing). DNS controlled by user — sending domain configurable per-org in settings.
+- **EmailJS** is the provider. Public `user_id` is browser-safe; **private key** is required for server-triggered sends via EmailJS REST API (`https://api.emailjs.com/api/v1.0/email/send`).
+- Templates are managed in EmailJS dashboard (not in repo). `src/lib/email/templates.ts` becomes a thin mapping layer: each app-level event (`application_received`, `decision_hire`, etc.) resolves to a `template_id` + variables map.
+- Sending address: `noreply@archimedesvt.org`. Configure the EmailJS service to send from this address (verify the domain in EmailJS).
 - Outbound email events: application received, auto-rejected (optional), advanced to interview, interview scheduled, decision (hire/reject/waitlist).
-- **Calendar:** ship `.ics` attachments first (already implemented in `src/lib/email/ics.ts`). Spike Google OAuth as a follow-up — see FEATURES.md. Don't block V1 on it.
+- Browser-triggered sends (e.g., applicant submission confirmation) can use the public user_id directly via `@emailjs/browser`. Server-triggered sends (decision emails, scheduled batches) call the REST API from SvelteKit endpoints using the private key.
+- **Calendar:** ship `.ics` attachments first (already implemented in `src/lib/email/ics.ts`). EmailJS supports attachments via template variables — confirm during Phase 6. Spike Google OAuth as a follow-up — see FEATURES.md. Don't block V1 on it.
 
 ---
 
@@ -120,6 +123,6 @@ On submit, server evaluates all `reject_if` rules → if any fire, applicant sta
 - Cohort-based group/individual interview pairing (the deck's model)
 - Custom rubrics per round
 - Modeling eboard↔advisor coordination assignments (offline)
-- Video/artifact upload as a *required* field (URL link is fine)
+- Video/artifact upload as a _required_ field (URL link is fine)
 - Self-hosted Docker path (Dockerfile stays in repo, untested)
 - Migration consolidation

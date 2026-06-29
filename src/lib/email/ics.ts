@@ -22,11 +22,7 @@ function dtstamp(): string {
 
 // Escape special chars per RFC 5545
 function escapeText(s: string): string {
-	return s
-		.replace(/\\/g, '\\\\')
-		.replace(/;/g, '\\;')
-		.replace(/,/g, '\\,')
-		.replace(/\n/g, '\\n');
+	return s.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
 }
 
 // Fold long lines per RFC 5545 (max 75 octets, continuation with CRLF + space)

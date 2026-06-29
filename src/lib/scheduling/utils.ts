@@ -75,8 +75,7 @@ export function hasConflict(
 	const slotEnd = toMinutes(endTime) + breakMins;
 
 	for (const interview of [...existing, ...proposed]) {
-		const isInvolved =
-			interview.interviewer === personEmail || interview.applicant === personEmail;
+		const isInvolved = interview.interviewer === personEmail || interview.applicant === personEmail;
 		if (!isInvolved) continue;
 
 		// Extract date and time from interview startTime/endTime
@@ -84,9 +83,7 @@ export function hasConflict(
 		if (iDate !== date) continue;
 
 		const iStart = toMinutes(interview.startTime.substring(11, 16));
-		const iEnd = toMinutes(
-			(interview.endTime || interview.startTime).substring(11, 16)
-		);
+		const iEnd = toMinutes((interview.endTime || interview.startTime).substring(11, 16));
 
 		if (slotStart < iEnd && slotEnd > iStart) return true;
 	}
@@ -115,12 +112,22 @@ export function findFirstAvailableSlot(
 			const endStr = fromMinutes(cursor + durationMins);
 
 			const interviewerBusy = hasConflict(
-				overlap.date, startStr, endStr,
-				interviewerEmail, existing, proposed, breakMins
+				overlap.date,
+				startStr,
+				endStr,
+				interviewerEmail,
+				existing,
+				proposed,
+				breakMins
 			);
 			const applicantBusy = hasConflict(
-				overlap.date, startStr, endStr,
-				applicantEmail, existing, proposed, breakMins
+				overlap.date,
+				startStr,
+				endStr,
+				applicantEmail,
+				existing,
+				proposed,
+				breakMins
 			);
 
 			if (!interviewerBusy && !applicantBusy) {

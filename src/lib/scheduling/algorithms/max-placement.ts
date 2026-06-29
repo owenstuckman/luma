@@ -33,7 +33,7 @@ export const maxPlacement: SchedulingAlgorithm = {
 	run(input: SchedulerInput): SchedulerOutput {
 		const { applicants, interviewers, existingInterviews, config } = input;
 		const warnings: string[] = [];
-		const timeLimitMs = (config as Record<string, unknown>).timeLimitMs as number ?? 5000;
+		const timeLimitMs = ((config as Record<string, unknown>).timeLimitMs as number) ?? 5000;
 
 		if (interviewers.length === 0) {
 			warnings.push('No interviewers with availability found.');
@@ -80,9 +80,6 @@ export const maxPlacement: SchedulingAlgorithm = {
 					const windowEnd = toMinutes(overlap.end);
 
 					while (cursor + duration <= windowEnd) {
-						// Check against existing interviews only (proposed checked at search time)
-						const startStr = fromMinutes(cursor);
-						const endStr = fromMinutes(cursor + duration);
 						const date = overlap.date;
 
 						const existingConflict = hasExistingConflict(
@@ -143,7 +140,12 @@ export const maxPlacement: SchedulingAlgorithm = {
 			}
 		}
 
-		function personHasConflict(email: string, date: string, startMins: number, endMins: number): boolean {
+		function personHasConflict(
+			email: string,
+			date: string,
+			startMins: number,
+			endMins: number
+		): boolean {
 			const blocks = occupiedBlocks.get(email);
 			if (!blocks) return false;
 			const effectiveEnd = endMins + breakMins;

@@ -1,23 +1,23 @@
 <script>
-	import { invalidate } from '$app/navigation'
-	import { onMount } from 'svelte'
+	import { invalidate } from '$app/navigation';
+	import { onMount } from 'svelte';
 
-	export const trailingSlash = "always";
+	export const trailingSlash = 'always';
 
-  	import '../styles/luma.scss';
+	import '../styles/luma.scss';
 
-	let { data, children } = $props()
-	let { session, supabase } = $derived(data)
-  
+	let { data, children } = $props();
+	let { session, supabase } = $derived(data);
+
 	onMount(() => {
-	  const { data } = supabase.auth.onAuthStateChange((_, newSession) => {
-		if (newSession?.expires_at !== session?.expires_at) {
-		  invalidate('supabase:auth')
-		}
-	  })
-  
-	  return () => data.subscription.unsubscribe()
-	})
-  </script>
-  
-  {@render children()}
+		const { data } = supabase.auth.onAuthStateChange((_, newSession) => {
+			if (newSession?.expires_at !== session?.expires_at) {
+				invalidate('supabase:auth');
+			}
+		});
+
+		return () => data.subscription.unsubscribe();
+	});
+</script>
+
+{@render children()}

@@ -26,19 +26,20 @@ After the strict scheduling pass, a second pass runs for unmatched applicants wi
 Applicants express preferences via the question engine (e.g. "Which team interests you?"). Interviewers have attributes in `org_members.metadata`. The scheduler prefers placing applicants with matching interviewers.
 
 **Config:**
+
 ```json
 {
-  "attributeMatching": {
-    "enabled": true,
-    "rules": [
-      {
-        "applicantQuestionId": "team_interest",
-        "interviewerAttributeKey": "teams",
-        "weight": 20,
-        "hard": false
-      }
-    ]
-  }
+	"attributeMatching": {
+		"enabled": true,
+		"rules": [
+			{
+				"applicantQuestionId": "team_interest",
+				"interviewerAttributeKey": "teams",
+				"weight": 20,
+				"hard": false
+			}
+		]
+	}
 }
 ```
 
@@ -76,15 +77,15 @@ A Supabase Edge Function that reads `scheduling_config` for orgs with an algorit
 
 ```typescript
 interface ScheduleViolation {
-  type: 'availability' | 'attribute_mismatch';
-  detail: string;
+	type: 'availability' | 'attribute_mismatch';
+	detail: string;
 }
 
 interface AttributeMatchRule {
-  applicantQuestionId: string;
-  interviewerAttributeKey: string;
-  weight: number;
-  hard: boolean;
+	applicantQuestionId: string;
+	interviewerAttributeKey: string;
+	weight: number;
+	hard: boolean;
 }
 ```
 

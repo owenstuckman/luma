@@ -1,10 +1,16 @@
-import type { SchedulingAlgorithm, SchedulerInput, SchedulerOutput, ProposedInterview } from '../types';
+import type {
+	SchedulingAlgorithm,
+	SchedulerInput,
+	SchedulerOutput,
+	ProposedInterview
+} from '../types';
 import { findOverlappingSlots, findFirstAvailableSlot, toISO } from '../utils';
 
 export const greedyFirstAvailable: SchedulingAlgorithm = {
 	id: 'greedy-first-available',
 	name: 'Greedy First Available',
-	description: 'Assigns each applicant to the first available interviewer with an overlapping time slot. Simple and fast.',
+	description:
+		'Assigns each applicant to the first available interviewer with an overlapping time slot. Simple and fast.',
 	configSchema: [],
 	run(input: SchedulerInput): SchedulerOutput {
 		const { applicants, interviewers, existingInterviews, config } = input;
@@ -14,7 +20,7 @@ export const greedyFirstAvailable: SchedulingAlgorithm = {
 
 		if (interviewers.length === 0) {
 			warnings.push('No interviewers with availability found.');
-			return { interviews: proposed, unmatched: applicants.map(a => a.email), warnings };
+			return { interviews: proposed, unmatched: applicants.map((a) => a.email), warnings };
 		}
 
 		// Count existing assignments per interviewer
@@ -27,10 +33,14 @@ export const greedyFirstAvailable: SchedulingAlgorithm = {
 			let matched = false;
 
 			for (const interviewer of interviewers) {
-				const currentCount = (assignmentCount.get(interviewer.email) || 0) +
-					proposed.filter(p => p.interviewer === interviewer.email).length;
+				const currentCount =
+					(assignmentCount.get(interviewer.email) || 0) +
+					proposed.filter((p) => p.interviewer === interviewer.email).length;
 
-				if (config.maxInterviewsPerInterviewer > 0 && currentCount >= config.maxInterviewsPerInterviewer) {
+				if (
+					config.maxInterviewsPerInterviewer > 0 &&
+					currentCount >= config.maxInterviewsPerInterviewer
+				) {
 					continue;
 				}
 
@@ -71,7 +81,9 @@ export const greedyFirstAvailable: SchedulingAlgorithm = {
 		}
 
 		if (unmatched.length > 0) {
-			warnings.push(`${unmatched.length} applicant(s) could not be scheduled due to no overlapping availability.`);
+			warnings.push(
+				`${unmatched.length} applicant(s) could not be scheduled due to no overlapping availability.`
+			);
 		}
 
 		return { interviews: proposed, unmatched, warnings };

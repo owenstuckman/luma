@@ -1,540 +1,598 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { page } from '$app/stores';
-  import { goto } from '$app/navigation';
-  import { supabase, isMaintenanceMode } from '$lib/utils/supabase';
-  import { sendApplication } from '$lib/utils/supabase';
-  import type { Organization, JobPosting, FormStep } from '$lib/types';
-  import QuestionRenderer from '$lib/components/QuestionRenderer.svelte';
+	import { onMount } from 'svelte';
+	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
+	import { supabase, isMaintenanceMode } from '$lib/utils/supabase';
+	import { sendApplication } from '$lib/utils/supabase';
+	import type { Organization, JobPosting, FormStep } from '$lib/types';
+	import QuestionRenderer from '$lib/components/QuestionRenderer.svelte';
 
-  let org: Organization | null = null;
-  let job: JobPosting | null = null;
-  let steps: FormStep[] = [];
-  let currentStep = 0;
-  let loading = true;
-  let error = '';
-  let maintenanceMode = false;
-  let submitting = false;
-  let submitError = '';
+	let org: Organization | null = null;
+	let job: JobPosting | null = null;
+	let steps: FormStep[] = [];
+	let currentStep = 0;
+	let loading = true;
+	let error = '';
+	let maintenanceMode = false;
+	let submitting = false;
+	let submitError = '';
 
-  // Name/email are always collected (step 0 is auto-generated)
-  let firstName = '';
-  let lastName = '';
-  let email = '';
-  let step0Errors: { firstName?: string; lastName?: string; email?: string } = {};
+	// Name/email are always collected (step 0 is auto-generated)
+	let firstName = '';
+	let lastName = '';
+	let email = '';
+	let step0Errors: { firstName?: string; lastName?: string; email?: string } = {};
 
-  $: totalSteps = steps.length + 2; // +1 for personal info, +1 for review/submit
-  $: isFirstStep = currentStep === 0;
-  $: isLastStep = currentStep === totalSteps - 1;
-  $: isReviewStep = currentStep === totalSteps - 1;
-  $: currentFormStep = currentStep > 0 && currentStep < totalSteps - 1 ? steps[currentStep - 1] : null;
-  $: storagePrefix = job ? `job_${job.id}` : '';
+	$: totalSteps = steps.length + 2; // +1 for personal info, +1 for review/submit
+	$: isFirstStep = currentStep === 0;
+	$: isLastStep = currentStep === totalSteps - 1;
+	$: isReviewStep = currentStep === totalSteps - 1;
+	$: currentFormStep =
+		currentStep > 0 && currentStep < totalSteps - 1 ? steps[currentStep - 1] : null;
+	$: storagePrefix = job ? `job_${job.id}` : '';
 
-  onMount(async () => {
-    // Check maintenance mode
-    maintenanceMode = await isMaintenanceMode();
-    if (maintenanceMode) { loading = false; return; }
+	onMount(async () => {
+		// Check maintenance mode
+		maintenanceMode = await isMaintenanceMode();
+		if (maintenanceMode) {
+			loading = false;
+			return;
+		}
 
-    const slug = $page.params.slug;
-    const jobId = Number($page.params.job_id);
+		const slug = $page.params.slug;
+		const jobId = Number($page.params.job_id);
 
-    const { data: orgData } = await supabase
-      .from('organizations')
-      .select('*')
-      .eq('slug', slug)
-      .single();
+		const { data: orgData } = await supabase
+			.from('organizations')
+			.select('*')
+			.eq('slug', slug)
+			.single();
 
-    if (!orgData) {
-      error = 'Organization not found.';
-      loading = false;
-      return;
-    }
-    org = orgData;
+		if (!orgData) {
+			error = 'Organization not found.';
+			loading = false;
+			return;
+		}
+		org = orgData;
 
-    const { data: jobData } = await supabase
-      .from('job_posting')
-      .select('*')
-      .eq('id', jobId)
-      .eq('org_id', orgData.id)
-      .single();
+		const { data: jobData } = await supabase
+			.from('job_posting')
+			.select('*')
+			.eq('id', jobId)
+			.eq('org_id', orgData.id)
+			.single();
 
-    if (!jobData) {
-      error = 'Job posting not found.';
-      loading = false;
-      return;
-    }
-    job = jobData;
-    steps = jobData.questions?.steps || [];
+		if (!jobData) {
+			error = 'Job posting not found.';
+			loading = false;
+			return;
+		}
+		job = jobData;
+		steps = jobData.questions?.steps || [];
 
-    // Load personal info from localStorage
-    firstName = localStorage.getItem(`${storagePrefix}_firstName`) || '';
-    lastName = localStorage.getItem(`${storagePrefix}_lastName`) || '';
-    email = localStorage.getItem(`${storagePrefix}_email`) || '';
+		// Load personal info from localStorage
+		firstName = localStorage.getItem(`${storagePrefix}_firstName`) || '';
+		lastName = localStorage.getItem(`${storagePrefix}_lastName`) || '';
+		email = localStorage.getItem(`${storagePrefix}_email`) || '';
 
-    // Check URL for step param
-    const stepParam = $page.url.searchParams.get('step');
-    if (stepParam) currentStep = Number(stepParam);
+		// Check URL for step param
+		const stepParam = $page.url.searchParams.get('step');
+		if (stepParam) currentStep = Number(stepParam);
 
-    loading = false;
-  });
+		loading = false;
+	});
 
-  function validateStep0(): boolean {
-    step0Errors = {};
-    if (!firstName.trim()) step0Errors.firstName = 'First name is required.';
-    if (!lastName.trim()) step0Errors.lastName = 'Last name is required.';
-    if (!email.trim()) {
-      step0Errors.email = 'Email is required.';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      step0Errors.email = 'Please enter a valid email address.';
-    }
-    return Object.keys(step0Errors).length === 0;
-  }
+	function validateStep0(): boolean {
+		step0Errors = {};
+		if (!firstName.trim()) step0Errors.firstName = 'First name is required.';
+		if (!lastName.trim()) step0Errors.lastName = 'Last name is required.';
+		if (!email.trim()) {
+			step0Errors.email = 'Email is required.';
+		} else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+			step0Errors.email = 'Please enter a valid email address.';
+		}
+		return Object.keys(step0Errors).length === 0;
+	}
 
-  function nextStep() {
-    if (currentStep === 0) {
-      if (!validateStep0()) return;
-      localStorage.setItem(`${storagePrefix}_firstName`, firstName);
-      localStorage.setItem(`${storagePrefix}_lastName`, lastName);
-      localStorage.setItem(`${storagePrefix}_email`, email);
-    }
-    if (currentStep < totalSteps - 1) {
-      currentStep++;
-    }
-  }
+	function nextStep() {
+		if (currentStep === 0) {
+			if (!validateStep0()) return;
+			localStorage.setItem(`${storagePrefix}_firstName`, firstName);
+			localStorage.setItem(`${storagePrefix}_lastName`, lastName);
+			localStorage.setItem(`${storagePrefix}_email`, email);
+		}
+		if (currentStep < totalSteps - 1) {
+			currentStep++;
+		}
+	}
 
-  function prevStep() {
-    if (currentStep > 0) {
-      currentStep--;
-    }
-  }
+	function prevStep() {
+		if (currentStep > 0) {
+			currentStep--;
+		}
+	}
 
-  async function submitApplication() {
-    if (!job || !org) return;
-    submitting = true;
-    submitError = '';
+	async function submitApplication() {
+		if (!job || !org) return;
+		submitting = true;
+		submitError = '';
 
-    try {
-      const recruitInfo: Record<string, string> = {};
+		try {
+			const recruitInfo: Record<string, string> = {};
 
-      // Collect all question answers from localStorage
-      for (const step of steps) {
-        for (const q of step.questions) {
-          const key = `${storagePrefix}_${q.id}`;
-          if (q.type === 'input_dual') {
-            const v1 = localStorage.getItem(`${key}_1`) || '';
-            const v2 = localStorage.getItem(`${key}_2`) || '';
-            recruitInfo[q.id] = `${v1} | ${v2}`;
-          } else {
-            recruitInfo[q.id] = localStorage.getItem(key) || '';
-          }
-        }
-      }
+			// Collect all question answers from localStorage
+			for (const step of steps) {
+				for (const q of step.questions) {
+					const key = `${storagePrefix}_${q.id}`;
+					if (q.type === 'input_dual') {
+						const v1 = localStorage.getItem(`${key}_1`) || '';
+						const v2 = localStorage.getItem(`${key}_2`) || '';
+						recruitInfo[q.id] = `${v1} | ${v2}`;
+					} else {
+						recruitInfo[q.id] = localStorage.getItem(key) || '';
+					}
+				}
+			}
 
-      await sendApplication({
-        name: `${firstName} ${lastName}`,
-        email,
-        recruitInfo,
-        job: job.id,
-        org_id: org.id,
-      });
+			await sendApplication({
+				name: `${firstName} ${lastName}`,
+				email,
+				recruitInfo,
+				job: job.id,
+				org_id: org.id
+			});
 
-      // Clear localStorage for this application
-      const keysToRemove = Object.keys(localStorage).filter(k => k.startsWith(storagePrefix));
-      keysToRemove.forEach(k => localStorage.removeItem(k));
+			// Clear localStorage for this application
+			const keysToRemove = Object.keys(localStorage).filter((k) => k.startsWith(storagePrefix));
+			keysToRemove.forEach((k) => localStorage.removeItem(k));
 
-      goto(`/apply/${org!.slug}/${job!.id}/success`);
-    } catch (err) {
-      submitError = err instanceof Error ? err.message : 'An unknown error occurred.';
-      setTimeout(() => { submitError = ''; }, 10000);
-    } finally {
-      submitting = false;
-    }
-  }
+			goto(`/apply/${org!.slug}/${job!.id}/success`);
+		} catch (err) {
+			submitError = err instanceof Error ? err.message : 'An unknown error occurred.';
+			setTimeout(() => {
+				submitError = '';
+			}, 10000);
+		} finally {
+			submitting = false;
+		}
+	}
 
-  // Sidebar step labels
-  $: sidebarSteps = [
-    { title: 'Personal Info', icon: 'fi-br-file-user' },
-    ...steps.map(s => ({ title: s.title, icon: s.icon })),
-    { title: 'Review & Submit', icon: 'fi-br-paper-plane' },
-  ];
+	// Sidebar step labels
+	$: sidebarSteps = [
+		{ title: 'Personal Info', icon: 'fi-br-file-user' },
+		...steps.map((s) => ({ title: s.title, icon: s.icon })),
+		{ title: 'Review & Submit', icon: 'fi-br-paper-plane' }
+	];
 </script>
 
 {#if loading}
-  <div class="loading-screen"><p>Loading application...</p></div>
+	<div class="loading-screen"><p>Loading application...</p></div>
 {:else if maintenanceMode}
-  <div class="loading-screen">
-    <div class="error-card">
-      <h2 style="color: white;">Applications Closed</h2>
-      <p style="color: #878fa1; margin-top: 8px;">Applications are currently closed for maintenance. Please check back later.</p>
-      <a href="/" style="margin-top: 16px;"><button class="btn btn-primary">Back to Home</button></a>
-    </div>
-  </div>
+	<div class="loading-screen">
+		<div class="error-card">
+			<h2 style="color: white;">Applications Closed</h2>
+			<p style="color: #878fa1; margin-top: 8px;">
+				Applications are currently closed for maintenance. Please check back later.
+			</p>
+			<a href="/" style="margin-top: 16px;"><button class="btn btn-primary">Back to Home</button></a
+			>
+		</div>
+	</div>
 {:else if error}
-  <div class="loading-screen">
-    <div class="error-card">
-      <h2 style="color: white;">{error}</h2>
-      <a href="/"><button class="btn btn-primary">Back to Home</button></a>
-    </div>
-  </div>
+	<div class="loading-screen">
+		<div class="error-card">
+			<h2 style="color: white;">{error}</h2>
+			<a href="/"><button class="btn btn-primary">Back to Home</button></a>
+		</div>
+	</div>
 {:else if org && job}
-  <div class="layout">
-    <!-- Navbar -->
-    <div class="navbar">
-      <div class="navbar-left">
-        <div class="navbar-logo">
-          <a href="/apply/{org.slug}">
-            {#if org.logo_url}
-              <img src={org.logo_url} alt="{org.name}" style="height: 30px; width: auto;" />
-            {:else}
-              <img src="/images/ui/logo_white.png" alt="LUMA" style="height: 30px; width: auto;" />
-            {/if}
-          </a>
-        </div>
-        <div class="navbar-year">
-          <button class="btn btn-secondary" type="button"
-            on:click={() => {
-              const keys = Object.keys(localStorage).filter(k => k.startsWith(storagePrefix));
-              keys.forEach(k => localStorage.removeItem(k));
-              firstName = ''; lastName = ''; email = '';
-              currentStep = 0;
-            }}>
-            Reset Form
-          </button>
-        </div>
-      </div>
-      <div class="navbar-search">
-        <h3 class="hide-on-tiny">{job.name}</h3>
-      </div>
-      <div class="navbar-right"></div>
-    </div>
+	<div class="layout">
+		<!-- Navbar -->
+		<div class="navbar">
+			<div class="navbar-left">
+				<div class="navbar-logo">
+					<a href="/apply/{org.slug}">
+						{#if org.logo_url}
+							<img src={org.logo_url} alt={org.name} style="height: 30px; width: auto;" />
+						{:else}
+							<img src="/images/ui/logo_white.png" alt="LUMA" style="height: 30px; width: auto;" />
+						{/if}
+					</a>
+				</div>
+				<div class="navbar-year">
+					<button
+						class="btn btn-secondary"
+						type="button"
+						on:click={() => {
+							const keys = Object.keys(localStorage).filter((k) => k.startsWith(storagePrefix));
+							keys.forEach((k) => localStorage.removeItem(k));
+							firstName = '';
+							lastName = '';
+							email = '';
+							currentStep = 0;
+						}}
+					>
+						Reset Form
+					</button>
+				</div>
+			</div>
+			<div class="navbar-search">
+				<h3 class="hide-on-tiny">{job.name}</h3>
+			</div>
+			<div class="navbar-right"></div>
+		</div>
 
-    <!-- Sidebar -->
-    <div class="sidebar hide-on-small">
-      <ul class="list-unstyled">
-        {#each sidebarSteps as step, i}
-          <li class:step-selected={currentStep === i} class:step-disabled={currentStep < i}>
-            <p class="step-sidebar">
-              <i class="fi {step.icon}"></i>
-              {step.title}
-            </p>
-          </li>
-        {/each}
-      </ul>
-    </div>
+		<!-- Sidebar -->
+		<div class="sidebar hide-on-small">
+			<ul class="list-unstyled">
+				{#each sidebarSteps as step, i}
+					<li class:step-selected={currentStep === i} class:step-disabled={currentStep < i}>
+						<p class="step-sidebar">
+							<i class="fi {step.icon}"></i>
+							{step.title}
+						</p>
+					</li>
+				{/each}
+			</ul>
+		</div>
 
-    <!-- Mobile step progress bar (hidden on large screens where sidebar is visible) -->
-    <div class="mobile-progress show-on-small">
-      <div class="mobile-progress-text">
-        Step {currentStep + 1} of {totalSteps} — {sidebarSteps[currentStep]?.title ?? ''}
-      </div>
-      <div class="mobile-progress-bar">
-        <div class="mobile-progress-fill" style="width: {((currentStep + 1) / totalSteps) * 100}%"></div>
-      </div>
-    </div>
+		<!-- Mobile step progress bar (hidden on large screens where sidebar is visible) -->
+		<div class="mobile-progress show-on-small">
+			<div class="mobile-progress-text">
+				Step {currentStep + 1} of {totalSteps} — {sidebarSteps[currentStep]?.title ?? ''}
+			</div>
+			<div class="mobile-progress-bar">
+				<div
+					class="mobile-progress-fill"
+					style="width: {((currentStep + 1) / totalSteps) * 100}%"
+				></div>
+			</div>
+		</div>
 
-    <!-- Content -->
-    <div class="content">
-      {#if currentStep === 0}
-        <!-- Personal Info (always required) -->
-        <h4>Personal Information</h4>
-        <div class="card">
-          <h5>First Name <span class="required">*</span></h5>
-          <input type="text" class="form-control" class:is-invalid={step0Errors.firstName} bind:value={firstName} placeholder="First name" />
-          {#if step0Errors.firstName}<p class="field-error">{step0Errors.firstName}</p>{/if}
-        </div>
-        <div class="card">
-          <h5>Last Name <span class="required">*</span></h5>
-          <input type="text" class="form-control" class:is-invalid={step0Errors.lastName} bind:value={lastName} placeholder="Last name" />
-          {#if step0Errors.lastName}<p class="field-error">{step0Errors.lastName}</p>{/if}
-        </div>
-        <div class="card">
-          <h5>Email Address <span class="required">*</span></h5>
-          <input type="email" class="form-control" class:is-invalid={step0Errors.email} bind:value={email} placeholder="you@example.com" />
-          {#if step0Errors.email}<p class="field-error">{step0Errors.email}</p>{/if}
-        </div>
-      {:else if isReviewStep}
-        <!-- Review & Submit -->
-        <h4>Review & Submit</h4>
-        <p class="review-hint">Please review your answers before submitting. Click a section to edit.</p>
+		<!-- Content -->
+		<div class="content">
+			{#if currentStep === 0}
+				<!-- Personal Info (always required) -->
+				<h4>Personal Information</h4>
+				<div class="card">
+					<h5>First Name <span class="required">*</span></h5>
+					<input
+						type="text"
+						class="form-control"
+						class:is-invalid={step0Errors.firstName}
+						bind:value={firstName}
+						placeholder="First name"
+					/>
+					{#if step0Errors.firstName}<p class="field-error">{step0Errors.firstName}</p>{/if}
+				</div>
+				<div class="card">
+					<h5>Last Name <span class="required">*</span></h5>
+					<input
+						type="text"
+						class="form-control"
+						class:is-invalid={step0Errors.lastName}
+						bind:value={lastName}
+						placeholder="Last name"
+					/>
+					{#if step0Errors.lastName}<p class="field-error">{step0Errors.lastName}</p>{/if}
+				</div>
+				<div class="card">
+					<h5>Email Address <span class="required">*</span></h5>
+					<input
+						type="email"
+						class="form-control"
+						class:is-invalid={step0Errors.email}
+						bind:value={email}
+						placeholder="you@example.com"
+					/>
+					{#if step0Errors.email}<p class="field-error">{step0Errors.email}</p>{/if}
+				</div>
+			{:else if isReviewStep}
+				<!-- Review & Submit -->
+				<h4>Review & Submit</h4>
+				<p class="review-hint">
+					Please review your answers before submitting. Click a section to edit.
+				</p>
 
-        <div class="card review-card" on:click={() => currentStep = 0} on:keydown={() => {}} role="button" tabindex="0">
-          <h5>Personal Information</h5>
-          <div class="review-field">
-            <span class="review-label">Name</span>
-            <span class="review-value">{firstName} {lastName}</span>
-          </div>
-          <div class="review-field">
-            <span class="review-label">Email</span>
-            <span class="review-value">{email}</span>
-          </div>
-        </div>
+				<div
+					class="card review-card"
+					on:click={() => (currentStep = 0)}
+					on:keydown={() => {}}
+					role="button"
+					tabindex="0"
+				>
+					<h5>Personal Information</h5>
+					<div class="review-field">
+						<span class="review-label">Name</span>
+						<span class="review-value">{firstName} {lastName}</span>
+					</div>
+					<div class="review-field">
+						<span class="review-label">Email</span>
+						<span class="review-value">{email}</span>
+					</div>
+				</div>
 
-        {#each steps as step, stepIndex}
-          <div class="card review-card" on:click={() => currentStep = stepIndex + 1} on:keydown={() => {}} role="button" tabindex="0">
-            <h5>{step.title}</h5>
-            {#each step.questions as q}
-              {@const key = `${storagePrefix}_${q.id}`}
-              <div class="review-field">
-                <span class="review-label">{q.title}</span>
-                <span class="review-value">
-                  {#if q.type === 'input_dual'}
-                    {localStorage.getItem(`${key}_1`) || ''} {localStorage.getItem(`${key}_2`) || ''}
-                  {:else if q.type === 'availability'}
-                    {@const raw = localStorage.getItem(key)}
-                    {#if raw}
-                      {@const ranges = JSON.parse(raw)}
-                      {#each ranges as r}
-                        <span class="review-tag">{r.date} {r.start}–{r.end}</span>
-                      {/each}
-                    {:else}
-                      <span class="review-empty">Not provided</span>
-                    {/if}
-                  {:else if q.type === 'checkbox' || q.type === 'checkbox_image'}
-                    {@const val = localStorage.getItem(key) || ''}
-                    {#if val}
-                      {#each val.split(',').filter(Boolean) as item}
-                        <span class="review-tag">{item}</span>
-                      {/each}
-                    {:else}
-                      <span class="review-empty">Not provided</span>
-                    {/if}
-                  {:else}
-                    {localStorage.getItem(key) || ''}
-                    {#if !localStorage.getItem(key)}
-                      <span class="review-empty">Not provided</span>
-                    {/if}
-                  {/if}
-                </span>
-              </div>
-            {/each}
-          </div>
-        {/each}
+				{#each steps as step, stepIndex}
+					<div
+						class="card review-card"
+						on:click={() => (currentStep = stepIndex + 1)}
+						on:keydown={() => {}}
+						role="button"
+						tabindex="0"
+					>
+						<h5>{step.title}</h5>
+						{#each step.questions as q}
+							{@const key = `${storagePrefix}_${q.id}`}
+							<div class="review-field">
+								<span class="review-label">{q.title}</span>
+								<span class="review-value">
+									{#if q.type === 'input_dual'}
+										{localStorage.getItem(`${key}_1`) || ''}
+										{localStorage.getItem(`${key}_2`) || ''}
+									{:else if q.type === 'availability'}
+										{@const raw = localStorage.getItem(key)}
+										{#if raw}
+											{@const ranges = JSON.parse(raw)}
+											{#each ranges as r}
+												<span class="review-tag">{r.date} {r.start}–{r.end}</span>
+											{/each}
+										{:else}
+											<span class="review-empty">Not provided</span>
+										{/if}
+									{:else if q.type === 'checkbox' || q.type === 'checkbox_image'}
+										{@const val = localStorage.getItem(key) || ''}
+										{#if val}
+											{#each val.split(',').filter(Boolean) as item}
+												<span class="review-tag">{item}</span>
+											{/each}
+										{:else}
+											<span class="review-empty">Not provided</span>
+										{/if}
+									{:else}
+										{localStorage.getItem(key) || ''}
+										{#if !localStorage.getItem(key)}
+											<span class="review-empty">Not provided</span>
+										{/if}
+									{/if}
+								</span>
+							</div>
+						{/each}
+					</div>
+				{/each}
 
-        {#if submitError}
-          <div style="color: red; margin-top: 1rem;">{submitError}</div>
-        {/if}
+				{#if submitError}
+					<div style="color: red; margin-top: 1rem;">{submitError}</div>
+				{/if}
 
-        <button
-          on:click={submitApplication}
-          class="btn btn-tertiary"
-          style="margin-top: 20px; padding: 10px 40px;"
-          disabled={submitting}
-        >
-          {submitting ? 'Submitting...' : 'Submit Application'}
-        </button>
-      {:else if currentFormStep}
-        <!-- Dynamic question step -->
-        <h4>{currentFormStep.title}</h4>
-        {#each currentFormStep.questions as question (question.id)}
-          <QuestionRenderer {question} {storagePrefix} />
-        {/each}
-      {/if}
+				<button
+					on:click={submitApplication}
+					class="btn btn-tertiary"
+					style="margin-top: 20px; padding: 10px 40px;"
+					disabled={submitting}
+				>
+					{submitting ? 'Submitting...' : 'Submit Application'}
+				</button>
+			{:else if currentFormStep}
+				<!-- Dynamic question step -->
+				<h4>{currentFormStep.title}</h4>
+				{#each currentFormStep.questions as question (question.id)}
+					<QuestionRenderer {question} {storagePrefix} />
+				{/each}
+			{/if}
 
-      <!-- Footer navigation -->
-      <div class="footer-nav">
-        {#if !isFirstStep}
-          <button class="btn btn-quaternary" on:click={prevStep}>
-            <i class="fi fi-br-arrow-left"></i> Back
-          </button>
-        {:else}
-          <div></div>
-        {/if}
-        {#if !isReviewStep}
-          <button class="btn btn-tertiary" on:click={nextStep}>
-            Next <i class="fi fi-br-arrow-right"></i>
-          </button>
-        {/if}
-      </div>
-    </div>
-  </div>
+			<!-- Footer navigation -->
+			<div class="footer-nav">
+				{#if !isFirstStep}
+					<button class="btn btn-quaternary" on:click={prevStep}>
+						<i class="fi fi-br-arrow-left"></i> Back
+					</button>
+				{:else}
+					<div></div>
+				{/if}
+				{#if !isReviewStep}
+					<button class="btn btn-tertiary" on:click={nextStep}>
+						Next <i class="fi fi-br-arrow-right"></i>
+					</button>
+				{/if}
+			</div>
+		</div>
+	</div>
 {/if}
 
 <style lang="scss">
-  @use '../../../../styles/col.scss' as *;
+	@use '../../../../styles/col.scss' as *;
 
-  .loading-screen {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-    background-color: $light-secondary;
-  }
-  .error-card {
-    background-color: $dark-primary;
-    border-radius: 10px;
-    padding: 40px;
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 15px;
-  }
+	.loading-screen {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		min-height: 100vh;
+		background-color: $light-secondary;
+	}
+	.error-card {
+		background-color: $dark-primary;
+		border-radius: 10px;
+		padding: 40px;
+		text-align: center;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 15px;
+	}
 
-  .navbar {
-    grid-area: navbar;
-    display: flex;
-    justify-content: space-between;
-    padding: 0;
-    background-color: $dark-primary;
-    border-bottom: 1px $dark-secondary solid;
-  }
-  .navbar-left { display: flex; }
-  .navbar-logo {
-    display: flex;
-    height: 45px;
-    width: 45px;
-    align-items: center;
-    justify-content: center;
-    border-right: 1px $dark-secondary solid;
-  }
-  .navbar-year {
-    display: flex;
-    height: 45px;
-    width: 160px;
-    align-items: center;
-    justify-content: center;
-    border-right: 1px $dark-secondary solid;
-  }
-  .navbar-search {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .navbar-right { display: flex; }
+	.navbar {
+		grid-area: navbar;
+		display: flex;
+		justify-content: space-between;
+		padding: 0;
+		background-color: $dark-primary;
+		border-bottom: 1px $dark-secondary solid;
+	}
+	.navbar-left {
+		display: flex;
+	}
+	.navbar-logo {
+		display: flex;
+		height: 45px;
+		width: 45px;
+		align-items: center;
+		justify-content: center;
+		border-right: 1px $dark-secondary solid;
+	}
+	.navbar-year {
+		display: flex;
+		height: 45px;
+		width: 160px;
+		align-items: center;
+		justify-content: center;
+		border-right: 1px $dark-secondary solid;
+	}
+	.navbar-search {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+	.navbar-right {
+		display: flex;
+	}
 
-  .sidebar {
-    grid-area: sidebar;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding-top: 5px;
-    background-color: $dark-primary;
-  }
-  .step-sidebar {
-    display: flex;
-    margin-top: 5px;
-    margin-bottom: 5px;
-    padding-left: 10px;
-    height: 35px;
-    width: 195px;
-    font-weight: 600;
-    align-items: center;
-    justify-content: start;
-    background-color: transparent;
-    border: none;
-    font-size: 12px;
-    color: white;
-  }
-  .step-sidebar i {
-    display: flex;
-    align-items: center;
-    font-size: 16px;
-    margin-right: 15px;
-  }
-  .step-selected .step-sidebar {
-    background-color: $dark-secondary;
-    border-radius: 5px;
-  }
-  .step-disabled .step-sidebar {
-    color: $light-tertiary;
-  }
+	.sidebar {
+		grid-area: sidebar;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		padding-top: 5px;
+		background-color: $dark-primary;
+	}
+	.step-sidebar {
+		display: flex;
+		margin-top: 5px;
+		margin-bottom: 5px;
+		padding-left: 10px;
+		height: 35px;
+		width: 195px;
+		font-weight: 600;
+		align-items: center;
+		justify-content: start;
+		background-color: transparent;
+		border: none;
+		font-size: 12px;
+		color: white;
+	}
+	.step-sidebar i {
+		display: flex;
+		align-items: center;
+		font-size: 16px;
+		margin-right: 15px;
+	}
+	.step-selected .step-sidebar {
+		background-color: $dark-secondary;
+		border-radius: 5px;
+	}
+	.step-disabled .step-sidebar {
+		color: $light-tertiary;
+	}
 
-  .footer-nav {
-    display: flex;
-    justify-content: space-between;
-    width: 100%;
-    max-width: 500px;
-    margin-top: 20px;
-    padding: 10px 0;
-  }
+	.footer-nav {
+		display: flex;
+		justify-content: space-between;
+		width: 100%;
+		max-width: 500px;
+		margin-top: 20px;
+		padding: 10px 0;
+	}
 
-  .review-hint {
-    font-size: 13px;
-    color: $light-tertiary;
-    margin-bottom: 12px;
-  }
-  .review-card {
-    cursor: pointer;
-    transition: box-shadow 0.2s ease, border-color 0.2s ease;
-    border: 1px solid transparent;
-    &:hover {
-      border-color: $yellow-primary;
-      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-    }
-  }
-  .review-field {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 8px 0;
-    border-bottom: 1px solid #f1f5f9;
-    &:last-child { border-bottom: none; }
-  }
-  .review-label {
-    font-size: 11px;
-    font-weight: 700;
-    color: $light-tertiary;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-  }
-  .review-value {
-    font-size: 14px;
-    color: $dark-primary;
-    word-break: break-word;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-  .review-tag {
-    display: inline-block;
-    background-color: #f1f5f9;
-    color: $dark-primary;
-    font-size: 12px;
-    padding: 2px 8px;
-    border-radius: 4px;
-  }
-  .review-empty {
-    color: $light-tertiary;
-    font-style: italic;
-    font-size: 13px;
-  }
-  .required {
-    color: #ef4444;
-  }
-  .field-error {
-    color: #ef4444;
-    font-size: 12px;
-    margin: 4px 0 0;
-  }
-  .is-invalid {
-    border-color: #ef4444 !important;
-  }
+	.review-hint {
+		font-size: 13px;
+		color: $light-tertiary;
+		margin-bottom: 12px;
+	}
+	.review-card {
+		cursor: pointer;
+		transition:
+			box-shadow 0.2s ease,
+			border-color 0.2s ease;
+		border: 1px solid transparent;
+		&:hover {
+			border-color: $yellow-primary;
+			box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+		}
+	}
+	.review-field {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding: 8px 0;
+		border-bottom: 1px solid #f1f5f9;
+		&:last-child {
+			border-bottom: none;
+		}
+	}
+	.review-label {
+		font-size: 11px;
+		font-weight: 700;
+		color: $light-tertiary;
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+	}
+	.review-value {
+		font-size: 14px;
+		color: $dark-primary;
+		word-break: break-word;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px;
+	}
+	.review-tag {
+		display: inline-block;
+		background-color: #f1f5f9;
+		color: $dark-primary;
+		font-size: 12px;
+		padding: 2px 8px;
+		border-radius: 4px;
+	}
+	.review-empty {
+		color: $light-tertiary;
+		font-style: italic;
+		font-size: 13px;
+	}
+	.required {
+		color: #ef4444;
+	}
+	.field-error {
+		color: #ef4444;
+		font-size: 12px;
+		margin: 4px 0 0;
+	}
+	.is-invalid {
+		border-color: #ef4444 !important;
+	}
 
-  .mobile-progress {
-    grid-area: content;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    background-color: $dark-primary;
-    padding: 10px 16px 6px;
-    border-bottom: 1px solid $dark-secondary;
-  }
-  .mobile-progress-text {
-    font-size: 12px;
-    font-weight: 600;
-    color: white;
-    margin-bottom: 6px;
-  }
-  .mobile-progress-bar {
-    height: 4px;
-    background-color: $dark-secondary;
-    border-radius: 2px;
-    overflow: hidden;
-  }
-  .mobile-progress-fill {
-    height: 100%;
-    background-color: $yellow-primary;
-    border-radius: 2px;
-    transition: width 0.3s ease;
-  }
+	.mobile-progress {
+		grid-area: content;
+		position: sticky;
+		top: 0;
+		z-index: 10;
+		background-color: $dark-primary;
+		padding: 10px 16px 6px;
+		border-bottom: 1px solid $dark-secondary;
+	}
+	.mobile-progress-text {
+		font-size: 12px;
+		font-weight: 600;
+		color: white;
+		margin-bottom: 6px;
+	}
+	.mobile-progress-bar {
+		height: 4px;
+		background-color: $dark-secondary;
+		border-radius: 2px;
+		overflow: hidden;
+	}
+	.mobile-progress-fill {
+		height: 100%;
+		background-color: $yellow-primary;
+		border-radius: 2px;
+		transition: width 0.3s ease;
+	}
 </style>

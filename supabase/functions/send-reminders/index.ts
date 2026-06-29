@@ -16,8 +16,8 @@ import { applicantEmail, interviewerEmail } from '../_shared/templates.ts';
 
 interface InterviewRow {
 	id: number;
-	"start_time": string;
-	"end_time": string | null;
+	start_time: string;
+	end_time: string | null;
 	location: string;
 	type: 'individual' | 'group';
 	job: number | null;
@@ -63,7 +63,7 @@ Deno.serve(async (req: Request) => {
 		}
 
 		// Check which interviews already have reminders sent
-		const interviewIds = (interviews as InterviewRow[]).map(iv => iv.id);
+		const interviewIds = (interviews as InterviewRow[]).map((iv) => iv.id);
 		const { data: existingReminders } = await supabase
 			.from('email_log')
 			.select('interview_id, type')
@@ -71,31 +71,37 @@ Deno.serve(async (req: Request) => {
 			.in('type', ['applicant_reminder', 'interviewer_reminder']);
 
 		const sentReminders = new Set(
-			(existingReminders ?? []).map(r => `${r.interview_id}:${r.type}`)
+			(existingReminders ?? []).map((r) => `${r.interview_id}:${r.type}`)
 		);
 
 		// Group by org for org-specific settings
-		const orgIds = [...new Set((interviews as InterviewRow[]).map(iv => iv.org_id))];
+		const orgIds = [...new Set((interviews as InterviewRow[]).map((iv) => iv.org_id))];
 		const { data: orgs } = await supabase
 			.from('organizations')
 			.select('id, name, email_settings')
 			.in('id', orgIds);
 
-		const orgMap = new Map((orgs ?? []).map(o => [o.id, o]));
+		const orgMap = new Map((orgs ?? []).map((o) => [o.id, o]));
 
 		// Fetch job titles
-		const jobIds = [...new Set((interviews as InterviewRow[]).map(iv => iv.job).filter(Boolean))] as number[];
-		const { data: jobs } = jobIds.length > 0
-			? await supabase.from('job_posting').select('id, name').in('id', jobIds)
-			: { data: [] };
-		const jobMap = new Map((jobs ?? []).map(j => [j.id, j.name]));
+		const jobIds = [
+			...new Set((interviews as InterviewRow[]).map((iv) => iv.job).filter(Boolean))
+		] as number[];
+		const { data: jobs } =
+			jobIds.length > 0
+				? await supabase.from('job_posting').select('id, name').in('id', jobIds)
+				: { data: [] };
+		const jobMap = new Map((jobs ?? []).map((j) => [j.id, j.name]));
 
 		// Fetch applicant names
-		const applicantEmails = [...new Set((interviews as InterviewRow[]).map(iv => iv.applicant).filter(Boolean))] as string[];
-		const { data: applicants } = applicantEmails.length > 0
-			? await supabase.from('applicants').select('email, name').in('email', applicantEmails)
-			: { data: [] };
-		const applicantMap = new Map((applicants ?? []).map(a => [a.email, a.name]));
+		const applicantEmails = [
+			...new Set((interviews as InterviewRow[]).map((iv) => iv.applicant).filter(Boolean))
+		] as string[];
+		const { data: applicants } =
+			applicantEmails.length > 0
+				? await supabase.from('applicants').select('email, name').in('email', applicantEmails)
+				: { data: [] };
+		const applicantMap = new Map((applicants ?? []).map((a) => [a.email, a.name]));
 
 		const results = { sent: 0, skipped: 0, failed: 0, errors: [] as string[] };
 		const defaultFrom = Deno.env.get('LUMA_FROM_EMAIL') ?? 'LUMA ATS <noreply@example.com>';
@@ -115,12 +121,14 @@ Deno.serve(async (req: Request) => {
 					applicantName,
 					orgName,
 					jobTitle,
-					slots: [{
-						startTime: new Date(iv.start_time),
-						endTime: iv.end_time ? new Date(iv.end_time) : null,
-						location: iv.location,
-						type: iv.type
-					}],
+					slots: [
+						{
+							startTime: new Date(iv.start_time),
+							endTime: iv.end_time ? new Date(iv.end_time) : null,
+							location: iv.location,
+							type: iv.type
+						}
+					],
 					replyToEmail
 				});
 
@@ -160,13 +168,15 @@ Deno.serve(async (req: Request) => {
 					interviewerName,
 					orgName,
 					jobTitle,
-					slots: [{
-						startTime: new Date(iv.start_time),
-						endTime: iv.end_time ? new Date(iv.end_time) : null,
-						location: iv.location,
-						type: iv.type,
-						applicantName: applicantMap.get(iv.applicant ?? '') ?? iv.applicant ?? 'TBD'
-					}]
+					slots: [
+						{
+							startTime: new Date(iv.start_time),
+							endTime: iv.end_time ? new Date(iv.end_time) : null,
+							location: iv.location,
+							type: iv.type,
+							applicantName: applicantMap.get(iv.applicant ?? '') ?? iv.applicant ?? 'TBD'
+						}
+					]
 				});
 
 				const sendResult = await sendViaResend({

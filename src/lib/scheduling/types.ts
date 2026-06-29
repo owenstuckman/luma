@@ -99,10 +99,10 @@ export interface BatchSessionWindow {
 }
 
 export interface AttributeMatchRule {
-	applicantQuestionId: string;    // question id in job_posting.questions (key in recruitInfo)
+	applicantQuestionId: string; // question id in job_posting.questions (key in recruitInfo)
 	interviewerAttributeKey: string; // key in org_members.metadata
-	weight: number;                  // score bonus for a match
-	hard: boolean;                   // if true, prefer only matching interviewers (falls back if none)
+	weight: number; // score bonus for a match
+	hard: boolean; // if true, prefer only matching interviewers (falls back if none)
 }
 
 /**

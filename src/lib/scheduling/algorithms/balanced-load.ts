@@ -1,10 +1,16 @@
-import type { SchedulingAlgorithm, SchedulerInput, SchedulerOutput, ProposedInterview } from '../types';
+import type {
+	SchedulingAlgorithm,
+	SchedulerInput,
+	SchedulerOutput,
+	ProposedInterview
+} from '../types';
 import { findOverlappingSlots, findFirstAvailableSlot, toISO } from '../utils';
 
 export const balancedLoad: SchedulingAlgorithm = {
 	id: 'balanced-load',
 	name: 'Balanced Load',
-	description: 'Distributes interviews evenly across interviewers by always picking the one with the fewest assignments.',
+	description:
+		'Distributes interviews evenly across interviewers by always picking the one with the fewest assignments.',
 	configSchema: [],
 	run(input: SchedulerInput): SchedulerOutput {
 		const { applicants, interviewers, existingInterviews, config } = input;
@@ -14,7 +20,7 @@ export const balancedLoad: SchedulingAlgorithm = {
 
 		if (interviewers.length === 0) {
 			warnings.push('No interviewers with availability found.');
-			return { interviews: proposed, unmatched: applicants.map(a => a.email), warnings };
+			return { interviews: proposed, unmatched: applicants.map((a) => a.email), warnings };
 		}
 
 		// Count existing assignments per interviewer
@@ -24,8 +30,9 @@ export const balancedLoad: SchedulingAlgorithm = {
 		}
 
 		function getCount(email: string): number {
-			return (assignmentCount.get(email) || 0) +
-				proposed.filter(p => p.interviewer === email).length;
+			return (
+				(assignmentCount.get(email) || 0) + proposed.filter((p) => p.interviewer === email).length
+			);
 		}
 
 		for (const applicant of applicants) {
@@ -34,7 +41,10 @@ export const balancedLoad: SchedulingAlgorithm = {
 			let matched = false;
 
 			for (const interviewer of sorted) {
-				if (config.maxInterviewsPerInterviewer > 0 && getCount(interviewer.email) >= config.maxInterviewsPerInterviewer) {
+				if (
+					config.maxInterviewsPerInterviewer > 0 &&
+					getCount(interviewer.email) >= config.maxInterviewsPerInterviewer
+				) {
 					continue;
 				}
 
@@ -75,7 +85,9 @@ export const balancedLoad: SchedulingAlgorithm = {
 		}
 
 		if (unmatched.length > 0) {
-			warnings.push(`${unmatched.length} applicant(s) could not be scheduled due to no overlapping availability.`);
+			warnings.push(
+				`${unmatched.length} applicant(s) could not be scheduled due to no overlapping availability.`
+			);
 		}
 
 		return { interviews: proposed, unmatched, warnings };

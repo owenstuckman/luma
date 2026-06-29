@@ -1,6 +1,21 @@
 import { createBrowserClient } from '@supabase/ssr';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
-import type { Organization, OrgMember, JobPosting, Applicant, Interview, AdminUser, PlatformAdmin, AdminJobPosting, UserMembership, AdminApplicant, PlatformSettings, AdminAnalytics, SchedulingConfigRow, InterviewerAvailability } from '$lib/types';
+import type {
+	Organization,
+	OrgMember,
+	JobPosting,
+	Applicant,
+	Interview,
+	AdminUser,
+	PlatformAdmin,
+	AdminJobPosting,
+	UserMembership,
+	AdminApplicant,
+	PlatformSettings,
+	AdminAnalytics,
+	SchedulingConfigRow,
+	InterviewerAvailability
+} from '$lib/types';
 
 const supabase = createBrowserClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY);
 
@@ -23,11 +38,7 @@ export const getOrgBySlug = async (slug: string): Promise<Organization | null> =
 };
 
 export const getOrgById = async (id: number): Promise<Organization | null> => {
-	const { data, error } = await supabase
-		.from('organizations')
-		.select('*')
-		.eq('id', id)
-		.single();
+	const { data, error } = await supabase.from('organizations').select('*').eq('id', id).single();
 
 	if (error) {
 		console.error('Error fetching org:', error);
@@ -60,9 +71,7 @@ export const createOrganization = async (name: string, slug: string): Promise<Or
 };
 
 export const getUserOrgs = async (): Promise<(OrgMember & { organizations: Organization })[]> => {
-	const { data, error } = await supabase
-		.from('org_members')
-		.select('*, organizations(*)');
+	const { data, error } = await supabase.from('org_members').select('*, organizations(*)');
 
 	if (error) {
 		console.error('Error fetching user orgs:', error);
@@ -118,10 +127,7 @@ export const getAllJobPostings = async (orgId: number) => {
 };
 
 export const getRoleByID = async (id: number) => {
-	const { data, error } = await supabase
-		.from('job_posting')
-		.select('*')
-		.eq('id', id);
+	const { data, error } = await supabase.from('job_posting').select('*').eq('id', id);
 
 	if (error) {
 		console.error('Error fetching data:', error);
@@ -167,10 +173,7 @@ export const updateJobPosting = async (id: number, updates: Partial<JobPosting>)
 };
 
 export const deleteJobPosting = async (id: number) => {
-	const { error } = await supabase
-		.from('job_posting')
-		.delete()
-		.eq('id', id);
+	const { error } = await supabase.from('job_posting').delete().eq('id', id);
 
 	if (error) {
 		console.error('Error deleting job posting:', error);
@@ -198,9 +201,7 @@ export const toggleJobPostingActive = async (id: number, active: boolean) => {
 // ============================================
 
 export const sendApplication = async (row: object) => {
-	const { data, error } = await supabase
-		.from('applicants')
-		.insert(row);
+	const { data, error } = await supabase.from('applicants').insert(row);
 
 	if (error) {
 		console.error('Error sending application:', error);
@@ -208,7 +209,6 @@ export const sendApplication = async (row: object) => {
 	}
 	return data;
 };
-
 
 export const getAllApplicants = async (orgId?: number) => {
 	let query = supabase.from('applicants').select('*');
@@ -223,10 +223,7 @@ export const getAllApplicants = async (orgId?: number) => {
 };
 
 export const getApplicantData = async (id: number) => {
-	const { data, error } = await supabase
-		.from('applicants')
-		.select('*')
-		.eq('id', id);
+	const { data, error } = await supabase.from('applicants').select('*').eq('id', id);
 
 	if (error) {
 		console.error('Error fetching applicant:', error);
@@ -255,7 +252,7 @@ export const addComment = async (
 	newID: number,
 	comment: string,
 	email: string,
-	decision: string,
+	decision: string
 ) => {
 	const { data: applicantData, error: fetchError } = await supabase
 		.from('applicants')
@@ -368,10 +365,7 @@ export const updateInterview = async (id: number, updates: Partial<Interview>) =
 };
 
 export const deleteInterview = async (id: number) => {
-	const { error } = await supabase
-		.from('interviews')
-		.delete()
-		.eq('id', id);
+	const { error } = await supabase.from('interviews').delete().eq('id', id);
 
 	if (error) {
 		console.error('Error deleting interview:', error);
@@ -390,9 +384,7 @@ export const createInterview = async (interviewData: {
 	interviewer: string;
 	org_id: number;
 }) => {
-	const { data, error } = await supabase
-		.from('interviews')
-		.insert(interviewData);
+	const { data, error } = await supabase.from('interviews').insert(interviewData);
 
 	if (error) {
 		console.error('Error creating interview:', error);
@@ -406,10 +398,7 @@ export const createInterview = async (interviewData: {
 // ============================================
 
 export const getOrgMembers = async (orgId: number) => {
-	const { data, error } = await supabase
-		.from('org_members')
-		.select('*')
-		.eq('org_id', orgId);
+	const { data, error } = await supabase.from('org_members').select('*').eq('org_id', orgId);
 
 	if (error) {
 		console.error('Error fetching org members:', error);
@@ -420,7 +409,7 @@ export const getOrgMembers = async (orgId: number) => {
 
 export const getOrgMembersWithEmail = async (orgId: number) => {
 	const { data, error } = await supabase.rpc('get_org_members_with_email', {
-		target_org_id: orgId,
+		target_org_id: orgId
 	});
 
 	if (error) {
@@ -430,11 +419,15 @@ export const getOrgMembersWithEmail = async (orgId: number) => {
 	return data as (OrgMember & { email: string })[];
 };
 
-export const inviteMemberByEmail = async (orgId: number, email: string, role: string = 'recruiter') => {
+export const inviteMemberByEmail = async (
+	orgId: number,
+	email: string,
+	role: string = 'recruiter'
+) => {
 	const { data, error } = await supabase.rpc('invite_member_by_email', {
 		target_org_id: orgId,
 		target_email: email,
-		target_role: role,
+		target_role: role
 	});
 
 	if (error) {
@@ -449,7 +442,7 @@ export const inviteMemberByEmail = async (orgId: number, email: string, role: st
 export const removeMember = async (orgId: number, userId: string) => {
 	const { data, error } = await supabase.rpc('remove_org_member', {
 		target_org_id: orgId,
-		target_user_id: userId,
+		target_user_id: userId
 	});
 
 	if (error) {
@@ -461,7 +454,11 @@ export const removeMember = async (orgId: number, userId: string) => {
 	return data;
 };
 
-export const updateMemberMetadata = async (orgId: number, userId: string, metadata: Record<string, unknown>) => {
+export const updateMemberMetadata = async (
+	orgId: number,
+	userId: string,
+	metadata: Record<string, unknown>
+) => {
 	const { error } = await supabase
 		.from('org_members')
 		.update({ metadata })
@@ -475,7 +472,7 @@ export const updateMemberRole = async (orgId: number, userId: string, role: stri
 	const { data, error } = await supabase.rpc('update_member_role', {
 		target_org_id: orgId,
 		target_user_id: userId,
-		new_role: role,
+		new_role: role
 	});
 
 	if (error) {
@@ -511,7 +508,7 @@ export const getPlatformAdmins = async (): Promise<PlatformAdmin[]> => {
 
 export const addPlatformAdminByEmail = async (email: string) => {
 	const { data, error } = await supabase.rpc('add_platform_admin_by_email', {
-		target_email: email,
+		target_email: email
 	});
 	if (error) throw new Error(error.message);
 	if (data?.error) throw new Error(data.error);
@@ -520,7 +517,7 @@ export const addPlatformAdminByEmail = async (email: string) => {
 
 export const removePlatformAdminById = async (userId: string) => {
 	const { data, error } = await supabase.rpc('remove_platform_admin', {
-		target_user_id: userId,
+		target_user_id: userId
 	});
 	if (error) throw new Error(error.message);
 	if (data?.error) throw new Error(data.error);
@@ -528,15 +525,18 @@ export const removePlatformAdminById = async (userId: string) => {
 };
 
 export const adminCreateOrganization = async (
-	name: string, slug: string, ownerEmail: string,
-	primaryColor: string = '#ffc800', secondaryColor: string = '#0F1112'
+	name: string,
+	slug: string,
+	ownerEmail: string,
+	primaryColor: string = '#ffc800',
+	secondaryColor: string = '#0F1112'
 ) => {
 	const { data, error } = await supabase.rpc('admin_create_organization', {
 		org_name: name,
 		org_slug: slug,
 		owner_email: ownerEmail,
 		p_color: primaryColor,
-		s_color: secondaryColor,
+		s_color: secondaryColor
 	});
 	if (error) throw new Error(error.message);
 	if (data?.error) throw new Error(data.error);
@@ -545,7 +545,7 @@ export const adminCreateOrganization = async (
 
 export const adminDeleteOrganization = async (orgId: number) => {
 	const { data, error } = await supabase.rpc('admin_delete_organization', {
-		target_org_id: orgId,
+		target_org_id: orgId
 	});
 	if (error) throw new Error(error.message);
 	if (data?.error) throw new Error(data.error);
@@ -561,7 +561,7 @@ export const adminUpdateOrganization = async (
 		new_name: updates.name || null,
 		new_slug: updates.slug || null,
 		new_primary_color: updates.primary_color || null,
-		new_secondary_color: updates.secondary_color || null,
+		new_secondary_color: updates.secondary_color || null
 	});
 	if (error) throw new Error(error.message);
 	if (data?.error) throw new Error(data.error);
@@ -571,7 +571,7 @@ export const adminUpdateOrganization = async (
 export const adminTransferOwnership = async (orgId: number, newOwnerEmail: string) => {
 	const { data, error } = await supabase.rpc('admin_transfer_ownership', {
 		target_org_id: orgId,
-		new_owner_email: newOwnerEmail,
+		new_owner_email: newOwnerEmail
 	});
 	if (error) throw new Error(error.message);
 	if (data?.error) throw new Error(data.error);
@@ -589,7 +589,7 @@ export const getAllJobPostingsAdmin = async (): Promise<AdminJobPosting[]> => {
 
 export const getUserMembershipsAdmin = async (userId: string): Promise<UserMembership[]> => {
 	const { data, error } = await supabase.rpc('get_user_memberships_admin', {
-		target_user_id: userId,
+		target_user_id: userId
 	});
 	if (error) {
 		console.error('Error fetching user memberships:', error);
@@ -598,11 +598,15 @@ export const getUserMembershipsAdmin = async (userId: string): Promise<UserMembe
 	return data as UserMembership[];
 };
 
-export const adminAddUserToOrg = async (orgId: number, email: string, role: string = 'recruiter') => {
+export const adminAddUserToOrg = async (
+	orgId: number,
+	email: string,
+	role: string = 'recruiter'
+) => {
 	const { data, error } = await supabase.rpc('admin_add_user_to_org', {
 		target_org_id: orgId,
 		target_email: email,
-		target_role: role,
+		target_role: role
 	});
 	if (error) throw new Error(error.message);
 	if (data?.error) throw new Error(data.error);
@@ -612,7 +616,7 @@ export const adminAddUserToOrg = async (orgId: number, email: string, role: stri
 export const adminRemoveUserFromOrg = async (orgId: number, userId: string) => {
 	const { data, error } = await supabase.rpc('admin_remove_user_from_org', {
 		target_org_id: orgId,
-		target_user_id: userId,
+		target_user_id: userId
 	});
 	if (error) throw new Error(error.message);
 	if (data?.error) throw new Error(data.error);
@@ -623,7 +627,7 @@ export const adminChangeUserRole = async (orgId: number, userId: string, role: s
 	const { data, error } = await supabase.rpc('admin_change_user_role', {
 		target_org_id: orgId,
 		target_user_id: userId,
-		new_role: role,
+		new_role: role
 	});
 	if (error) throw new Error(error.message);
 	if (data?.error) throw new Error(data.error);
@@ -648,7 +652,7 @@ export const adminCreateJobPosting = async (posting: {
 		job_owner: posting.owner,
 		job_org_id: posting.org_id,
 		job_questions: posting.questions,
-		job_schedule: posting.schedule,
+		job_schedule: posting.schedule
 	});
 	if (error) throw new Error(error.message);
 	if (data?.error) throw new Error(data.error);
@@ -671,7 +675,7 @@ export const getAllApplicantsAdmin = async (): Promise<AdminApplicant[]> => {
 export const adminBulkUpdateStatus = async (ids: number[], status: string) => {
 	const { data, error } = await supabase.rpc('admin_bulk_update_applicant_status', {
 		applicant_ids: ids,
-		new_status: status,
+		new_status: status
 	});
 	if (error) throw new Error(error.message);
 	if (data?.error) throw new Error(data.error);
@@ -680,7 +684,7 @@ export const adminBulkUpdateStatus = async (ids: number[], status: string) => {
 
 export const adminBulkDeleteApplicants = async (ids: number[]) => {
 	const { data, error } = await supabase.rpc('admin_bulk_delete_applicants', {
-		applicant_ids: ids,
+		applicant_ids: ids
 	});
 	if (error) throw new Error(error.message);
 	if (data?.error) throw new Error(data.error);
@@ -702,7 +706,7 @@ export const getPlatformSettings = async (): Promise<PlatformSettings> => {
 
 export const updatePlatformSettings = async (settings: PlatformSettings) => {
 	const { data, error } = await supabase.rpc('update_platform_settings', {
-		new_settings: settings,
+		new_settings: settings
 	});
 	if (error) throw new Error(error.message);
 	if (data?.error) throw new Error(data.error);
@@ -732,11 +736,11 @@ export const isMaintenanceMode = async (): Promise<boolean> => {
 // Scheduling functions
 // ============================================
 
-export const getSchedulingConfig = async (orgId: number, jobId?: number): Promise<SchedulingConfigRow | null> => {
-	let query = supabase
-		.from('scheduling_config')
-		.select('*')
-		.eq('org_id', orgId);
+export const getSchedulingConfig = async (
+	orgId: number,
+	jobId?: number
+): Promise<SchedulingConfigRow | null> => {
+	let query = supabase.from('scheduling_config').select('*').eq('org_id', orgId);
 
 	if (jobId) {
 		query = query.eq('job_id', jobId);
@@ -786,21 +790,14 @@ export const bulkCreateInterviews = async (
 		violations?: { type: string; detail: string }[] | null;
 	}[]
 ) => {
-	const { data, error } = await supabase
-		.from('interviews')
-		.insert(interviews)
-		.select();
+	const { data, error } = await supabase.from('interviews').insert(interviews).select();
 
 	if (error) throw new Error(error.message);
 	return data;
 };
 
 export const clearAutoScheduledInterviews = async (orgId: number, jobId?: number) => {
-	let query = supabase
-		.from('interviews')
-		.delete()
-		.eq('org_id', orgId)
-		.eq('source', 'auto');
+	let query = supabase.from('interviews').delete().eq('org_id', orgId).eq('source', 'auto');
 
 	if (jobId) {
 		query = query.eq('job', jobId);
@@ -810,7 +807,9 @@ export const clearAutoScheduledInterviews = async (orgId: number, jobId?: number
 	if (error) throw new Error(error.message);
 };
 
-export const getInterviewerAvailability = async (orgId: number): Promise<InterviewerAvailability[]> => {
+export const getInterviewerAvailability = async (
+	orgId: number
+): Promise<InterviewerAvailability[]> => {
 	const { data, error } = await supabase
 		.from('interviewer_availability')
 		.select('*')
@@ -824,7 +823,9 @@ export const getInterviewerAvailability = async (orgId: number): Promise<Intervi
 	return data as InterviewerAvailability[];
 };
 
-export const getMyInterviewerAvailability = async (orgId: number): Promise<InterviewerAvailability[]> => {
+export const getMyInterviewerAvailability = async (
+	orgId: number
+): Promise<InterviewerAvailability[]> => {
 	const { data: userData } = await supabase.auth.getUser();
 	if (!userData?.user) return [];
 
@@ -858,7 +859,7 @@ export const saveInterviewerAvailability = async (
 
 	if (ranges.length === 0) return [];
 
-	const rows = ranges.map(r => ({
+	const rows = ranges.map((r) => ({
 		org_id: orgId,
 		user_id: userData.user.id,
 		email: userData.user.email || '',
@@ -868,10 +869,7 @@ export const saveInterviewerAvailability = async (
 		timezone: r.timezone
 	}));
 
-	const { data, error } = await supabase
-		.from('interviewer_availability')
-		.insert(rows)
-		.select();
+	const { data, error } = await supabase.from('interviewer_availability').insert(rows).select();
 
 	if (error) throw new Error(error.message);
 	return data;

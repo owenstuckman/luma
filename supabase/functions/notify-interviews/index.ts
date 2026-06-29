@@ -77,7 +77,8 @@ Deno.serve(async (req: Request) => {
 		if (!org) return jsonError('Organization not found', 404);
 
 		const orgName: string = org.name ?? 'Unknown Org';
-		const emailSettings: Record<string, unknown> = (org.email_settings as Record<string, unknown>) ?? {};
+		const emailSettings: Record<string, unknown> =
+			(org.email_settings as Record<string, unknown>) ?? {};
 		const replyToEmail = (emailSettings.replyToEmail as string | undefined) ?? undefined;
 
 		let interviewQuery = supabase
@@ -96,8 +97,12 @@ Deno.serve(async (req: Request) => {
 		}
 
 		// Fetch jobs and applicants for name lookups
-		const jobIds = [...new Set((interviews as InterviewRow[]).map((iv) => iv.job).filter(Boolean))] as number[];
-		const applicantEmails = [...new Set((interviews as InterviewRow[]).map((iv) => iv.applicant).filter(Boolean))] as string[];
+		const jobIds = [
+			...new Set((interviews as InterviewRow[]).map((iv) => iv.job).filter(Boolean))
+		] as number[];
+		const applicantEmails = [
+			...new Set((interviews as InterviewRow[]).map((iv) => iv.applicant).filter(Boolean))
+		] as string[];
 
 		const [{ data: jobs }, { data: applicants }] = await Promise.all([
 			jobIds.length > 0
@@ -169,8 +174,12 @@ Deno.serve(async (req: Request) => {
 
 		if (!resendApiKey) {
 			// Dry-run mode: return what would be sent without actually sending
-			const applicantCount = [...new Set((interviews as InterviewRow[]).map((iv) => iv.applicant).filter(Boolean))].length;
-			const interviewerCount = [...new Set((interviews as InterviewRow[]).map((iv) => iv.interviewer).filter(Boolean))].length;
+			const applicantCount = [
+				...new Set((interviews as InterviewRow[]).map((iv) => iv.applicant).filter(Boolean))
+			].length;
+			const interviewerCount = [
+				...new Set((interviews as InterviewRow[]).map((iv) => iv.interviewer).filter(Boolean))
+			].length;
 			return json({
 				dryRun: true,
 				message: 'RESEND_API_KEY not configured — dry run only',
@@ -187,7 +196,9 @@ Deno.serve(async (req: Request) => {
 			for (const iv of interviews as InterviewRow[]) {
 				if (!iv.applicant) continue;
 				const existing = byApplicant.get(iv.applicant) ?? [];
-				const isDup = existing.some((e) => e.start_time === iv.start_time && e.location === iv.location);
+				const isDup = existing.some(
+					(e) => e.start_time === iv.start_time && e.location === iv.location
+				);
 				if (!isDup) existing.push(iv);
 				byApplicant.set(iv.applicant, existing);
 			}
@@ -211,28 +222,31 @@ Deno.serve(async (req: Request) => {
 				});
 
 				// Build ICS attachment if enabled
-			const icsAttachments: { filename: string; content: string }[] = [];
-			if (attachICS) {
-				const seen = new Set<string>();
-				const events = ivs
-					.filter(iv => {
-						const key = `${iv.start_time}|${iv.location}`;
-						if (seen.has(key)) return false;
-						seen.add(key);
-						return true;
-					})
-					.map(iv => ({
-						uid: `${iv.id}-applicant@luma`,
-						start: iv.start_time,
-						end: iv.end_time ?? iv.start_time,
-						summary: `Interview – ${getJobTitle(iv.job)} @ ${orgName}`,
-						description: `Format: ${iv.type === 'group' ? 'Group Interview' : 'Individual Interview'}\nLocation: ${iv.location || 'TBD'}`,
-						location: iv.location || ''
-					}));
-				if (events.length > 0) {
-					icsAttachments.push({ filename: 'interview-invite.ics', content: buildICSForRecipient(events) });
+				const icsAttachments: { filename: string; content: string }[] = [];
+				if (attachICS) {
+					const seen = new Set<string>();
+					const events = ivs
+						.filter((iv) => {
+							const key = `${iv.start_time}|${iv.location}`;
+							if (seen.has(key)) return false;
+							seen.add(key);
+							return true;
+						})
+						.map((iv) => ({
+							uid: `${iv.id}-applicant@luma`,
+							start: iv.start_time,
+							end: iv.end_time ?? iv.start_time,
+							summary: `Interview – ${getJobTitle(iv.job)} @ ${orgName}`,
+							description: `Format: ${iv.type === 'group' ? 'Group Interview' : 'Individual Interview'}\nLocation: ${iv.location || 'TBD'}`,
+							location: iv.location || ''
+						}));
+					if (events.length > 0) {
+						icsAttachments.push({
+							filename: 'interview-invite.ics',
+							content: buildICSForRecipient(events)
+						});
+					}
 				}
-			}
 
 				const sendResult = await sendViaResend({
 					apiKey: resendApiKey,
@@ -295,20 +309,23 @@ Deno.serve(async (req: Request) => {
 				});
 
 				// Build ICS attachment if enabled
-			const icsAttachments: { filename: string; content: string }[] = [];
-			if (attachICS) {
-				const events = ivs.map(iv => ({
-					uid: `${iv.id}-interviewer@luma`,
-					start: iv.start_time,
-					end: iv.end_time ?? iv.start_time,
-					summary: `Interview with ${getApplicantName(iv.applicant ?? '')} – ${getJobTitle(iv.job)}`,
-					description: `Applicant: ${iv.applicant || 'TBD'}\nFormat: ${iv.type === 'group' ? 'Group Interview' : 'Individual Interview'}\nLocation: ${iv.location || 'TBD'}`,
-					location: iv.location || ''
-				}));
-				if (events.length > 0) {
-					icsAttachments.push({ filename: 'interview-schedule.ics', content: buildICSForRecipient(events) });
+				const icsAttachments: { filename: string; content: string }[] = [];
+				if (attachICS) {
+					const events = ivs.map((iv) => ({
+						uid: `${iv.id}-interviewer@luma`,
+						start: iv.start_time,
+						end: iv.end_time ?? iv.start_time,
+						summary: `Interview with ${getApplicantName(iv.applicant ?? '')} – ${getJobTitle(iv.job)}`,
+						description: `Applicant: ${iv.applicant || 'TBD'}\nFormat: ${iv.type === 'group' ? 'Group Interview' : 'Individual Interview'}\nLocation: ${iv.location || 'TBD'}`,
+						location: iv.location || ''
+					}));
+					if (events.length > 0) {
+						icsAttachments.push({
+							filename: 'interview-schedule.ics',
+							content: buildICSForRecipient(events)
+						});
+					}
 				}
-			}
 
 				const sendResult = await sendViaResend({
 					apiKey: resendApiKey,
@@ -356,21 +373,39 @@ function icsEscape(s: string): string {
 	return s.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
 }
 
-function buildICSForRecipient(events: { uid: string; start: string; end: string; summary: string; description: string; location: string }[]): string {
+function buildICSForRecipient(
+	events: {
+		uid: string;
+		start: string;
+		end: string;
+		summary: string;
+		description: string;
+		location: string;
+	}[]
+): string {
 	const stamp = formatICSDate(new Date().toISOString()) + 'Z';
-	const vevents = events.map(e => [
-		'BEGIN:VEVENT',
-		`UID:${e.uid}`,
-		`DTSTAMP:${stamp}`,
-		`DTSTART:${formatICSDate(e.start)}`,
-		`DTEND:${formatICSDate(e.end || e.start)}`,
-		`SUMMARY:${icsEscape(e.summary)}`,
-		`DESCRIPTION:${icsEscape(e.description)}`,
-		`LOCATION:${icsEscape(e.location)}`,
-		'END:VEVENT'
-	].join('\r\n'));
+	const vevents = events.map((e) =>
+		[
+			'BEGIN:VEVENT',
+			`UID:${e.uid}`,
+			`DTSTAMP:${stamp}`,
+			`DTSTART:${formatICSDate(e.start)}`,
+			`DTEND:${formatICSDate(e.end || e.start)}`,
+			`SUMMARY:${icsEscape(e.summary)}`,
+			`DESCRIPTION:${icsEscape(e.description)}`,
+			`LOCATION:${icsEscape(e.location)}`,
+			'END:VEVENT'
+		].join('\r\n')
+	);
 
-	return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//LUMA ATS//EN', 'CALSCALE:GREGORIAN', ...vevents, 'END:VCALENDAR'].join('\r\n');
+	return [
+		'BEGIN:VCALENDAR',
+		'VERSION:2.0',
+		'PRODID:-//LUMA ATS//EN',
+		'CALSCALE:GREGORIAN',
+		...vevents,
+		'END:VCALENDAR'
+	].join('\r\n');
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -392,7 +427,7 @@ async function sendViaResend(params: {
 	};
 	if (params.replyTo) body.reply_to = params.replyTo;
 	if (params.attachments && params.attachments.length > 0) {
-		body.attachments = params.attachments.map(a => ({
+		body.attachments = params.attachments.map((a) => ({
 			filename: a.filename,
 			content: btoa(a.content)
 		}));

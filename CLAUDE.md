@@ -8,19 +8,20 @@ LUMA is an open-source Applicant Tracking System (ATS) built with SvelteKit. It 
 
 ## Commands
 
-| Command | Purpose |
-|---|---|
-| `npm run dev` | Start dev server |
-| `npm run build` | Production build (Vercel adapter) |
-| `npm run preview` | Preview production build |
-| `npm run check` | Type-check with svelte-check |
-| `npm run lint` | Prettier + ESLint check |
-| `npm run format` | Auto-format with Prettier |
-| `npm test` | Run Playwright E2E tests (builds first) |
+| Command           | Purpose                                 |
+| ----------------- | --------------------------------------- |
+| `npm run dev`     | Start dev server                        |
+| `npm run build`   | Production build (Vercel adapter)       |
+| `npm run preview` | Preview production build                |
+| `npm run check`   | Type-check with svelte-check            |
+| `npm run lint`    | Prettier + ESLint check                 |
+| `npm run format`  | Auto-format with Prettier               |
+| `npm test`        | Run Playwright E2E tests (builds first) |
 
 ## Environment Variables
 
 Requires a `.env.local` with:
+
 - `PUBLIC_SUPABASE_URL` — Supabase project URL
 - `PUBLIC_SUPABASE_ANON_KEY` — Supabase public anon key
 
@@ -65,15 +66,16 @@ Two style systems coexist — **Bootstrap 5 + SCSS is dominant**; Tailwind CSS v
 Svelte 5 is installed but **most components use Svelte 4 patterns** (`export let`, `createEventDispatcher`, `$:` reactivity). The root layout uses Svelte 5 runes (`$props()`, `$derived()`, `{@render}`). Be consistent with the style of the file you're editing.
 
 **Applicant page template** — each step follows:
+
 ```svelte
 <div class="layout">
-  <div class="content">
-    <h4>Step Title</h4>
-    <!-- Card components from $lib/components/card/ -->
-    <Footer backNav="/applicant/prev" nextNav="/applicant/next"/>
-  </div>
-  <Navbar/>
-  <Sidebar currentStep={N}/>
+	<div class="content">
+		<h4>Step Title</h4>
+		<!-- Card components from $lib/components/card/ -->
+		<Footer backNav="/applicant/prev" nextNav="/applicant/next" />
+	</div>
+	<Navbar />
+	<Sidebar currentStep={N} />
 </div>
 ```
 

@@ -20,21 +20,25 @@ The current `/admin` page is a read-only dashboard: login, view org list with me
 ### 1. Organization Management
 
 **Create Organization**
+
 - Inline form or modal: name, slug (auto-generated from name, editable), primary/secondary colors, owner email
 - On submit: creates org row, looks up owner by email, adds them as `owner` in `org_members`
 - Validation: slug uniqueness check (real-time), required fields
 
 **Edit Organization**
+
 - Click org row to expand or open detail panel
 - Editable fields: name, slug, primary_color, secondary_color, logo_url, settings JSON
 - Save/cancel buttons with optimistic UI
 
 **Delete Organization**
+
 - Danger action with confirmation modal ("Type org name to confirm")
 - Cascades: deletes org_members, job_postings, applicants, interviews (via FK CASCADE)
 - Show impact summary before confirming (X members, Y applicants, Z interviews will be deleted)
 
 **Transfer Ownership**
+
 - Change the `owner_id` on the organization
 - Dropdown of current org members or search by email
 - Also updates their `org_members.role` to `owner` and demotes the previous owner to `admin`
@@ -44,25 +48,30 @@ The current `/admin` page is a read-only dashboard: login, view org list with me
 ### 2. User & Member Management
 
 **Global User Directory**
+
 - List all Supabase auth users with: email, created_at, last_sign_in_at, org memberships
 - Search/filter by email
 - Requires a new DB function (`get_all_users_admin`) using `SECURITY DEFINER` to query `auth.users`
 
 **Add User to Organization**
+
 - From the user directory or from an org's detail view
 - Select org + role (owner/admin/recruiter/viewer) and add
 - Reuses existing `invite_member_by_email` RPC
 
 **Remove User from Organization**
+
 - From org detail view or user detail view
 - Reuses existing `remove_org_member` RPC
 
 **Change Member Role**
+
 - Inline role dropdown on member rows
 - Reuses existing `update_member_role` RPC
 - Platform admins can change any role including promoting to owner
 
 **Platform Admin Management**
+
 - List current platform admins (query `platform_admins` table)
 - Add new platform admin by email (insert into `platform_admins` by looking up `auth.users`)
 - Remove platform admin (delete from `platform_admins`)
@@ -75,23 +84,25 @@ The current `/admin` page is a read-only dashboard: login, view org list with me
 > The current system uses a fixed enum: `owner | admin | recruiter | viewer`. Expanding this to custom per-org roles is a larger migration. Below is the design for when it's needed.
 
 **Custom Role Definitions**
+
 - New table: `org_roles` (id, org_id, name, permissions JSON, created_at)
 - Permissions as a JSON object with boolean flags:
   ```json
   {
-    "can_review_applicants": true,
-    "can_edit_job_postings": false,
-    "can_manage_members": false,
-    "can_schedule_interviews": true,
-    "can_evaluate": true,
-    "can_edit_settings": false,
-    "can_export_data": false
+  	"can_review_applicants": true,
+  	"can_edit_job_postings": false,
+  	"can_manage_members": false,
+  	"can_schedule_interviews": true,
+  	"can_evaluate": true,
+  	"can_edit_settings": false,
+  	"can_export_data": false
   }
   ```
 - Default roles auto-created for each org matching current enum behavior
 - Platform admin UI: create/edit/delete role templates that orgs can adopt
 
 **Migration Path**
+
 - Add `org_roles` table alongside existing `org_role` enum
 - Add `role_id` FK to `org_members` (nullable at first)
 - Gradually shift permission checks from `has_org_role()` enum comparison to permission-flag lookups
@@ -102,12 +113,14 @@ The current `/admin` page is a read-only dashboard: login, view org list with me
 ### 4. Job Posting Oversight
 
 **Cross-Org Job Listing**
+
 - Table of all job postings across all orgs
 - Columns: job name, org name, status (active/inactive), question count, applicant count, created_at
 - Filter by org, status
 - Sort by date, name, applicant count
 
 **Quick Actions**
+
 - Toggle active/inactive from the admin panel
 - Delete a job posting (with confirmation)
 - Link to the org's form builder for that job
@@ -117,12 +130,14 @@ The current `/admin` page is a read-only dashboard: login, view org list with me
 ### 5. Applicant Oversight
 
 **Cross-Org Applicant Search**
+
 - Search applicants by name or email across all orgs
 - Columns: name, email, org, job, status, submitted date
 - Filter by org, job, status
 - Click to view full applicant detail (read-only or link to org's candidate page)
 
 **Bulk Operations**
+
 - Select multiple applicants across orgs
 - Bulk status change, bulk delete (with confirmation)
 - CSV export of selected applicants
@@ -132,12 +147,14 @@ The current `/admin` page is a read-only dashboard: login, view org list with me
 ### 6. Platform Analytics Dashboard
 
 **Enhanced Stats**
+
 - Total orgs, total users, total applicants, total interviews, total job postings
 - Applicants by status breakdown (pending/interview/accepted/denied) — bar or pie chart
 - New applicants over time (last 30 days) — line chart
 - Orgs by size (member count) — ranked list
 
 **Activity Feed**
+
 - Recent sign-ups (new auth users)
 - Recent org creations
 - Recent applications submitted
@@ -148,15 +165,18 @@ The current `/admin` page is a read-only dashboard: login, view org list with me
 ### 7. System Settings
 
 **Platform Branding**
+
 - Default primary/secondary colors for new orgs
 - Platform name, logo URL (shown on landing page and admin header)
 - Stored in a `platform_settings` table (single-row key-value or JSON)
 
 **Email / Auth Settings**
+
 - Display current Supabase auth config (read-only, since it's managed in Supabase dashboard)
 - Link to Supabase dashboard for auth provider config
 
 **Maintenance Mode**
+
 - Toggle that disables public application forms
 - Shows a "Applications are currently closed" message on `/apply/*` routes
 - Stored as a flag in `platform_settings`
@@ -166,6 +186,7 @@ The current `/admin` page is a read-only dashboard: login, view org list with me
 ## UI Layout
 
 ### Navigation
+
 Replace the current flat page with a tabbed or sidebar-nav layout:
 
 ```
@@ -196,6 +217,7 @@ Replace the current flat page with a tabbed or sidebar-nav layout:
 - **Admins** — platform admin list management
 
 ### Modals & Panels
+
 - Create/edit forms use slide-in side panels (consistent with org settings pattern)
 - Delete confirmations use centered modals with danger styling
 - Role changes use inline dropdowns (no modal needed)
@@ -302,6 +324,7 @@ $$;
 ```
 
 ### RLS Updates
+
 - `platform_settings`: only platform admins can read/write
 - `platform_activity_log`: only platform admins can read; insert via `SECURITY DEFINER` functions
 - Existing tables need `SELECT` policies for platform admins to query cross-org data (or use `SECURITY DEFINER` RPCs to bypass RLS)
@@ -310,29 +333,29 @@ $$;
 
 ## Implementation Priority
 
-| Priority | Feature | Effort |
-|----------|---------|--------|
-| P0 | Create organization from admin | Small |
-| P0 | Platform admin management (add/remove) | Small |
-| P0 | Tabbed layout with sidebar nav | Medium |
-| P1 | Edit/delete organization | Small |
-| P1 | Global user directory | Medium |
-| P1 | Add/remove users from orgs, change roles | Small (reuses existing RPCs) |
-| P1 | Cross-org job posting list | Small |
-| P2 | Cross-org applicant search | Medium |
-| P2 | Enhanced analytics dashboard | Medium |
-| P2 | Transfer org ownership | Small |
-| P3 | Platform settings (branding, maintenance mode) | Medium |
-| P3 | Activity feed | Medium |
-| P4 | Custom roles & permissions | Large (migration + refactor) |
+| Priority | Feature                                        | Effort                       |
+| -------- | ---------------------------------------------- | ---------------------------- |
+| P0       | Create organization from admin                 | Small                        |
+| P0       | Platform admin management (add/remove)         | Small                        |
+| P0       | Tabbed layout with sidebar nav                 | Medium                       |
+| P1       | Edit/delete organization                       | Small                        |
+| P1       | Global user directory                          | Medium                       |
+| P1       | Add/remove users from orgs, change roles       | Small (reuses existing RPCs) |
+| P1       | Cross-org job posting list                     | Small                        |
+| P2       | Cross-org applicant search                     | Medium                       |
+| P2       | Enhanced analytics dashboard                   | Medium                       |
+| P2       | Transfer org ownership                         | Small                        |
+| P3       | Platform settings (branding, maintenance mode) | Medium                       |
+| P3       | Activity feed                                  | Medium                       |
+| P4       | Custom roles & permissions                     | Large (migration + refactor) |
 
 ---
 
 ## File Changes Summary
 
-| File | Change |
-|------|--------|
-| `src/routes/admin/+page.svelte` | Full rewrite — tabbed layout with all sections |
-| `src/lib/utils/supabase.ts` | New admin functions (RPCs, cross-org queries) |
-| `src/lib/types/index.ts` | New types: `PlatformSettings`, `ActivityLogEntry`, `AdminUser` |
-| `supabase/migrations/00007_admin_panel.sql` | New tables, RPC functions, RLS policies |
+| File                                        | Change                                                         |
+| ------------------------------------------- | -------------------------------------------------------------- |
+| `src/routes/admin/+page.svelte`             | Full rewrite — tabbed layout with all sections                 |
+| `src/lib/utils/supabase.ts`                 | New admin functions (RPCs, cross-org queries)                  |
+| `src/lib/types/index.ts`                    | New types: `PlatformSettings`, `ActivityLogEntry`, `AdminUser` |
+| `supabase/migrations/00007_admin_panel.sql` | New tables, RPC functions, RLS policies                        |

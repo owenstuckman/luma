@@ -28,7 +28,11 @@
       "Bash(sed -i '/import { createEventDispatcher } from .svelte./d' /mnt/c/Users/ostuc/Documents/GitHub/luma/src/lib/components/admin/AdminsTab.svelte)",
       "Bash(sed -i 's/  export let platformAdmins: PlatformAdmin[];//' /mnt/c/Users/ostuc/Documents/GitHub/luma/src/lib/components/admin/AdminsTab.svelte)",
       "Bash(sed -i 's/  const dispatch = createEventDispatcher<{ reload: void }>\\(\\);/  let { platformAdmins, onreload = \\(\\) => {} }: { platformAdmins: PlatformAdmin[]; onreload?: \\(\\) => void } = $props\\(\\);/' /mnt/c/Users/ostuc/Documents/GitHub/luma/src/lib/components/admin/AdminsTab.svelte)",
-      "Bash(sed -i 's/dispatch\\('\\\\''reload'\\\\''\\)/onreload\\(\\)/g' /mnt/c/Users/ostuc/Documents/GitHub/luma/src/lib/components/admin/AdminsTab.svelte)"
+      "Bash(sed -i 's/dispatch\\('\\\\''reload'\\\\''\\)/onreload\\(\\)/g' /mnt/c/Users/ostuc/Documents/GitHub/luma/src/lib/components/admin/AdminsTab.svelte)",
+      "Bash(git -c core.autocrlf=false diff --ignore-cr-at-eol --shortstat)",
+      "Bash(git -c core.autocrlf=false diff --ignore-cr-at-eol --name-only)",
+      "Bash(npm run *)",
+      "Bash(npx prettier *)"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -10,35 +10,35 @@ LUMA is a multi-tenant Applicant Tracking System. Each **organization** gets its
 
 ### Public Routes (no auth required)
 
-| Route | Purpose |
-|---|---|
-| `/` | Landing page — lists all organizations, links to apply or log in |
-| `/apply/[slug]` | Job listing for a specific org (e.g. `/apply/archimedes-society`) |
-| `/apply/[slug]/[job_id]` | Dynamic application form — multi-step, driven by the job's question JSON |
-| `/apply/[slug]/[job_id]/success` | Confirmation page after submitting an application |
-| `/auth` | Recruiter login/signup (email + password via Supabase Auth) |
+| Route                            | Purpose                                                                  |
+| -------------------------------- | ------------------------------------------------------------------------ |
+| `/`                              | Landing page — lists all organizations, links to apply or log in         |
+| `/apply/[slug]`                  | Job listing for a specific org (e.g. `/apply/archimedes-society`)        |
+| `/apply/[slug]/[job_id]`         | Dynamic application form — multi-step, driven by the job's question JSON |
+| `/apply/[slug]/[job_id]/success` | Confirmation page after submitting an application                        |
+| `/auth`                          | Recruiter login/signup (email + password via Supabase Auth)              |
 
 ### Authenticated Routes (requires login)
 
-| Route | Purpose |
-|---|---|
-| `/private` | Org selector — auto-redirects to your dashboard if you belong to one org |
-| `/register` | Create a new organization (you become the owner) |
-| `/private/[slug]/dashboard` | Recruiter home — stat cards (total, pending, interview, accepted), quick links |
-| `/private/[slug]/review` | Applicant list — search, filter by status, sort, bulk actions, CSV export |
-| `/private/[slug]/review/candidate?id=N` | Individual applicant — responses, comments, status change |
-| `/private/[slug]/schedule/my` | Your upcoming interviews (calendar view) |
-| `/private/[slug]/schedule/full` | All interviews across interviewers, filterable by date/interviewer |
-| `/private/[slug]/availability` | Submit your interviewer availability |
-| `/private/[slug]/evaluate` | Post-interview evaluations — star rating, recommendation, notes |
-| `/private/[slug]/settings` | Org settings — profile, colors, team members |
-| `/private/[slug]/settings/jobs` | Job posting management — create, toggle active, delete |
-| `/private/[slug]/settings/jobs/[job_id]` | Form builder — visually build application form steps and questions |
+| Route                                    | Purpose                                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------------------ |
+| `/private`                               | Org selector — auto-redirects to your dashboard if you belong to one org       |
+| `/register`                              | Create a new organization (you become the owner)                               |
+| `/private/[slug]/dashboard`              | Recruiter home — stat cards (total, pending, interview, accepted), quick links |
+| `/private/[slug]/review`                 | Applicant list — search, filter by status, sort, bulk actions, CSV export      |
+| `/private/[slug]/review/candidate?id=N`  | Individual applicant — responses, comments, status change                      |
+| `/private/[slug]/schedule/my`            | Your upcoming interviews (calendar view)                                       |
+| `/private/[slug]/schedule/full`          | All interviews across interviewers, filterable by date/interviewer             |
+| `/private/[slug]/availability`           | Submit your interviewer availability                                           |
+| `/private/[slug]/evaluate`               | Post-interview evaluations — star rating, recommendation, notes                |
+| `/private/[slug]/settings`               | Org settings — profile, colors, team members                                   |
+| `/private/[slug]/settings/jobs`          | Job posting management — create, toggle active, delete                         |
+| `/private/[slug]/settings/jobs/[job_id]` | Form builder — visually build application form steps and questions             |
 
 ### Admin Route
 
-| Route | Purpose |
-|---|---|
+| Route    | Purpose                                                                        |
+| -------- | ------------------------------------------------------------------------------ |
 | `/admin` | Platform super-admin — orgs, users, job postings, analytics, platform settings |
 
 ---
@@ -47,12 +47,12 @@ LUMA is a multi-tenant Applicant Tracking System. Each **organization** gets its
 
 Each org member has one of these roles:
 
-| Role | Can View | Can Review/Comment | Can Manage Jobs | Can Manage Members/Settings |
-|---|---|---|---|---|
-| **Viewer** | Yes | No | No | No |
-| **Recruiter** | Yes | Yes | No | No |
-| **Admin** | Yes | Yes | Yes | Yes |
-| **Owner** | Yes | Yes | Yes | Yes (cannot be removed) |
+| Role          | Can View | Can Review/Comment | Can Manage Jobs | Can Manage Members/Settings |
+| ------------- | -------- | ------------------ | --------------- | --------------------------- |
+| **Viewer**    | Yes      | No                 | No              | No                          |
+| **Recruiter** | Yes      | Yes                | No              | No                          |
+| **Admin**     | Yes      | Yes                | Yes             | Yes                         |
+| **Owner**     | Yes      | Yes                | Yes             | Yes (cannot be removed)     |
 
 ---
 
@@ -176,6 +176,7 @@ Applicants will see this posting at `/apply/[slug]` and fill out the form at `/a
 #### Email Setup
 
 To enable automated sending (not just copy-paste):
+
 1. Create a [Resend](https://resend.com) account (free tier: 3,000 emails/month)
 2. Verify your sending domain in Resend
 3. Set the API key as a Supabase secret: `supabase secrets set RESEND_API_KEY=re_...`
@@ -190,74 +191,77 @@ The admin panel (`/admin`) is for platform super-admins. Access requires being i
 
 **Tabs:**
 
-| Tab | Features |
-|---|---|
-| Organizations | View all orgs, create new, edit, delete |
-| Users | View all auth users, platform admin management |
-| Job Postings | View/manage all job postings across orgs |
-| Analytics | Platform-wide stats (orgs, users, applicants, interviews) |
-| Scheduling | Auto-scheduling config and execution per org |
-| Settings | Platform defaults (colors, maintenance mode) |
+| Tab           | Features                                                  |
+| ------------- | --------------------------------------------------------- |
+| Organizations | View all orgs, create new, edit, delete                   |
+| Users         | View all auth users, platform admin management            |
+| Job Postings  | View/manage all job postings across orgs                  |
+| Analytics     | Platform-wide stats (orgs, users, applicants, interviews) |
+| Scheduling    | Auto-scheduling config and execution per org              |
+| Settings      | Platform defaults (colors, maintenance mode)              |
 
 ---
 
 ## Database Tables
 
-| Table | Purpose | Key Columns |
-|---|---|---|
-| `organizations` | Org profiles | `id`, `name`, `slug`, `primary_color`, `secondary_color`, `owner_id` |
-| `org_members` | Who belongs to which org | `org_id`, `user_id`, `role` (owner/admin/recruiter/viewer) |
-| `job_posting` | Job listings with form schemas | `org_id`, `name`, `description`, `questions` (JSON), `active_flg` |
-| `applicants` | Submitted applications | `org_id`, `job`, `name`, `email`, `recruitInfo` (JSON), `status`, `comments` |
-| `interviewers` | People conducting interviews | `org_id`, `name`, `email`, `uuid` |
-| `interviews` | Scheduled interviews | `org_id`, `job`, `applicant`, `interviewer`, `startTime`, `endTime`, `location`, `source` |
-| `interviewer_availability` | Interviewer available windows | `org_id`, `user_id`, `date`, `start_time`, `end_time`, `timezone` |
-| `scheduling_config` | Per-org algorithm config | `org_id`, `job_id`, `algorithm_id`, `config` (JSON) |
-| `email_log` | Sent email records | `org_id`, `interview_id`, `recipient`, `type`, `status`, `provider_id` |
-| `platform_admins` | Super-admin users | `user_id` |
-| `platform_settings` | Global platform config | `key`, `value` |
-| `notes` | Interview evaluation notes | `org_id`, `interview_id`, `author`, `content` |
+| Table                      | Purpose                        | Key Columns                                                                               |
+| -------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------- |
+| `organizations`            | Org profiles                   | `id`, `name`, `slug`, `primary_color`, `secondary_color`, `owner_id`                      |
+| `org_members`              | Who belongs to which org       | `org_id`, `user_id`, `role` (owner/admin/recruiter/viewer)                                |
+| `job_posting`              | Job listings with form schemas | `org_id`, `name`, `description`, `questions` (JSON), `active_flg`                         |
+| `applicants`               | Submitted applications         | `org_id`, `job`, `name`, `email`, `recruitInfo` (JSON), `status`, `comments`              |
+| `interviewers`             | People conducting interviews   | `org_id`, `name`, `email`, `uuid`                                                         |
+| `interviews`               | Scheduled interviews           | `org_id`, `job`, `applicant`, `interviewer`, `startTime`, `endTime`, `location`, `source` |
+| `interviewer_availability` | Interviewer available windows  | `org_id`, `user_id`, `date`, `start_time`, `end_time`, `timezone`                         |
+| `scheduling_config`        | Per-org algorithm config       | `org_id`, `job_id`, `algorithm_id`, `config` (JSON)                                       |
+| `email_log`                | Sent email records             | `org_id`, `interview_id`, `recipient`, `type`, `status`, `provider_id`                    |
+| `platform_admins`          | Super-admin users              | `user_id`                                                                                 |
+| `platform_settings`        | Global platform config         | `key`, `value`                                                                            |
+| `notes`                    | Interview evaluation notes     | `org_id`, `interview_id`, `author`, `content`                                             |
 
 ### Key JSON Schemas
 
 **`job_posting.questions`** — defines the application form:
+
 ```json
 {
-  "steps": [
-    {
-      "title": "Verification",
-      "icon": "fi-br-shield-trust",
-      "questions": [
-        {
-          "id": "freshman_check",
-          "type": "checkbox",
-          "title": "Confirm you are a first-year student.",
-          "options": ["I confirm"],
-          "required": true
-        }
-      ]
-    }
-  ]
+	"steps": [
+		{
+			"title": "Verification",
+			"icon": "fi-br-shield-trust",
+			"questions": [
+				{
+					"id": "freshman_check",
+					"type": "checkbox",
+					"title": "Confirm you are a first-year student.",
+					"options": ["I confirm"],
+					"required": true
+				}
+			]
+		}
+	]
 }
 ```
 
 **Supported question types**: `input`, `input_dual`, `textarea`, `radio`, `checkbox`, `checkbox_image`, `dropdown`, `availability`
 
 **`applicants.recruitInfo`** — stores answers keyed by question ID:
+
 ```json
 {
-  "freshman_check": "I confirm",
-  "major": "Computer Science",
-  "why_us": "I want to build cool things..."
+	"freshman_check": "I confirm",
+	"major": "Computer Science",
+	"why_us": "I want to build cool things..."
 }
 ```
 
 **`applicants.comments`** — threaded reviewer comments:
+
 ```json
 {
-  "comments": [
-    { "id": 1, "email": "reviewer@org.com", "comment": "Strong candidate", "decision": "Approved" }
-  ]
+	"comments": [
+		{ "id": 1, "email": "reviewer@org.com", "comment": "Strong candidate", "decision": "Approved" }
+	]
 }
 ```
 
@@ -267,15 +271,15 @@ The admin panel (`/admin`) is for platform super-admins. Access requires being i
 
 These are called via `supabase.rpc()` and run with elevated permissions:
 
-| Function | Purpose | Parameters |
-|---|---|---|
-| `is_org_member(org_id)` | Check if current user is in the org | `org_id: bigint` |
-| `has_org_role(org_id, min_role)` | Check if user has a role ≥ min_role | `org_id: bigint`, `min_role: org_role` |
-| `is_platform_admin()` | Check if current user is a platform admin | — |
-| `get_org_members_with_email(org_id)` | List members with their emails | `target_org_id: bigint` |
-| `invite_member_by_email(org_id, email, role)` | Add a user to an org by email | `target_org_id`, `target_email`, `target_role` |
-| `remove_org_member(org_id, user_id)` | Remove a member (not owners) | `target_org_id`, `target_user_id` |
-| `update_member_role(org_id, user_id, role)` | Change a member's role | `target_org_id`, `target_user_id`, `new_role` |
+| Function                                      | Purpose                                   | Parameters                                     |
+| --------------------------------------------- | ----------------------------------------- | ---------------------------------------------- |
+| `is_org_member(org_id)`                       | Check if current user is in the org       | `org_id: bigint`                               |
+| `has_org_role(org_id, min_role)`              | Check if user has a role ≥ min_role       | `org_id: bigint`, `min_role: org_role`         |
+| `is_platform_admin()`                         | Check if current user is a platform admin | —                                              |
+| `get_org_members_with_email(org_id)`          | List members with their emails            | `target_org_id: bigint`                        |
+| `invite_member_by_email(org_id, email, role)` | Add a user to an org by email             | `target_org_id`, `target_email`, `target_role` |
+| `remove_org_member(org_id, user_id)`          | Remove a member (not owners)              | `target_org_id`, `target_user_id`              |
+| `update_member_role(org_id, user_id, role)`   | Change a member's role                    | `target_org_id`, `target_user_id`, `new_role`  |
 
 ---
 

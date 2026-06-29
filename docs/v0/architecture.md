@@ -2,13 +2,13 @@
 
 ## Stack
 
-| Layer | Technology |
-|---|---|
-| Framework | SvelteKit 2 + Svelte 5 |
-| Language | TypeScript (strict) |
-| Database | Supabase (Postgres + Auth + RLS) |
-| Styling | Bootstrap 5 + SCSS |
-| Calendar | Schedule-X |
+| Layer      | Technology                                   |
+| ---------- | -------------------------------------------- |
+| Framework  | SvelteKit 2 + Svelte 5                       |
+| Language   | TypeScript (strict)                          |
+| Database   | Supabase (Postgres + Auth + RLS)             |
+| Styling    | Bootstrap 5 + SCSS                           |
+| Calendar   | Schedule-X                                   |
 | Deployment | Vercel (or any Node host via `adapter-node`) |
 
 ---
@@ -64,36 +64,36 @@ Each org gets a URL slug (e.g. `archimedes-society`) as its namespace:
 
 ```json
 {
-  "steps": [
-    {
-      "title": "Verification",
-      "icon": "fi-br-shield-trust",
-      "questions": [
-        {
-          "id": "freshman_check",
-          "type": "checkbox",
-          "title": "Confirm you are a first-year student.",
-          "options": ["I confirm"],
-          "required": true
-        }
-      ]
-    }
-  ]
+	"steps": [
+		{
+			"title": "Verification",
+			"icon": "fi-br-shield-trust",
+			"questions": [
+				{
+					"id": "freshman_check",
+					"type": "checkbox",
+					"title": "Confirm you are a first-year student.",
+					"options": ["I confirm"],
+					"required": true
+				}
+			]
+		}
+	]
 }
 ```
 
 ### Supported Question Types
 
-| Type | Component | Notes |
-|---|---|---|
-| `input` | `Input.svelte` | Single text field |
-| `input_dual` | `InputDual.svelte` | Two side-by-side fields (e.g. first/last name) |
-| `textarea` | `InputArea.svelte` | Multi-line text |
-| `radio` | `Radio.svelte` | Single-select |
-| `checkbox` | `Checkbox.svelte` | Multi-select |
-| `checkbox_image` | `CheckboxImage.svelte` | Checkbox with image/description |
-| `dropdown` | `Dropdown.svelte` | Select dropdown |
-| `availability` | `AvailabilityGrid.svelte` | Time-grid picker |
+| Type             | Component                 | Notes                                          |
+| ---------------- | ------------------------- | ---------------------------------------------- |
+| `input`          | `Input.svelte`            | Single text field                              |
+| `input_dual`     | `InputDual.svelte`        | Two side-by-side fields (e.g. first/last name) |
+| `textarea`       | `InputArea.svelte`        | Multi-line text                                |
+| `radio`          | `Radio.svelte`            | Single-select                                  |
+| `checkbox`       | `Checkbox.svelte`         | Multi-select                                   |
+| `checkbox_image` | `CheckboxImage.svelte`    | Checkbox with image/description                |
+| `dropdown`       | `Dropdown.svelte`         | Select dropdown                                |
+| `availability`   | `AvailabilityGrid.svelte` | Time-grid picker                               |
 
 `QuestionRenderer.svelte` reads each question's `type` and renders the corresponding card component. The applicant flow automatically adds a personal info step (name + email) at the front and a review/submit step at the end.
 
@@ -101,39 +101,39 @@ Each org gets a URL slug (e.g. `archimedes-society`) as its namespace:
 
 ## RLS Policies
 
-| Table | Operation | Who |
-|---|---|---|
-| `organizations` | SELECT | public (branding is public) |
-| `organizations` | UPDATE | org owner or admin |
-| `org_members` | SELECT | org members |
-| `org_members` | INSERT/DELETE | org owner or admin |
-| `job_posting` | SELECT | public (active only) or org member (all) |
-| `job_posting` | INSERT/UPDATE/DELETE | org admin+ |
-| `applicants` | INSERT | public (anyone can apply) |
-| `applicants` | SELECT/UPDATE | org members |
-| `applicants` | DELETE | org admin+ |
-| `interviewers` | ALL | org members |
-| `interviews` | SELECT | org members |
-| `interviews` | INSERT/UPDATE | org recruiter+ |
+| Table           | Operation            | Who                                      |
+| --------------- | -------------------- | ---------------------------------------- |
+| `organizations` | SELECT               | public (branding is public)              |
+| `organizations` | UPDATE               | org owner or admin                       |
+| `org_members`   | SELECT               | org members                              |
+| `org_members`   | INSERT/DELETE        | org owner or admin                       |
+| `job_posting`   | SELECT               | public (active only) or org member (all) |
+| `job_posting`   | INSERT/UPDATE/DELETE | org admin+                               |
+| `applicants`    | INSERT               | public (anyone can apply)                |
+| `applicants`    | SELECT/UPDATE        | org members                              |
+| `applicants`    | DELETE               | org admin+                               |
+| `interviewers`  | ALL                  | org members                              |
+| `interviews`    | SELECT               | org members                              |
+| `interviews`    | INSERT/UPDATE        | org recruiter+                           |
 
 **Helper functions** (security definer, `SET search_path = public`):
 
-| Function | Purpose |
-|---|---|
-| `is_org_member(org_id)` | True if current user belongs to the org |
-| `has_org_role(org_id, min_role)` | True if user has role ≥ min_role |
-| `is_platform_admin()` | True if current user is in `platform_admins` |
+| Function                         | Purpose                                      |
+| -------------------------------- | -------------------------------------------- |
+| `is_org_member(org_id)`          | True if current user belongs to the org      |
+| `has_org_role(org_id, min_role)` | True if user has role ≥ min_role             |
+| `is_platform_admin()`            | True if current user is in `platform_admins` |
 
 ---
 
 ## Roles
 
-| Role | Review Applicants | Comment | Manage Jobs | Manage Members |
-|---|---|---|---|---|
-| Viewer | Read-only | No | No | No |
-| Recruiter | Yes | Yes | No | No |
-| Admin | Yes | Yes | Yes | Yes |
-| Owner | Yes | Yes | Yes | Yes (cannot be removed) |
+| Role      | Review Applicants | Comment | Manage Jobs | Manage Members          |
+| --------- | ----------------- | ------- | ----------- | ----------------------- |
+| Viewer    | Read-only         | No      | No          | No                      |
+| Recruiter | Yes               | Yes     | No          | No                      |
+| Admin     | Yes               | Yes     | Yes         | Yes                     |
+| Owner     | Yes               | Yes     | Yes         | Yes (cannot be removed) |
 
 ---
 
@@ -142,15 +142,16 @@ Each org gets a URL slug (e.g. `archimedes-society`) as its namespace:
 All components use Svelte 5 runes (`$props()`, `$state()`, `$derived()`, `$effect()`). Callback props replace `createEventDispatcher`.
 
 **Applicant page template**:
+
 ```svelte
 <div class="layout">
-  <div class="content">
-    <h4>Step Title</h4>
-    <!-- Card components from $lib/components/card/ -->
-    <Footer backNav="..." nextNav="..."/>
-  </div>
-  <Navbar/>
-  <Sidebar currentStep={N}/>
+	<div class="content">
+		<h4>Step Title</h4>
+		<!-- Card components from $lib/components/card/ -->
+		<Footer backNav="..." nextNav="..." />
+	</div>
+	<Navbar />
+	<Sidebar currentStep={N} />
 </div>
 ```
 
@@ -202,11 +203,11 @@ See [email-notifications.md](email-notifications.md) for setup and usage details
 
 LUMA uses Supabase Realtime (`postgres_changes`) for live updates on authenticated pages:
 
-| Page | Channel | Events |
-|---|---|---|
-| Dashboard | `applicants` INSERT | Auto-refreshes job counts |
-| Review | `applicants` INSERT | New applicant toast + list refresh |
-| Full Schedule | `interviews` INSERT/UPDATE/DELETE | Calendar refresh + toast |
+| Page          | Channel                           | Events                             |
+| ------------- | --------------------------------- | ---------------------------------- |
+| Dashboard     | `applicants` INSERT               | Auto-refreshes job counts          |
+| Review        | `applicants` INSERT               | New applicant toast + list refresh |
+| Full Schedule | `interviews` INSERT/UPDATE/DELETE | Calendar refresh + toast           |
 
 Subscriptions are created in `onMount` and cleaned up in `onDestroy`. The `Toast.svelte` component (`src/lib/components/recruiter/Toast.svelte`) provides slide-in notifications.
 
@@ -214,13 +215,13 @@ Subscriptions are created in `onMount` and cleaned up in `onDestroy`. The `Toast
 
 ## Key Design Decisions
 
-| Decision | Choice | Rationale |
-|---|---|---|
-| Multi-tenancy | Shared DB, org-scoped rows | Simpler than separate DBs; Supabase RLS handles isolation |
-| Application forms | JSON-driven, rendered dynamically | No code changes needed per org or job |
-| Styling | Bootstrap 5 + SCSS + CSS custom properties | Consistent with existing codebase; CSS vars enable per-org theming |
-| Component style | Match the file's existing style | Svelte 4/5 mixed intentionally; don't break working components |
-| State | localStorage for applicants, direct Supabase for recruiters | Matches original pattern; no extra infra |
-| Email | Supabase Edge Function + Resend API | No server-side Node needed; Edge Functions run close to DB |
-| Realtime | Supabase Realtime (postgres_changes) | Built-in, no extra infra; WebSocket-based |
-| Deployment | Vercel-first, with Docker/Node adapter options | Already configured; lowest friction for most users |
+| Decision          | Choice                                                      | Rationale                                                          |
+| ----------------- | ----------------------------------------------------------- | ------------------------------------------------------------------ |
+| Multi-tenancy     | Shared DB, org-scoped rows                                  | Simpler than separate DBs; Supabase RLS handles isolation          |
+| Application forms | JSON-driven, rendered dynamically                           | No code changes needed per org or job                              |
+| Styling           | Bootstrap 5 + SCSS + CSS custom properties                  | Consistent with existing codebase; CSS vars enable per-org theming |
+| Component style   | Match the file's existing style                             | Svelte 4/5 mixed intentionally; don't break working components     |
+| State             | localStorage for applicants, direct Supabase for recruiters | Matches original pattern; no extra infra                           |
+| Email             | Supabase Edge Function + Resend API                         | No server-side Node needed; Edge Functions run close to DB         |
+| Realtime          | Supabase Realtime (postgres_changes)                        | Built-in, no extra infra; WebSocket-based                          |
+| Deployment        | Vercel-first, with Docker/Node adapter options              | Already configured; lowest friction for most users                 |

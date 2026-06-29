@@ -28,12 +28,14 @@ npm run dev            # start at localhost:5173
 ```
 
 Or manually:
+
 1. Copy `env.example` to `.env.local` and fill in your [Supabase](https://supabase.com) project credentials
 2. Run the SQL migrations from `supabase/migrations/` in your Supabase SQL Editor (in order)
 3. Configure auth redirect URLs in Supabase dashboard (Authentication → URL Configuration)
 4. `npm run dev`
 
 Then:
+
 1. Go to `/auth` and create an account
 2. Go to `/register` and create your organization
 3. Go to Settings → Manage Postings → create a job → build the form
@@ -41,14 +43,14 @@ Then:
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Framework | SvelteKit 2 + Svelte 5 |
-| Language | TypeScript |
-| Database | Supabase (Postgres + Auth + RLS) |
-| Styling | Bootstrap 5 + SCSS |
-| Calendar | Schedule-X |
-| Deployment | Vercel (or any Node host) |
+| Layer      | Technology                       |
+| ---------- | -------------------------------- |
+| Framework  | SvelteKit 2 + Svelte 5           |
+| Language   | TypeScript                       |
+| Database   | Supabase (Postgres + Auth + RLS) |
+| Styling    | Bootstrap 5 + SCSS               |
+| Calendar   | Schedule-X                       |
+| Deployment | Vercel (or any Node host)        |
 
 ## Project Structure
 
@@ -83,38 +85,38 @@ supabase/
 
 Core tables, all scoped by `org_id`:
 
-| Table | Purpose |
-|---|---|
-| `organizations` | Org profiles (name, slug, colors, logo, owner) |
-| `org_members` | User-org membership with roles |
-| `job_posting` | Job listings with dynamic form schemas (JSON) |
-| `applicants` | Submitted applications with responses (JSON) |
-| `interviews` | Scheduled interviews with evaluations |
-| `interviewer_availability` | Interviewer time windows for auto-scheduling |
-| `scheduling_config` | Per-org algorithm configuration |
-| `email_log` | Sent email tracking |
+| Table                      | Purpose                                        |
+| -------------------------- | ---------------------------------------------- |
+| `organizations`            | Org profiles (name, slug, colors, logo, owner) |
+| `org_members`              | User-org membership with roles                 |
+| `job_posting`              | Job listings with dynamic form schemas (JSON)  |
+| `applicants`               | Submitted applications with responses (JSON)   |
+| `interviews`               | Scheduled interviews with evaluations          |
+| `interviewer_availability` | Interviewer time windows for auto-scheduling   |
+| `scheduling_config`        | Per-org algorithm configuration                |
+| `email_log`                | Sent email tracking                            |
 
 Row-Level Security enforces data isolation — users can only see data from orgs they belong to.
 
 ## Roles
 
-| Role | Review | Manage Jobs | Manage Members |
-|---|---|---|---|
-| Viewer | Read-only | No | No |
-| Recruiter | Yes + comment | No | No |
-| Admin | Yes | Yes | Yes |
-| Owner | Yes | Yes | Yes (cannot be removed) |
+| Role      | Review        | Manage Jobs | Manage Members          |
+| --------- | ------------- | ----------- | ----------------------- |
+| Viewer    | Read-only     | No          | No                      |
+| Recruiter | Yes + comment | No          | No                      |
+| Admin     | Yes           | Yes         | Yes                     |
+| Owner     | Yes           | Yes         | Yes (cannot be removed) |
 
 ## Commands
 
-| Command | Purpose |
-|---|---|
-| `npm run dev` | Start dev server |
-| `npm run build` | Production build |
-| `npm run setup` | Guided first-time setup |
-| `npm run check` | TypeScript type-check |
-| `npm run lint` | Prettier + ESLint |
-| `npm run format` | Auto-format |
+| Command          | Purpose                 |
+| ---------------- | ----------------------- |
+| `npm run dev`    | Start dev server        |
+| `npm run build`  | Production build        |
+| `npm run setup`  | Guided first-time setup |
+| `npm run check`  | TypeScript type-check   |
+| `npm run lint`   | Prettier + ESLint       |
+| `npm run format` | Auto-format             |
 
 ## Deploying
 
@@ -123,6 +125,7 @@ Row-Level Security enforces data isolation — users can only see data from orgs
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fowenstuckman%2Fluma&env=PUBLIC_SUPABASE_URL,PUBLIC_SUPABASE_ANON_KEY&envDescription=Supabase%20project%20credentials%20required%20for%20authentication%20and%20database&envLink=https%3A%2F%2Fsupabase.com%2Fdashboard&project-name=luma&repository-name=luma)
 
 Or manually:
+
 1. Push to GitHub
 2. Import in Vercel
 3. Set environment variables (`PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY`)
@@ -138,15 +141,15 @@ If you have data from before multi-tenancy (records with `org_id = NULL`), see t
 
 ## Documentation
 
-| Doc | Contents |
-|---|---|
-| [Usage Guide](docs/usage.md) | Routes, workflows, database schema, RPC functions |
-| [Architecture](docs/architecture.md) | Multi-tenancy, question engine, RLS, realtime, email |
-| [Scheduling](docs/scheduling.md) | Algorithms, admin UI, interviewer availability, database |
-| [Email Notifications](docs/email-notifications.md) | Templates, ICS invites, Resend setup, email log |
-| [Multi-Tenant Signup](docs/multitenant.md) | Self-service org registration flow |
-| [Features](docs/features.md) | Complete list of implemented features |
-| [TODO](docs/TODO.md) | Remaining work and tech debt |
+| Doc                                                        | Contents                                                       |
+| ---------------------------------------------------------- | -------------------------------------------------------------- |
+| [Usage Guide](docs/usage.md)                               | Routes, workflows, database schema, RPC functions              |
+| [Architecture](docs/architecture.md)                       | Multi-tenancy, question engine, RLS, realtime, email           |
+| [Scheduling](docs/scheduling.md)                           | Algorithms, admin UI, interviewer availability, database       |
+| [Email Notifications](docs/email-notifications.md)         | Templates, ICS invites, Resend setup, email log                |
+| [Multi-Tenant Signup](docs/multitenant.md)                 | Self-service org registration flow                             |
+| [Features](docs/features.md)                               | Complete list of implemented features                          |
+| [TODO](docs/TODO.md)                                       | Remaining work and tech debt                                   |
 | [Scheduling Enhancements](docs/scheduling-enhancements.md) | Advanced scheduler features (relaxed pass, attribute matching) |
 
 ## License

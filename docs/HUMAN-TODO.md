@@ -8,24 +8,32 @@ Things only Owen can do — accounts, DNS, secrets, decisions. Sorted by when th
 
 ### Accounts & API keys
 
-- [ ] **Resend** — confirm you have an active account. Grab the API key. Put in Vercel env as `RESEND_API_KEY`.
-- [ ] **Resend sending domain** — go to Resend → Domains → Add Domain → enter your Archimedes domain (e.g., `archimedesvt.org` or a subdomain like `mail.archimedesvt.org`). Resend gives you ~3 DNS records (SPF, DKIM, MX/return-path). Add them to your DNS provider. Wait for verification (usually <30 min, can take a few hours).
-- [ ] **Decide sending address** — `recruitment@archimedesvt.org`? `noreply@archimedesvt.org`? Tell me which to use as default `FROM`.
-- [X] **PostHog** — create account at posthog.com (free tier is fine). Create a project. Grab the **Project API Key** and the **Host URL** (usually `https://us.i.posthog.com`). Put in Vercel env as `PUBLIC_POSTHOG_KEY` and `PUBLIC_POSTHOG_HOST`.
-- [x] **Supabase** — confirm `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_ANON_KEY` in current `.env.local` point to the *production* project you actually want V1 to run on. If they point to a dev project, send me the prod values.
+- [x] **Sending address** — `noreply@archimedesvt.org` (confirmed).
+
+> ⏸️ **EmailJS setup deferred — remind Owen to gather these before Phase 5 (Decisions) or Phase 6 (Observability), whichever ships first.** Public user_id (`Jb0db_Gi8slMQgNYj`) is already known.
+>
+> When ready, collect:
+>
+> - [ ] **EmailJS private key** — EmailJS → Account → Security → "Private Key". Env: `EMAILJS_PRIVATE_KEY` (server-only).
+> - [ ] **EmailJS service_id** — create/confirm a service sending from `noreply@archimedesvt.org`; verify domain via DKIM/SPF records EmailJS prescribes. Env: `PUBLIC_EMAILJS_SERVICE_ID`.
+> - [ ] **EmailJS template_ids** — one per outbound event (application_received, application_auto_rejected, interview_scheduled, decision_hire, decision_reject, decision_waitlist).
+> - [ ] Put `PUBLIC_EMAILJS_USER_ID=Jb0db_Gi8slMQgNYj` in Vercel env.
+
+- [x] **PostHog** — keys confirmed correct, in `.env.local`.
+- [x] **Supabase** — confirm `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_ANON_KEY` in current `.env.local` point to the _production_ project you actually want V1 to run on. If they point to a dev project, send me the prod values.
 - [x] **Supabase service role key** — `SUPABASE_SERVICE_ROLE_KEY`. Needed for server-side admin actions (auto-reject writes, decision emails). Get from Supabase dashboard → Settings → API → `service_role` (secret). Put in Vercel env, NOT in `.env.local` if `.env.local` is committed (it shouldn't be).
 
 ### Vercel project setup
 
-- [X] Confirm the Vercel project for `luma.archimedesvt.org` exists and is connected to this GitHub repo. If not, create it; import the repo; framework = SvelteKit; build command auto-detected.
-- [X] Add the env vars above to Vercel → Settings → Environment Variables. Set them for **Production**, **Preview**, and **Development** (use placeholder values for preview/dev if you want to keep prod isolated).
-- [X] Confirm the domain `luma.archimedesvt.org` is attached to the Vercel project under Settings → Domains. If not, add it (Vercel will show you the DNS CNAME / A record to add).
-- [X] Add the DNS record Vercel asks for at your DNS provider (probably the same place as the Resend records).
-- [X] Wait for SSL cert provisioning (Vercel does this automatically, takes <10 min after DNS resolves).
+- [x] Confirm the Vercel project for `luma.archimedesvt.org` exists and is connected to this GitHub repo. If not, create it; import the repo; framework = SvelteKit; build command auto-detected.
+- [x] Add the env vars above to Vercel → Settings → Environment Variables. Set them for **Production**, **Preview**, and **Development** (use placeholder values for preview/dev if you want to keep prod isolated).
+- [x] Confirm the domain `luma.archimedesvt.org` is attached to the Vercel project under Settings → Domains. If not, add it (Vercel will show you the DNS CNAME / A record to add).
+- [x] Add the DNS record Vercel asks for at your DNS provider (probably the same place as the Resend records).
+- [x] Wait for SSL cert provisioning (Vercel does this automatically, takes <10 min after DNS resolves).
 
 ### Decisions I need from you
 
-- [ ] **Sending email address** (see Resend item above).
+- [x] **Sending email address** — `noreply@archimedesvt.org`.
 - [ ] **Org name displayed in emails** — "Archimedes Society"? "Archimedes @ VT"?
 - [ ] **Whether to wipe the current Supabase prod data** before V1 launch, or migrate it forward. (If you have real applicants in there, migration; if it's test data, wipe is easier.)
 - [ ] **Who else gets admin access** to the production app on day 1? List emails — I'll seed them as admins.
@@ -57,7 +65,7 @@ Things only Owen can do — accounts, DNS, secrets, decisions. Sorted by when th
 
 ## Pre-launch (day-of)
 
-- [ ] **DNS final check** — `dig luma.archimedesvt.org` resolves to Vercel, `dig _resend._domainkey.<your-domain>` returns DKIM TXT record.
+- [ ] **DNS final check** — `dig luma.archimedesvt.org` resolves to Vercel. Verify EmailJS domain status is "verified" in their dashboard.
 - [ ] Send yourself a test email through the app's "submit application" flow — confirm it arrives, looks right, no spam folder.
 - [ ] Add a real applicant test through the full flow on production. Then delete the test row.
 - [ ] Announce go-live to advisors / eboard.
@@ -67,5 +75,5 @@ Things only Owen can do — accounts, DNS, secrets, decisions. Sorted by when th
 ## Post-launch (week 1)
 
 - [ ] Watch PostHog daily for the first week — drop-offs in the apply funnel are the first thing to fix.
-- [ ] Check Resend dashboard for bounces / spam complaints.
+- [ ] Check EmailJS dashboard → History for failed sends. (EmailJS has no bounce webhook — manually review for delivery issues weekly.)
 - [ ] Be ready to manually un-reject if auto-reject rules fire wrong.

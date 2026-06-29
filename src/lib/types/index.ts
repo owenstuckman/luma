@@ -96,7 +96,15 @@ export interface FormStep {
 
 export interface FormQuestion {
 	id: string;
-	type: 'input' | 'input_dual' | 'textarea' | 'radio' | 'checkbox' | 'checkbox_image' | 'dropdown' | 'availability';
+	type:
+		| 'input'
+		| 'input_dual'
+		| 'textarea'
+		| 'radio'
+		| 'checkbox'
+		| 'checkbox_image'
+		| 'dropdown'
+		| 'availability';
 	title: string;
 	subtitle?: string;
 	options?: string[];
@@ -207,8 +215,20 @@ export interface AdminAnalytics {
 	total_jobs: number;
 	active_jobs: number;
 	applicants_by_status: Record<string, number> | null;
-	recent_applicants: { id: number; name: string; email: string; created_at: string; status: string; org_name: string | null; job_name: string | null }[] | null;
+	recent_applicants:
+		| {
+				id: number;
+				name: string;
+				email: string;
+				created_at: string;
+				status: string;
+				org_name: string | null;
+				job_name: string | null;
+		  }[]
+		| null;
 	recent_users: { id: string; email: string; created_at: string }[] | null;
-	orgs_by_size: { id: number; name: string; slug: string; primary_color: string; member_count: number }[] | null;
+	orgs_by_size:
+		| { id: number; name: string; slug: string; primary_color: string; member_count: number }[]
+		| null;
 	applicants_last_30_days: { day: string; count: number }[] | null;
 }

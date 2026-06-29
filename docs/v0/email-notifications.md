@@ -23,11 +23,11 @@ Browser (recruiter/admin)
 
 ## Email Types
 
-| Type | Recipient | Trigger |
-|---|---|---|
-| Interview confirmation | Applicant | After scheduling (manual or auto) |
-| Interview schedule | Interviewer | After scheduling (digest of all their interviews) |
-| Custom email | Any | Bulk email from review page with `{name}`/`{email}` placeholders |
+| Type                   | Recipient   | Trigger                                                          |
+| ---------------------- | ----------- | ---------------------------------------------------------------- |
+| Interview confirmation | Applicant   | After scheduling (manual or auto)                                |
+| Interview schedule     | Interviewer | After scheduling (digest of all their interviews)                |
+| Custom email           | Any         | Bulk email from review page with `{name}`/`{email}` placeholders |
 
 ---
 
@@ -66,6 +66,7 @@ Browser (recruiter/admin)
 Every notification email automatically attaches a `.ics` calendar file. Recipients can open it to add the interview to Google Calendar, Outlook, Apple Calendar, etc.
 
 The ICS file includes:
+
 - Event title: `Interview – [Job Title] @ [Org Name]`
 - Start/end time (UTC)
 - Location
@@ -80,10 +81,10 @@ ICS generation is in `src/lib/email/ics.ts` and `supabase/functions/notify-inter
 
 Templates are plain TypeScript functions in two locations:
 
-| File | Environment | Used by |
-|---|---|---|
-| `src/lib/email/templates.ts` | Browser (SvelteKit) | EmailGeneratorModal preview |
-| `supabase/functions/_shared/templates.ts` | Deno (Edge Function) | Actual sending |
+| File                                      | Environment          | Used by                     |
+| ----------------------------------------- | -------------------- | --------------------------- |
+| `src/lib/email/templates.ts`              | Browser (SvelteKit)  | EmailGeneratorModal preview |
+| `supabase/functions/_shared/templates.ts` | Deno (Edge Function) | Actual sending              |
 
 Both produce the same output format: `{ subject: string; text: string }`.
 
@@ -130,17 +131,17 @@ Best,
 
 All sent emails are logged to the `email_log` table:
 
-| Column | Type | Description |
-|---|---|---|
-| `id` | bigint | Primary key |
-| `created_at` | timestamptz | When the email was sent |
-| `org_id` | bigint | Organization |
-| `interview_id` | bigint | Related interview (nullable for custom emails) |
-| `recipient` | text | Recipient email address |
-| `type` | text | `applicant_confirmation`, `interviewer_schedule`, or `custom` |
-| `provider_id` | text | Resend message ID |
-| `status` | text | `sent` or `failed` |
-| `error` | text | Error message if failed |
+| Column         | Type        | Description                                                   |
+| -------------- | ----------- | ------------------------------------------------------------- |
+| `id`           | bigint      | Primary key                                                   |
+| `created_at`   | timestamptz | When the email was sent                                       |
+| `org_id`       | bigint      | Organization                                                  |
+| `interview_id` | bigint      | Related interview (nullable for custom emails)                |
+| `recipient`    | text        | Recipient email address                                       |
+| `type`         | text        | `applicant_confirmation`, `interviewer_schedule`, or `custom` |
+| `provider_id`  | text        | Resend message ID                                             |
+| `status`       | text        | `sent` or `failed`                                            |
+| `error`        | text        | Error message if failed                                       |
 
 View the email log in **Settings** (`/private/[slug]/settings`) under the "Email Log" section.
 
@@ -160,6 +161,7 @@ LUMA_FROM_EMAIL=recruiting@yourdomain.com
 ### Per-Org Email Settings
 
 In **Settings** (`/private/[slug]/settings`), configure:
+
 - **From Email** — sender address (must be verified with Resend)
 - **Reply-To Email** — where replies go
 
@@ -180,16 +182,16 @@ supabase functions deploy notify-interviews
 
 ## Key Files
 
-| File | Purpose |
-|---|---|
-| `src/lib/email/templates.ts` | Browser-side email template functions |
-| `src/lib/email/generate.ts` | Groups interviews by recipient, calls templates |
-| `src/lib/email/ics.ts` | ICS calendar file generation |
-| `src/lib/components/recruiter/EmailGeneratorModal.svelte` | Email preview/edit/send modal |
-| `supabase/functions/notify-interviews/index.ts` | Edge Function: sends emails via Resend |
-| `supabase/functions/_shared/templates.ts` | Deno-compatible email templates |
-| `src/routes/private/[slug]/schedule/notify/+server.ts` | SvelteKit API route that invokes the Edge Function |
-| `supabase/migrations/00010_email_log.sql` | Email log table migration |
+| File                                                      | Purpose                                            |
+| --------------------------------------------------------- | -------------------------------------------------- |
+| `src/lib/email/templates.ts`                              | Browser-side email template functions              |
+| `src/lib/email/generate.ts`                               | Groups interviews by recipient, calls templates    |
+| `src/lib/email/ics.ts`                                    | ICS calendar file generation                       |
+| `src/lib/components/recruiter/EmailGeneratorModal.svelte` | Email preview/edit/send modal                      |
+| `supabase/functions/notify-interviews/index.ts`           | Edge Function: sends emails via Resend             |
+| `supabase/functions/_shared/templates.ts`                 | Deno-compatible email templates                    |
+| `src/routes/private/[slug]/schedule/notify/+server.ts`    | SvelteKit API route that invokes the Edge Function |
+| `supabase/migrations/00010_email_log.sql`                 | Email log table migration                          |
 
 ---
 

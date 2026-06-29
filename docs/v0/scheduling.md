@@ -12,6 +12,7 @@ LUMA supports two modes of interview scheduling:
 ## Manual Scheduling
 
 On the **Full Schedule** page (`/private/[slug]/schedule/full`):
+
 - Click a time slot or the **Create Interview** button
 - Select applicant, interviewer, date/time, location, and type (individual/group)
 - Conflict detection warns if the interviewer or applicant already has an overlapping interview
@@ -24,6 +25,7 @@ Manual interviews are stored with `source = 'manual'` and are never modified by 
 ## Interviewer Availability
 
 Interviewers submit their available windows at **My Availability** (`/private/[slug]/availability`):
+
 - Weekly grid (Mon–Sun) with configurable time range (default 08:00–20:00)
 - Click/drag to select available slots
 - Saved to the `interviewer_availability` table
@@ -90,25 +92,25 @@ Designed for large cohorts (100+ applicants) across multiple rooms and rounds.
 
 #### Batch Config
 
-| Field | Type | Description |
-|---|---|---|
-| `rooms` | `string[]` | Room names used in parallel |
-| `rounds` | `BatchRound[]` | Ordered list of interview rounds |
-| `sessionWindows` | `BatchSessionWindow[]` | Date + time windows for scheduling |
-| `slotStepMinutes` | `number` | Time between slot start times (e.g. 15 min) |
-| `blockBreakMinutes` | `number` | Gap between sequential slots |
-| `requireAllRounds` | `boolean` | Remove applicants who miss any round |
+| Field               | Type                   | Description                                 |
+| ------------------- | ---------------------- | ------------------------------------------- |
+| `rooms`             | `string[]`             | Room names used in parallel                 |
+| `rounds`            | `BatchRound[]`         | Ordered list of interview rounds            |
+| `sessionWindows`    | `BatchSessionWindow[]` | Date + time windows for scheduling          |
+| `slotStepMinutes`   | `number`               | Time between slot start times (e.g. 15 min) |
+| `blockBreakMinutes` | `number`               | Gap between sequential slots                |
+| `requireAllRounds`  | `boolean`              | Remove applicants who miss any round        |
 
 #### BatchRound Fields
 
-| Field | Description |
-|---|---|
-| `id` | Unique identifier (e.g. `"individual"`) |
-| `label` | Display name |
-| `type` | `"individual"` or `"group"` |
-| `durationMinutes` | Slot length |
-| `groupSize` | Applicants per slot (1 for individual) |
-| `interviewersPerRoom` | Interviewers per slot |
+| Field                 | Description                             |
+| --------------------- | --------------------------------------- |
+| `id`                  | Unique identifier (e.g. `"individual"`) |
+| `label`               | Display name                            |
+| `type`                | `"individual"` or `"group"`             |
+| `durationMinutes`     | Slot length                             |
+| `groupSize`           | Applicants per slot (1 for individual)  |
+| `interviewersPerRoom` | Interviewers per slot                   |
 
 #### How It Works
 
@@ -130,26 +132,31 @@ The batch scheduler provides additional output:
 
 ```typescript
 interface SchedulingAlgorithm {
-  id: string;
-  name: string;
-  description: string;
-  configSchema: ConfigField[];
-  run: (input: SchedulerInput) => SchedulerOutput;
+	id: string;
+	name: string;
+	description: string;
+	configSchema: ConfigField[];
+	run: (input: SchedulerInput) => SchedulerOutput;
 }
 
 interface SchedulerInput {
-  applicants: { email: string; name: string; jobId: number; availability: TimeRange[] }[];
-  interviewers: { email: string; availability: TimeRange[] }[];
-  existingInterviews: { startTime: string; endTime: string; interviewer: string; applicant: string }[];
-  config: SchedulerConfig;
+	applicants: { email: string; name: string; jobId: number; availability: TimeRange[] }[];
+	interviewers: { email: string; availability: TimeRange[] }[];
+	existingInterviews: {
+		startTime: string;
+		endTime: string;
+		interviewer: string;
+		applicant: string;
+	}[];
+	config: SchedulerConfig;
 }
 
 interface SchedulerOutput {
-  interviews: ProposedInterview[];
-  unmatched: string[];
-  warnings: string[];
-  unmatchedDetails?: UnmatchedApplicant[];  // batch scheduler
-  stats?: BatchRoundStat[];                 // batch scheduler
+	interviews: ProposedInterview[];
+	unmatched: string[];
+	warnings: string[];
+	unmatchedDetails?: UnmatchedApplicant[]; // batch scheduler
+	stats?: BatchRoundStat[]; // batch scheduler
 }
 ```
 
@@ -205,18 +212,18 @@ Auto-scheduling inserts with `source = 'auto'`. The "Clear" button only deletes 
 
 ## Key Files
 
-| File | Purpose |
-|---|---|
-| `src/lib/scheduling/types.ts` | Shared types and interfaces |
-| `src/lib/scheduling/registry.ts` | Algorithm registry (exports all available algorithms) |
-| `src/lib/scheduling/utils.ts` | Helpers: time overlap, slot generation, conflict checking |
-| `src/lib/scheduling/algorithms/greedy-first-available.ts` | Greedy algorithm |
-| `src/lib/scheduling/algorithms/balanced-load.ts` | Balanced-load algorithm |
-| `src/lib/scheduling/algorithms/round-robin.ts` | Round-robin algorithm |
-| `src/lib/scheduling/algorithms/batch-scheduler.ts` | Batch scheduler (multi-room, multi-round) |
-| `src/routes/admin/+page.svelte` | Admin panel with scheduling tab |
-| `src/routes/private/[slug]/availability/+page.svelte` | Interviewer availability page |
-| `src/routes/private/[slug]/schedule/full/+page.svelte` | Full schedule with manual CRUD |
+| File                                                      | Purpose                                                   |
+| --------------------------------------------------------- | --------------------------------------------------------- |
+| `src/lib/scheduling/types.ts`                             | Shared types and interfaces                               |
+| `src/lib/scheduling/registry.ts`                          | Algorithm registry (exports all available algorithms)     |
+| `src/lib/scheduling/utils.ts`                             | Helpers: time overlap, slot generation, conflict checking |
+| `src/lib/scheduling/algorithms/greedy-first-available.ts` | Greedy algorithm                                          |
+| `src/lib/scheduling/algorithms/balanced-load.ts`          | Balanced-load algorithm                                   |
+| `src/lib/scheduling/algorithms/round-robin.ts`            | Round-robin algorithm                                     |
+| `src/lib/scheduling/algorithms/batch-scheduler.ts`        | Batch scheduler (multi-room, multi-round)                 |
+| `src/routes/admin/+page.svelte`                           | Admin panel with scheduling tab                           |
+| `src/routes/private/[slug]/availability/+page.svelte`     | Interviewer availability page                             |
+| `src/routes/private/[slug]/schedule/full/+page.svelte`    | Full schedule with manual CRUD                            |
 
 ---
 

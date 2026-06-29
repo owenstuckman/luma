@@ -23,7 +23,8 @@ interface ResendWebhookEvent {
 
 // Use service-role key if available (set via PRIVATE_SUPABASE_SERVICE_KEY env var),
 // otherwise fall back to anon key (will rely on RLS).
-const SERVICE_KEY = (typeof process !== 'undefined' && process.env?.PRIVATE_SUPABASE_SERVICE_KEY) || '';
+const SERVICE_KEY =
+	(typeof process !== 'undefined' && process.env?.PRIVATE_SUPABASE_SERVICE_KEY) || '';
 
 export const POST: RequestHandler = async ({ request }) => {
 	try {
@@ -58,11 +59,12 @@ export const POST: RequestHandler = async ({ request }) => {
 			.from('email_log')
 			.update({
 				status: newStatus,
-				error: event.type === 'email.bounced'
-					? `Bounced: ${JSON.stringify(event.data).substring(0, 500)}`
-					: event.type === 'email.complained'
-						? 'Recipient marked as spam'
-						: null
+				error:
+					event.type === 'email.bounced'
+						? `Bounced: ${JSON.stringify(event.data).substring(0, 500)}`
+						: event.type === 'email.complained'
+							? 'Recipient marked as spam'
+							: null
 			})
 			.eq('provider_id', providerMessageId);
 

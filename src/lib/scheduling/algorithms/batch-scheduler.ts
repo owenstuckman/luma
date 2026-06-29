@@ -25,7 +25,10 @@ function normalizeAttr(val: string | string[] | undefined): string[] {
 	if (!val) return [];
 	if (Array.isArray(val)) return val.map((v) => v.toLowerCase().trim()).filter(Boolean);
 	// Comma-separated strings from checkbox multi-select
-	return val.split(',').map((v) => v.toLowerCase().trim()).filter(Boolean);
+	return val
+		.split(',')
+		.map((v) => v.toLowerCase().trim())
+		.filter(Boolean);
 }
 
 function slotAttributeScore(
@@ -49,34 +52,6 @@ function slotAttributeScore(
 		}
 	}
 	return score;
-}
-
-/**
- * Returns true if there are hard attribute rules and at least one slot in
- * `candidates` satisfies them for this applicant.
- */
-function hasHardRuleMatch(
-	applicant: SchedulerInput['applicants'][number],
-	candidates: RoomSlot[],
-	interviewers: SchedulerInput['interviewers'],
-	rules: AttributeMatchRule[]
-): boolean {
-	const hardRules = rules.filter((r) => r.hard);
-	if (hardRules.length === 0) return false; // no hard rules → no constraint
-
-	return candidates.some((slot) => {
-		for (const rule of hardRules) {
-			const applicantVals = normalizeAttr(applicant.attributes?.[rule.applicantQuestionId]);
-			if (applicantVals.length === 0) continue;
-			for (const ivEmail of slot.assignedInterviewers) {
-				const iv = interviewers.find((i) => i.email === ivEmail);
-				if (!iv) continue;
-				const ivVals = normalizeAttr(iv.attributes?.[rule.interviewerAttributeKey]);
-				if (applicantVals.some((v) => ivVals.includes(v))) return true;
-			}
-		}
-		return false;
-	});
 }
 
 // ── Slot picker ───────────────────────────────────────────────────────────────
@@ -111,9 +86,24 @@ function pickBestSlot(
 
 	for (const slot of roundSlots) {
 		if (slot.assignedApplicants.length >= groupSize) continue;
-		if (applicantHasConflict(applicant.email, slot.date, slot.startMins, slot.endMins, proposed, existingInterviews)) continue;
+		if (
+			applicantHasConflict(
+				applicant.email,
+				slot.date,
+				slot.startMins,
+				slot.endMins,
+				proposed,
+				existingInterviews
+			)
+		)
+			continue;
 
-		const available = applicantAvailableAt(applicant.availability, slot.date, slot.startMins, slot.endMins);
+		const available = applicantAvailableAt(
+			applicant.availability,
+			slot.date,
+			slot.startMins,
+			slot.endMins
+		);
 		if (!available && !allowAvailabilityViolation) continue;
 
 		const violations: ScheduleViolation[] = [];
@@ -121,16 +111,32 @@ function pickBestSlot(
 
 		if (!available) {
 			score -= availabilityPenalty;
-			violations.push({ type: 'availability', detail: 'Applicant unavailable at this time — relaxed placement, please confirm' });
+			violations.push({
+				type: 'availability',
+				detail: 'Applicant unavailable at this time — relaxed placement, please confirm'
+			});
 		}
 
 		score += slotAttributeScore(applicant, slot, interviewers, attributeRules);
 
 		// Attribute mismatch violation (soft rules only — hard handled below)
 		if (attributeRules.length > 0) {
-			const attrScore = slotAttributeScore(applicant, slot, interviewers, attributeRules.filter((r) => !r.hard));
-			if (attrScore === 0 && attributeRules.some((r) => !r.hard && normalizeAttr(applicant.attributes?.[r.applicantQuestionId]).length > 0)) {
-				violations.push({ type: 'attribute_mismatch', detail: 'No matching interviewer attribute for applicant preference' });
+			const attrScore = slotAttributeScore(
+				applicant,
+				slot,
+				interviewers,
+				attributeRules.filter((r) => !r.hard)
+			);
+			if (
+				attrScore === 0 &&
+				attributeRules.some(
+					(r) => !r.hard && normalizeAttr(applicant.attributes?.[r.applicantQuestionId]).length > 0
+				)
+			) {
+				violations.push({
+					type: 'attribute_mismatch',
+					detail: 'No matching interviewer attribute for applicant preference'
+				});
 			}
 		}
 
@@ -207,13 +213,25 @@ export const batchScheduler: SchedulingAlgorithm = {
 
 		// ── Validate config ────────────────────────────────────────────────────
 		if (!cfg.rooms?.length) {
-			return { interviews: [], unmatched: applicants.map((a) => a.email), warnings: ['No rooms configured.'] };
+			return {
+				interviews: [],
+				unmatched: applicants.map((a) => a.email),
+				warnings: ['No rooms configured.']
+			};
 		}
 		if (!cfg.rounds?.length) {
-			return { interviews: [], unmatched: applicants.map((a) => a.email), warnings: ['No rounds configured.'] };
+			return {
+				interviews: [],
+				unmatched: applicants.map((a) => a.email),
+				warnings: ['No rounds configured.']
+			};
 		}
 		if (!cfg.sessionWindows?.length) {
-			return { interviews: [], unmatched: applicants.map((a) => a.email), warnings: ['No session windows configured.'] };
+			return {
+				interviews: [],
+				unmatched: applicants.map((a) => a.email),
+				warnings: ['No session windows configured.']
+			};
 		}
 
 		const slotStep = cfg.slotStepMinutes ?? 15;
@@ -221,7 +239,9 @@ export const batchScheduler: SchedulingAlgorithm = {
 		const requireAll = cfg.requireAllRounds ?? false;
 		const relaxedFallback = cfg.relaxedFallback ?? false;
 		const relaxedPenalty = cfg.relaxedAvailabilityPenalty ?? 10;
-		const attributeRules = cfg.attributeMatching?.enabled ? (cfg.attributeMatching.rules ?? []) : [];
+		const attributeRules = cfg.attributeMatching?.enabled
+			? (cfg.attributeMatching.rules ?? [])
+			: [];
 
 		// ── Generate all slots ─────────────────────────────────────────────────
 		const allSlots = generateRoomSlots(
@@ -337,9 +357,7 @@ export const batchScheduler: SchedulingAlgorithm = {
 				const roundSlots = allSlots.filter((s) => s.round.id === round.id);
 
 				// Only process applicants not yet assigned in this round
-				const unassigned = applicants.filter(
-					(a) => !assignedPerRound.get(round.id)?.has(a.email)
-				);
+				const unassigned = applicants.filter((a) => !assignedPerRound.get(round.id)?.has(a.email));
 
 				// Keep priority + constrained ordering for the relaxed pass
 				const sorted = [...unassigned].sort((a, b) => {
@@ -412,9 +430,7 @@ export const batchScheduler: SchedulingAlgorithm = {
 		if (requireAll && unmatchedEmails.size > 0) {
 			finalProposed = proposed.filter((p) => !unmatchedEmails.has(p.applicant));
 			for (const slot of allSlots) {
-				slot.assignedApplicants = slot.assignedApplicants.filter(
-					(e) => !unmatchedEmails.has(e)
-				);
+				slot.assignedApplicants = slot.assignedApplicants.filter((e) => !unmatchedEmails.has(e));
 			}
 			for (const round of cfg.rounds) {
 				const set = assignedPerRound.get(round.id);
@@ -443,7 +459,10 @@ export const batchScheduler: SchedulingAlgorithm = {
 
 					const roundSlots = allSlots.filter((s) => s.round.id === round.id);
 					for (const slot of roundSlots) {
-						if (!applicantAvailableAt(applicant.availability, slot.date, slot.startMins, slot.endMins)) continue;
+						if (
+							!applicantAvailableAt(applicant.availability, slot.date, slot.startMins, slot.endMins)
+						)
+							continue;
 						suggestedSlots.push({
 							roundId: round.id,
 							date: slot.date,
