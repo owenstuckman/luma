@@ -63,6 +63,7 @@
 					org_id: orgData.id,
 					user_id: userData.user.id,
 					role: 'owner',
+					roles: ['owner'],
 					metadata: {}
 				};
 			} else {

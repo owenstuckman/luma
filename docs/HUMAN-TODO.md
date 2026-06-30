@@ -44,6 +44,7 @@ Things only Owen can do — accounts, DNS, secrets, decisions. Sorted by when th
 
 ### Before Phase 2 (Form Builder)
 
+- [ ] **Apply Phase 1 migrations** (`00014`–`00020`) to the prod Supabase project. Either `supabase db push` from the linked project, or paste each file from `supabase/migrations/` into the Supabase SQL editor in order. All are additive (no drops, no renames). Confirm the Archimedes org exists with `slug = 'archimedes'` so the team seed in `00015` runs.
 - [ ] Send me the **actual question list** you want for the V1 Archimedes cycle: shared questions + per-team questions. Even a rough Google Doc works — I'll convert it to the JSON schema. If you want me to draft it from the V1 background doc + last year's CSVs, say so.
 - [ ] Tell me your **auto-reject rules** in plain English (e.g., "if 'Are you 18+' = No → reject"). I'll wire them into the question schema.
 

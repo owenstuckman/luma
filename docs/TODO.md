@@ -33,17 +33,24 @@ Order is roughly the build order — earlier phases unblock later ones. Within a
 
 **Net result:** lint green (0 errors / 203 warnings), check green (0 errors / 117 warnings), build green. Safe to start Phase 1.
 
-## Phase 1 — Schema & Types Foundation (1 day)
+## Phase 1 — Schema & Types Foundation ✅ (complete)
 
-- [ ] Migration `00014_v1_question_schema.sql`: extend question JSON to support `team_scope`, `reject_if`, `blinded`. No schema change strictly required (it's JSONB) — add a typed validator instead.
-- [ ] Migration `00015_v1_teams.sql`: add `teams` table (org-scoped) with `name`, `description`, `slug`. Seed Infinitum/Astra/Terra/Juvo for Archimedes org.
-- [ ] Migration `00016_v1_member_roles.sql`: add `roles` text[] on `org_members` (alongside existing `role`). Backfill from singular `role`. Update RLS helpers.
-- [ ] Migration `00017_v1_application_drafts.sql`: `application_drafts` table for save-and-resume (`email`, `job_id`, `data` JSONB, `magic_token`, `expires_at`).
-- [ ] Migration `00018_v1_reviewer_pool.sql`: `job_reviewers` join table; `org_settings.review_thresholds` JSON shape documented.
-- [ ] Migration `00019_v1_decisions.sql`: `decisions` table (`applicant_id`, `team_id`, `outcome`, `decided_by`, `decided_at`, `email_sent_at`).
-- [ ] Migration `00020_v1_applicant_prior_team.sql`: `prior_team_id` nullable on applicants.
-- [ ] Update `src/lib/types/index.ts`: add `Team`, `OrgSettings`, `ApplicationDraft`, `Decision`, extend `FormQuestion` with new fields, extend `OrgMember` with `roles`.
-- [ ] Add `src/lib/types/orgSettings.ts` with the canonical settings shape + zod validator (or hand-rolled validator if avoiding deps).
+- [x] **`00014_v1_question_schema.sql`** — documents the extended question JSON shape (`team_scope`, `reject_if`, `blinded`); adds a light `jsonb_typeof` CHECK on `job_posting.questions` to enforce the outer object/`steps` array shape. Forward-compatible (extra keys not validated).
+- [x] **`00015_v1_teams.sql`** — `teams` table (org-scoped: `name`, `slug`, `description`, `display_order`, `active`), unique on `(org_id, slug)`, GIN-friendly RLS via `is_org_member` / `has_org_role`. Seeds Infinitum / Astra / Terra / Juvo for the Archimedes org (idempotent).
+- [x] **`00016_v1_member_roles.sql`** — adds `roles text[]` to `org_members`, backfills from singular `role` (legacy `recruiter` → `['interviewer', 'recruiter']`), GIN index, and new helper `has_app_role(org_id, role_name)` that checks both `roles[]` and the singular `role` for back-compat.
+- [x] **`00017_v1_application_drafts.sql`** — drafts table for save-and-resume (`email`, `job_id`, `data` JSONB, `selected_team_slugs`, `magic_token` UNIQUE, `expires_at` default +14d). Public INSERT allowed; SELECT/UPDATE go through server endpoints (token verified server-side). Auto-updates `updated_at` via trigger.
+- [x] **`00018_v1_reviewer_pool.sql`** — `job_reviewers` join (`job_id`, `user_id`, `weight` for weighted scoring). Seeds `review_thresholds` defaults into `organizations.settings` for any org missing them (non-destructive jsonb merge).
+- [x] **`00019_v1_decisions.sql`** — `decisions` table with `decision_outcome` enum (`hire | reject | waitlist`), one row per `(applicant, team)`, `email_sent_at` for outbound tracking. RLS allows advisors + admins to write, all org members to read.
+- [x] **`00020_v1_applicant_prior_team.sql`** — `applicants.prior_team_id` (nullable FK to teams) and `applicants.selected_team_slugs text[]` for the teams the applicant chose at submission.
+- [x] **`src/lib/types/index.ts`** — added `AppRole`, `Team`, `ApplicationDraft`, `Decision`, `DecisionOutcome`, `JobReviewer`, `TeamScope`, `RejectRule`; extended `OrgMember` with `roles: AppRole[]`, `FormQuestion` with `team_scope` / `reject_if` / `blinded`, `Applicant` with `prior_team_id` / `selected_team_slugs`.
+- [x] **`src/lib/types/orgSettings.ts`** — canonical `OrgSettings` type covering `review_thresholds`, `scheduling`, `email`. Hand-rolled `readOrgSettings(raw)` normalizer (no zod): missing/malformed keys fall back to `DEFAULT_ORG_SETTINGS`, never throws. Always read settings through this — never touch `org.settings.foo` directly.
+- [x] Fixed downstream type break: platform-admin synthetic `OrgMember` in `src/routes/private/[slug]/+layout.svelte` now carries `roles: ['owner']`.
+
+**Net result:** `npm run check` (0 errors), `npm run lint` (0 errors), `npm run build` clean. 7 new migrations land additively (no drops, no renames). Safe to start Phase 2 once migrations are applied to Supabase.
+
+**Owner action before Phase 2 (also in HUMAN-TODO.md):**
+1. Apply `00014`–`00020` to the prod Supabase project (`supabase db push` or paste each into the SQL editor in order).
+2. Confirm the Archimedes org row exists (`select * from organizations where slug = 'archimedes'`); if not, create it before re-running `00015` to get the seed.
 
 ## Phase 2 — Form Builder + Application Flow (2-3 days; critical path)
 

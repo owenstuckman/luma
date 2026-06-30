@@ -1,4 +1,20 @@
+// Legacy single-role enum, kept for backward compatibility with existing
+// RLS helpers (`has_org_role`). The single `role` column stays on
+// org_members; multi-role membership lives in `roles` (see AppRole below).
 export type OrgRole = 'owner' | 'admin' | 'recruiter' | 'viewer';
+
+// V1: app-level fine-grained roles. A user can hold any subset of these
+// in `org_members.roles`. 'recruiter' is kept as a legacy alias for
+// 'interviewer'.
+export type AppRole =
+	| 'owner'
+	| 'admin'
+	| 'eboard'
+	| 'advisor'
+	| 'interviewer'
+	| 'reviewer'
+	| 'viewer'
+	| 'recruiter';
 
 export interface Organization {
 	id: number;
@@ -18,7 +34,20 @@ export interface OrgMember {
 	org_id: number;
 	user_id: string;
 	role: OrgRole;
+	roles: AppRole[];
 	metadata: Record<string, unknown>;
+}
+
+// V1: Per-org subteam (e.g., Infinitum/Astra/Terra/Juvo for Archimedes).
+export interface Team {
+	id: number;
+	created_at: string;
+	org_id: number;
+	name: string;
+	slug: string;
+	description: string | null;
+	display_order: number;
+	active: boolean;
 }
 
 export interface JobPosting {
@@ -48,6 +77,52 @@ export interface Applicant {
 	job: number | null;
 	status: 'pending' | 'interview' | 'accepted' | 'denied';
 	org_id: number | null;
+	// V1: returning-member manual override (soft preference for scheduler)
+	prior_team_id: number | null;
+	// V1: teams the applicant chose at the start of the form
+	selected_team_slugs: string[];
+}
+
+// V1: Save-and-resume draft. Created when applicant first enters the form;
+// promoted to an Applicant row on submit.
+export interface ApplicationDraft {
+	id: number;
+	created_at: string;
+	updated_at: string;
+	org_id: number;
+	job_id: number;
+	email: string;
+	data: Record<string, unknown>;
+	selected_team_slugs: string[];
+	magic_token: string;
+	expires_at: string;
+	submitted_at: string | null;
+}
+
+// V1: Per-team hire/reject/waitlist decision.
+export type DecisionOutcome = 'hire' | 'reject' | 'waitlist';
+
+export interface Decision {
+	id: number;
+	created_at: string;
+	org_id: number;
+	applicant_id: number;
+	team_id: number;
+	outcome: DecisionOutcome;
+	decided_by: string;
+	decided_at: string;
+	email_sent_at: string | null;
+	notes: string | null;
+}
+
+// V1: Reviewer pool assignment per job posting.
+export interface JobReviewer {
+	id: number;
+	created_at: string;
+	org_id: number;
+	job_id: number;
+	user_id: string;
+	weight: number;
 }
 
 export interface CommentEntry {
@@ -94,6 +169,20 @@ export interface FormStep {
 	questions: FormQuestion[];
 }
 
+// V1: scope a question to all teams ('shared') or a subset by slug.
+export type TeamScope = 'shared' | { teams: string[] };
+
+// V1: auto-reject rule. Evaluated server-side on submit.
+export type RejectRule =
+	| { op: 'truthy' }
+	| { op: 'falsy' }
+	| { op: 'eq'; value: unknown }
+	| { op: 'neq'; value: unknown }
+	| { op: 'in'; value: unknown[] }
+	| { op: 'not_in'; value: unknown[] }
+	| { op: 'lt'; value: number }
+	| { op: 'gt'; value: number };
+
 export interface FormQuestion {
 	id: string;
 	type:
@@ -126,6 +215,10 @@ export interface FormQuestion {
 	dayStart?: string;
 	dayEnd?: string;
 	stepMinutes?: number;
+	// V1: per-team visibility, auto-reject, blinded-review
+	team_scope?: TeamScope;
+	reject_if?: RejectRule;
+	blinded?: boolean;
 }
 
 // Admin panel types
