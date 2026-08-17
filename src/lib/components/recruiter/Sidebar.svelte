@@ -31,6 +31,16 @@
 			</a>
 		</li>
 		<li>
+			<a
+				href="{base}/candidates"
+				class="btn btn-sidebar"
+				class:sidebar-selected={currentStep === 8}
+			>
+				<i class="fi fi-br-users"></i>
+				Candidates
+			</a>
+		</li>
+		<li>
 			<button
 				class="btn btn-sidebar"
 				class:sidebar-selected={currentStep >= 2 && currentStep <= 4}
@@ -104,6 +114,17 @@
 				>
 					<i class="fi fi-br-assessment-alt"></i>
 					Review
+				</a>
+			</li>
+			<li>
+				<a
+					href="{base}/candidates"
+					class="btn btn-sidebar"
+					class:sidebar-selected={currentStep === 8}
+					onclick={closeMenu}
+				>
+					<i class="fi fi-br-users"></i>
+					Candidates
 				</a>
 			</li>
 			<li>

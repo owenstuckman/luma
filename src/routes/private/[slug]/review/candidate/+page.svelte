@@ -6,9 +6,24 @@
 		getApplicantData,
 		addComment,
 		getCurrentUserEmail,
-		updateApplicantStatus
+		updateApplicantStatus,
+		getUserRoleInOrg,
+		getOrgMembersWithEmail
 	} from '$lib/utils/supabase';
-	import type { Applicant, CommentEntry } from '$lib/types';
+	import { getCandidateTimeline } from '$lib/utils/candidates';
+	import type { TimelineEvent, TimelineKind } from '$lib/utils/candidates';
+	import {
+		tallyVotes,
+		thresholdOutcome,
+		votesRemaining,
+		buildWeightMap,
+		outcomeToStatus,
+		redactApplicant,
+		shouldBlind
+	} from '$lib/utils/review';
+	import { readOrgSettings, DEFAULT_ORG_SETTINGS } from '$lib/types/orgSettings';
+	import type { OrgSettings } from '$lib/types/orgSettings';
+	import type { Applicant, CommentEntry, QuestionSchema } from '$lib/types';
 
 	interface Evaluation {
 		rating: number;
@@ -33,8 +48,56 @@
 	let newStatus = 'pending';
 	let loading = true;
 	let interviews: InterviewWithEval[] = [];
+	let timeline: TimelineEvent[] = [];
+	let timelineLoading = true;
+
+	// --- Review voting ---
+	let orgSettings: OrgSettings = DEFAULT_ORG_SETTINGS;
+	let reviewerWeights: Record<string, number> = {};
+	let viewerRoles: string[] = [];
+	let jobSchema: QuestionSchema | null = null;
+	let myEmail = '';
+	let voting = false;
+	let voteNote = '';
+
+	$: thresholds = orgSettings.review_thresholds;
+	$: tally = tallyVotes(commentsArray, reviewerWeights);
+	$: outcome = thresholdOutcome(tally, thresholds);
+	$: remaining = votesRemaining(tally, thresholds);
+	$: blinded = shouldBlind(viewerRoles, thresholds);
+	// What the reviewer is allowed to see. Advisors/admins get the real record;
+	// a plain reviewer sees a redacted copy.
+	$: shown = applicant ? redactApplicant(applicant, jobSchema, blinded) : null;
+	$: myVote = tally.voters.find((v) => v.email === myEmail.toLowerCase())?.vote ?? null;
+
+	const TIMELINE_ICONS: Record<TimelineKind, string> = {
+		draft: 'fi-br-pencil',
+		applied: 'fi-br-paper-plane',
+		comment: 'fi-br-comment-alt',
+		status: 'fi-br-refresh',
+		interview_scheduled: 'fi-br-calendar-clock',
+		interview: 'fi-br-users-alt',
+		evaluation: 'fi-br-star',
+		decision: 'fi-br-badge-check',
+		email: 'fi-br-envelope'
+	};
+
+	const TIMELINE_COLORS: Record<TimelineKind, string> = {
+		draft: '#878fa1',
+		applied: '#3b82f6',
+		comment: '#8b5cf6',
+		status: '#878fa1',
+		interview_scheduled: '#0ea5e9',
+		interview: '#0ea5e9',
+		evaluation: '#f59e0b',
+		decision: '#22c55e',
+		email: '#878fa1'
+	};
 
 	$: slug = $page.params.slug;
+	// This page is reachable from both /review and /candidates; send the user back
+	// where they came from.
+	$: backTo = $page.url.searchParams.get('from') === 'candidates' ? 'candidates' : 'review';
 
 	$: evaluations = interviews
 		.filter((iv) => iv.comments && (iv.comments as Record<string, unknown>).evaluation)
@@ -74,22 +137,63 @@
 			if (applicant?.email) {
 				const { data: orgData } = await supabase
 					.from('organizations')
-					.select('id')
+					.select('id, settings')
 					.eq('slug', slug)
 					.single();
 
 				if (orgData) {
+					orgSettings = readOrgSettings(orgData.settings);
+					myEmail = ((await getCurrentUserEmail()) as string) ?? '';
+
+					// Reviewer weights + this viewer's roles drive weighted scoring
+					// and whether the record is blinded. Weights must key by real
+					// email, since that is what comments record — hence the RPC
+					// rather than a plain `org_members` select (which only has user_id).
+					const members = await getOrgMembersWithEmail(orgData.id);
+					reviewerWeights = buildWeightMap(members);
+
+					const me = await getUserRoleInOrg(orgData.id);
+					viewerRoles = me ? [...(me.roles ?? []), me.role].filter(Boolean) : [];
+
+					// The job's schema tells us which answers are marked `blinded`.
+					if (applicant.job) {
+						const { data: jobRow } = await supabase
+							.from('job_posting')
+							.select('questions')
+							.eq('id', applicant.job)
+							.single();
+						jobSchema = jobRow?.questions ?? null;
+					}
+
 					const { data: ivData } = await supabase
 						.from('interviews')
 						.select('id, interviewer, start_time, comments')
 						.eq('org_id', orgData.id)
 						.eq('applicant', applicant.email);
 					interviews = (ivData || []) as InterviewWithEval[];
+
+					try {
+						timeline = await getCandidateTimeline(orgData.id, applicant);
+					} catch (error) {
+						console.error('Failed to load candidate timeline:', error);
+					}
 				}
 			}
 		}
+		timelineLoading = false;
 		loading = false;
 	});
+
+	function formatEventTime(at: string | null): string {
+		if (!at) return 'No timestamp';
+		return new Date(at).toLocaleString(undefined, {
+			month: 'short',
+			day: 'numeric',
+			year: 'numeric',
+			hour: 'numeric',
+			minute: '2-digit'
+		});
+	}
 
 	const handleAddComment = async () => {
 		if (!newComment.trim() || !applicant) return;
@@ -107,6 +211,39 @@
 			console.error('Failed to add comment:', error);
 		}
 	};
+
+	/**
+	 * Cast (or change) this reviewer's vote. Stored as a comment so it shows up
+	 * in the existing comment thread and timeline; `tallyVotes` counts only each
+	 * reviewer's most recent one.
+	 *
+	 * When a vote crosses a threshold the applicant's status advances
+	 * automatically, matching the Phase 3 decision to auto-advance rather than
+	 * wait for an admin to confirm.
+	 */
+	async function castVote(vote: 'approve' | 'reject') {
+		if (!applicant || voting) return;
+		voting = true;
+		try {
+			const email = (await getCurrentUserEmail()) as string;
+			const newID = commentsArray.length > 0 ? commentsArray[commentsArray.length - 1].id + 1 : 1;
+			const note = voteNote.trim() || `Voted to ${vote}`;
+			await addComment(applicant.id, newID, note, email, vote);
+			commentsArray = [...commentsArray, { id: newID, email, comment: note, decision: vote }];
+			voteNote = '';
+
+			const newTally = tallyVotes(commentsArray, reviewerWeights);
+			const nextStatus = outcomeToStatus(thresholdOutcome(newTally, thresholds));
+			if (nextStatus && nextStatus !== applicant.status) {
+				await updateApplicantStatus(applicant.id, nextStatus);
+				applicant = { ...applicant, status: nextStatus };
+			}
+		} catch (error) {
+			console.error('Failed to record vote:', error);
+		} finally {
+			voting = false;
+		}
+	}
 
 	const handleStatusChange = async (status: string) => {
 		if (!applicant) return;
@@ -172,8 +309,9 @@
 
 <div class="candidate-page">
 	<div class="candidate-header">
-		<a href="/private/{slug}/review" class="back-btn">
-			<i class="fi fi-br-arrow-left"></i> Back to Review
+		<a href="/private/{slug}/{backTo}" class="back-btn">
+			<i class="fi fi-br-arrow-left"></i>
+			Back to {backTo === 'candidates' ? 'Candidates' : 'Review'}
 		</a>
 	</div>
 
@@ -185,7 +323,7 @@
 			<div class="candidate-info">
 				<div class="card">
 					<div style="display: flex; justify-content: space-between; align-items: center;">
-						<h5 style="margin: 0;">{applicant.name}</h5>
+						<h5 style="margin: 0;">{shown?.name ?? applicant.name}</h5>
 						<span
 							class="status-badge"
 							style="background-color: {getStatusColor(applicant.status)};"
@@ -193,8 +331,14 @@
 							{applicant.status}
 						</span>
 					</div>
-					<p class="meta">{applicant.email}</p>
+					<p class="meta">{shown?.email ?? applicant.email}</p>
 					<p class="meta">Applied {new Date(applicant.created_at).toLocaleDateString()}</p>
+					{#if blinded}
+						<p class="blind-note">
+							<i class="fi fi-br-eye-crossed"></i>
+							Blinded review — identifying details are hidden. Advisors and admins see the full record.
+						</p>
+					{/if}
 
 					<div style="margin-top: 12px;">
 						<label style="font-size: 12px; font-weight: 600; color: #878fa1;">Change Status</label>
@@ -212,13 +356,120 @@
 					</div>
 				</div>
 
-				{#if applicant.recruitInfo}
+				<!-- Review votes: tally, threshold progress, and this reviewer's vote -->
+				<div class="card">
+					<h5>Review Votes</h5>
+
+					<div class="vote-counts">
+						<span class="vote-stat approve">{tally.approve} approve</span>
+						<span class="vote-stat reject">{tally.reject} reject</span>
+						{#if tally.neutral > 0}
+							<span class="vote-stat neutral">{tally.neutral} neutral</span>
+						{/if}
+						{#if thresholds.weighted_scoring}
+							<span class="vote-weighted">
+								weighted {tally.weightedApprove} / {tally.weightedReject}
+							</span>
+						{/if}
+					</div>
+
+					<p class="meta">
+						{#if outcome === 'advance'}
+							Threshold met — advanced to interview.
+						{:else if outcome === 'deny'}
+							Rejection threshold met — marked denied.
+						{:else}
+							{remaining.toAdvance} more to advance · {remaining.toDeny} more to deny
+						{/if}
+					</p>
+
+					{#if myVote}
+						<p class="meta">
+							You voted <strong>{myVote}</strong>. Voting again replaces it.
+						</p>
+					{/if}
+
+					<textarea
+						class="form-control"
+						rows="2"
+						bind:value={voteNote}
+						placeholder="Optional note with your vote..."
+						style="font-size: 12px; margin: 8px 0;"></textarea>
+
+					<div class="vote-actions">
+						<button
+							class="btn btn-sm vote-btn approve-btn"
+							disabled={voting}
+							on:click={() => castVote('approve')}
+						>
+							{voting ? '...' : 'Approve'}
+						</button>
+						<button
+							class="btn btn-sm vote-btn reject-btn"
+							disabled={voting}
+							on:click={() => castVote('reject')}
+						>
+							{voting ? '...' : 'Reject'}
+						</button>
+					</div>
+				</div>
+
+				<!-- Full pipeline history, unioned from every table that records
+				     something about this candidate. -->
+				<div class="card">
+					<h5>Timeline</h5>
+					{#if timelineLoading}
+						<p style="color: #878fa1; font-size: 13px;">Loading history...</p>
+					{:else if timeline.length === 0}
+						<p style="color: #878fa1; font-size: 13px;">No recorded activity.</p>
+					{:else}
+						<ol class="timeline">
+							{#each timeline as ev, i (i)}
+								<li class="timeline-item">
+									<span
+										class="timeline-marker"
+										style="background-color: {TIMELINE_COLORS[ev.kind]};"
+									>
+										<i class="fi {TIMELINE_ICONS[ev.kind]}"></i>
+									</span>
+									<div class="timeline-body">
+										<div class="timeline-head">
+											<span class="timeline-title">{ev.title}</span>
+											{#if ev.tag}
+												<span
+													class="timeline-tag"
+													style="background-color: {TIMELINE_COLORS[ev.kind]};"
+												>
+													{ev.tag.replace(/_/g, ' ')}
+												</span>
+											{/if}
+										</div>
+										<span class="timeline-time">{formatEventTime(ev.at)}</span>
+										{#if ev.actor}
+											<span class="timeline-actor">{ev.actor}</span>
+										{/if}
+										{#if ev.detail}
+											<p class="timeline-detail">{ev.detail}</p>
+										{/if}
+									</div>
+								</li>
+							{/each}
+						</ol>
+					{/if}
+				</div>
+
+				{#if shown?.recruitInfo}
 					<div class="card">
 						<h5>Application Responses</h5>
-						{#each Object.entries(applicant.recruitInfo) as [key, value]}
+						{#each Object.entries(shown.recruitInfo) as [key, value]}
 							<div class="response-item">
 								<span class="response-key">{key}</span>
-								<p class="response-value">{value}</p>
+								<p
+									class="response-value"
+									class:response-hidden={shown.redactedQuestionIds.includes(key)}
+								>
+									{value}
+								</p>
 							</div>
 						{/each}
 					</div>
@@ -357,6 +608,137 @@
 		min-height: 100vh;
 		background-color: $light-secondary;
 		padding: 20px 30px;
+	}
+
+	/* Review voting */
+	.vote-counts {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+		align-items: center;
+		margin-bottom: 6px;
+	}
+	.vote-stat {
+		font-size: 12px;
+		font-weight: 700;
+		padding: 2px 10px;
+		border-radius: 999px;
+		color: white;
+	}
+	.vote-stat.approve {
+		background-color: #22c55e;
+	}
+	.vote-stat.reject {
+		background-color: #ef4444;
+	}
+	.vote-stat.neutral {
+		background-color: #878fa1;
+	}
+	.vote-weighted {
+		font-size: 11px;
+		color: $light-tertiary;
+	}
+	.vote-actions {
+		display: flex;
+		gap: 8px;
+	}
+	.vote-btn {
+		font-size: 12px !important;
+		padding: 5px 14px !important;
+		border: none;
+		color: white;
+		font-weight: 700;
+	}
+	.approve-btn {
+		background-color: #22c55e;
+	}
+	.reject-btn {
+		background-color: #ef4444;
+	}
+	.blind-note {
+		font-size: 11px;
+		color: #0ea5e9;
+		margin-top: 8px;
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+	.response-hidden {
+		color: $light-tertiary;
+		font-style: italic;
+	}
+
+	.timeline {
+		list-style: none;
+		margin: 8px 0 0;
+		padding: 0;
+	}
+	.timeline-item {
+		display: flex;
+		gap: 12px;
+		position: relative;
+		padding-bottom: 16px;
+	}
+	/* Connector line down the left rail, stopping at the last entry. */
+	.timeline-item:not(:last-child)::before {
+		content: '';
+		position: absolute;
+		left: 11px;
+		top: 24px;
+		bottom: 0;
+		width: 2px;
+		background-color: #e5e7eb;
+	}
+	.timeline-marker {
+		flex-shrink: 0;
+		width: 24px;
+		height: 24px;
+		border-radius: 50%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: white;
+		font-size: 10px;
+		z-index: 1;
+	}
+	.timeline-body {
+		flex: 1;
+		min-width: 0;
+	}
+	.timeline-head {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		flex-wrap: wrap;
+	}
+	.timeline-title {
+		font-size: 13px;
+		font-weight: 700;
+		color: $dark-primary;
+	}
+	.timeline-tag {
+		font-size: 10px;
+		font-weight: 700;
+		color: white;
+		padding: 1px 8px;
+		border-radius: 999px;
+		text-transform: uppercase;
+	}
+	.timeline-time {
+		font-size: 11px;
+		color: $light-tertiary;
+		display: block;
+	}
+	.timeline-actor {
+		font-size: 11px;
+		color: $light-tertiary;
+		display: block;
+	}
+	.timeline-detail {
+		font-size: 12px;
+		color: $dark-primary;
+		margin: 4px 0 0;
+		white-space: pre-wrap;
 	}
 	.candidate-header {
 		margin-bottom: 20px;

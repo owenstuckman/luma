@@ -14,7 +14,8 @@ import type {
 	PlatformSettings,
 	AdminAnalytics,
 	SchedulingConfigRow,
-	InterviewerAvailability
+	InterviewerAvailability,
+	Team
 } from '$lib/types';
 
 const supabase = createBrowserClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY);
@@ -245,6 +246,38 @@ export const updateApplicantStatus = async (id: number, status: string) => {
 		throw new Error('Failed to update applicant status');
 	}
 	return data;
+};
+
+/**
+ * Active teams for an org, in display order.
+ *
+ * Returns [] rather than throwing when the `teams` table is absent, so an
+ * org (or a deployment) without migration 00015 applied simply behaves as a
+ * single-team org instead of breaking the public application form.
+ */
+export const getTeams = async (orgId: number): Promise<Team[]> => {
+	const { data, error } = await supabase
+		.from('teams')
+		.select('*')
+		.eq('org_id', orgId)
+		.eq('active', true)
+		.order('display_order', { ascending: true });
+
+	if (error) {
+		console.warn('teams unavailable (migration 00015 may not be applied):', error.message);
+		return [];
+	}
+	return (data ?? []) as Team[];
+};
+
+/** Set the same status on many applicants at once (RLS-scoped, not admin). */
+export const bulkUpdateApplicantStatus = async (ids: number[], status: string) => {
+	const { error } = await supabase.from('applicants').update({ status }).in('id', ids);
+
+	if (error) {
+		console.error('Error bulk updating status:', error);
+		throw new Error('Failed to update applicant statuses');
+	}
 };
 
 export const addComment = async (

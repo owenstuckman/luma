@@ -15,7 +15,8 @@
 		"lint": "prettier --check . && eslint .",
 		"test:e2e": "playwright test",
 		"test": "npm run test:e2e",
-		"setup": "node scripts/setup.mjs"
+		"setup": "node scripts/setup.mjs",
+		"deps:cross": "node scripts/cross-platform-deps.mjs"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^1.2.5",

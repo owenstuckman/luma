@@ -9,6 +9,7 @@ Originally built for Virginia Tech's Archimedes Society, where it processed **40
 - **Multi-org support** — any organization can sign up from the homepage, get its own portal, forms, and recruiter dashboard
 - **Dynamic application forms** — build custom multi-step forms with a visual editor (text, radio, checkbox, dropdown, availability grid, and more)
 - **Recruiter dashboard** — review applicants, filter/search/sort, bulk status updates, CSV export
+- **Candidate roster & profiles** — org-wide list of every applicant with their pipeline stage, plus a per-candidate timeline unioning drafts, reviews, interviews, evaluations, decisions, and sent email
 - **Interview scheduling** — manual creation with conflict detection, plus auto-scheduling algorithms (greedy, balanced-load, round-robin, batch)
 - **Email notifications** — interview confirmations with ICS calendar invites via Resend API, bulk email, copy-paste fallback
 - **Realtime updates** — live dashboard counts, new applicant toasts, schedule change notifications
@@ -59,26 +60,34 @@ src/
 ├── lib/
 │   ├── components/
 │   │   ├── applicant/    # Applicant flow UI (Navbar, Sidebar, Footer, AvailabilityGrid)
-│   │   ├── recruiter/    # Recruiter dashboard UI (Navbar, Sidebar, Toast, EmailModal)
+│   │   ├── recruiter/    # Recruiter dashboard UI (Navbar, Sidebar, CandidateList, Toast, EmailModal)
+│   │   ├── admin/        # Platform admin UI
 │   │   └── card/         # Reusable form input components
 │   ├── email/            # Email templates, ICS generation, recipient grouping
 │   ├── scheduling/       # Auto-scheduling algorithms + registry
-│   ├── types/            # Shared TypeScript interfaces
-│   └── utils/            # Supabase client + query functions
+│   ├── stores/           # jobFilter, mobileMenu
+│   ├── types/            # Shared interfaces + OrgSettings normalizer
+│   └── utils/            # supabase.ts (queries), candidates.ts (roster + timeline)
 ├── routes/
 │   ├── apply/[slug]/     # Public application forms
 │   ├── auth/             # Login / signup
 │   ├── register/         # Create new organization
 │   ├── admin/            # Super-admin panel
+│   ├── api/              # health, email-webhook
 │   └── private/[slug]/   # Authenticated recruiter pages
 │       ├── dashboard/
-│       ├── review/
+│       ├── review/       # Job-scoped review queue + candidate profile
+│       ├── candidates/   # Org-wide candidate roster
 │       ├── schedule/
 │       ├── evaluate/
+│       ├── availability/
 │       └── settings/
 ├── styles/               # SCSS (Bootstrap theme + color tokens)
+scripts/                  # setup.mjs, cross-platform-deps.mjs
 supabase/
+├── functions/            # Edge functions (notify-interviews, send-reminders)
 └── migrations/           # SQL migration files (run in order)
+docs/                     # V1 context, feature inventory, build plan, deployment
 ```
 
 ## Database
@@ -95,8 +104,13 @@ Core tables, all scoped by `org_id`:
 | `interviewer_availability` | Interviewer time windows for auto-scheduling   |
 | `scheduling_config`        | Per-org algorithm configuration                |
 | `email_log`                | Sent email tracking                            |
+| `teams`                    | Per-org subteams applicants can apply to       |
+| `application_drafts`       | Save-and-resume partial applications           |
+| `job_reviewers`            | Reviewer pool + weight per job posting         |
+| `decisions`                | Per-team hire / reject / waitlist outcomes     |
 
 Row-Level Security enforces data isolation — users can only see data from orgs they belong to.
+Helper functions: `is_org_member()`, `has_org_role()`, `has_app_role()`.
 
 ## Roles
 
@@ -109,14 +123,39 @@ Row-Level Security enforces data isolation — users can only see data from orgs
 
 ## Commands
 
-| Command          | Purpose                 |
-| ---------------- | ----------------------- |
-| `npm run dev`    | Start dev server        |
-| `npm run build`  | Production build        |
-| `npm run setup`  | Guided first-time setup |
-| `npm run check`  | TypeScript type-check   |
-| `npm run lint`   | Prettier + ESLint       |
-| `npm run format` | Auto-format             |
+| Command              | Purpose                                    |
+| -------------------- | ------------------------------------------ |
+| `npm run dev`        | Start dev server                           |
+| `npm run build`      | Production build                           |
+| `npm run setup`      | Guided first-time setup                    |
+| `npm run check`      | TypeScript type-check                      |
+| `npm run lint`       | Prettier + ESLint                          |
+| `npm run format`     | Auto-format                                |
+| `npm run deps:cross` | Add the other OS's native binaries (below) |
+
+### Working from both Windows and WSL
+
+If you keep the repo on a Windows drive and run it from **both** PowerShell and WSL,
+the two share a single `node_modules`. Rollup, esbuild, and lightningcss each ship
+their native binary as a separate platform-specific package, and `npm install` only
+fetches the one matching whichever OS ran it. The other environment then fails with
+`Cannot find module @rollup/rollup-win32-x64-msvc` (or the Linux equivalent).
+
+After any `npm install`, run:
+
+```bash
+npm run deps:cross
+```
+
+It installs the other platform's binaries alongside the current ones, pinned to the
+versions already installed. The extra packages are inert on the OS they don't match —
+each library resolves its binary from `process.platform` at runtime — and the command
+uses `--no-save`, so `package.json` and `package-lock.json` are untouched. It is
+deliberately not a `postinstall` hook, since Vercel builds on Linux and has no use for
+Windows binaries.
+
+Line endings are handled by `.gitattributes` (`* text=auto eol=lf`), which keeps the two
+environments from producing whole-file CRLF diffs against each other.
 
 ## Deploying
 

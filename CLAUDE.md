@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **For V1 rebuild work, read `docs/CLAUDE.md` first** — it carries the V1-specific
+> decisions, scope, and conventions, and overrides this file where they disagree.
+> Feature status lives in `docs/FEATURES.md`; the build plan lives in `docs/TODO.md`.
+
 ## Project Overview
 
 LUMA is an open-source Applicant Tracking System (ATS) built with SvelteKit. It handles applicant submissions, recruiter review, and interview scheduling. Originally built for Virginia Tech's Archimedes Society (processed 400+ applicants, scheduled 250+ interviews in Fall 2025).
@@ -17,6 +21,10 @@ LUMA is an open-source Applicant Tracking System (ATS) built with SvelteKit. It 
 | `npm run lint`    | Prettier + ESLint check                 |
 | `npm run format`  | Auto-format with Prettier               |
 | `npm test`        | Run Playwright E2E tests (builds first) |
+| `npm run setup`   | Guided first-time setup                 |
+
+If the repo is used from both PowerShell and WSL, run `npm run deps:cross` after any
+`npm install` — see the README section "Working from both Windows and WSL".
 
 ## Environment Variables
 
@@ -29,27 +37,49 @@ Requires a `.env.local` with:
 
 **Stack**: SvelteKit 2 + Svelte 5, TypeScript (strict), Supabase (auth + DB), Vite 6, deployed to Vercel.
 
+The app is **multi-tenant**: every org gets a slug, and both the public and private
+route trees are scoped by it.
+
 ### Routing
 
 - `/` — Landing page (applicant/recruiter/admin entry points)
-- `/applicant/1_verification` through `/applicant/7_submit` — Multi-step application form (public, no auth)
-- `/auth` — Recruiter login/signup (Supabase Auth)
-- `/private/recruiter/*` — Auth-protected recruiter dashboard (home, review, schedule, evaluate, settings)
-- `/admin` — Admin view
+- `/register` — Org signup
+- `/apply/[slug]` and `/apply/[slug]/[job_id]` — Public application form, rendered
+  dynamically from the job's question schema. (The old `/applicant/1_verification`…
+  `7_submit` step routes are gone.)
+- `/auth` — Recruiter login/signup (Supabase Auth), plus `/auth/confirm`, `/auth/reset`
+- `/private/[slug]/*` — Auth-protected, org-scoped recruiter dashboard:
+  `dashboard`, `review`, `review/candidate`, `candidates`, `schedule/my`,
+  `schedule/full`, `evaluate`, `availability`, `settings`, `settings/jobs`,
+  `settings/scheduling`
+- `/admin` — Platform admin view (cross-org)
+- `/api/health`, `/api/email-webhook` — Server endpoints
 
 Auth guard in `src/hooks.server.ts` redirects unauthenticated users from `/private/*` to `/auth` and authenticated users from `/auth` to `/private`.
 
 ### State Management
 
-- **Applicant flow**: Form state persists in `localStorage` (one key per question). On step 7 (`/applicant/7_submit`), all entries are collected into a `recruitInfo` JSON object and sent to Supabase via `sendApplication()`.
-- **Recruiter side**: Data fetched directly from Supabase. No Svelte stores are used anywhere.
+- **Applicant flow**: Form state persists in `localStorage` (one key per question); on
+  submit it is collected into a `recruitInfo` JSON object and sent via `sendApplication()`.
+  V1 adds DB-backed drafts (`application_drafts`) for save-and-resume — see `docs/TODO.md`.
+- **Recruiter side**: Data fetched directly from Supabase. Two small stores exist
+  (`src/lib/stores/jobFilter.ts` for the selected job, `mobileMenu.ts` for the drawer);
+  everything else is component-local.
 
 ### Supabase
 
 - Client-side utilities in `src/lib/utils/supabase.ts` (uses `createBrowserClient` from `@supabase/ssr`)
+- Aggregation across pipeline tables lives in `src/lib/utils/candidates.ts` — the roster
+  and candidate timeline both read from there rather than joining inline
 - Server-side client created in `src/hooks.server.ts` (uses `createServerClient` with cookie auth)
 - In server files, access Supabase via `event.locals.supabase`
-- Tables: `job_posting`, `applicants`, `interviews`, `notes`
+- New DB access belongs in `src/lib/utils/*.ts`, not inline `supabase.from()` in components
+- Tables: `organizations`, `org_members`, `job_posting`, `applicants`, `interviews`,
+  `interviewers`, `interviewer_availability`, `scheduling_config`, `email_log`,
+  `platform_admins`, `platform_settings`, `platform_activity_log`, plus the V1 additions
+  `teams`, `application_drafts`, `job_reviewers`, `decisions`
+- Migrations are forward-only and additive (`supabase/migrations/00001`–`00020`)
+- RLS helpers: `is_org_member()`, `has_org_role()`, `has_app_role()`
 
 ### Styling
 
@@ -65,29 +95,46 @@ Two style systems coexist — **Bootstrap 5 + SCSS is dominant**; Tailwind CSS v
 
 Svelte 5 is installed but **most components use Svelte 4 patterns** (`export let`, `createEventDispatcher`, `$:` reactivity). The root layout uses Svelte 5 runes (`$props()`, `$derived()`, `{@render}`). Be consistent with the style of the file you're editing.
 
-**Applicant page template** — each step follows:
+Note that `Sidebar.svelte` in `recruiter/` has been migrated to runes; the rest of that
+directory has not. When a new shared component must interop with Svelte 4 slots and
+`createEventDispatcher` (as `CandidateList.svelte` does with `/review`), match the host
+file rather than forcing runes.
+
+**Recruiter page template**:
 
 ```svelte
 <div class="layout">
-	<div class="content">
-		<h4>Step Title</h4>
-		<!-- Card components from $lib/components/card/ -->
-		<Footer backNav="/applicant/prev" nextNav="/applicant/next" />
+	<div class="content-left">
+		<h4>Page Title</h4>
+		<!-- page content -->
 	</div>
 	<Navbar />
 	<Sidebar currentStep={N} />
 </div>
 ```
 
-**Recruiter page template** — uses `content-left` instead of `content`, plus recruiter `Navbar` and `Sidebar`.
+`Sidebar` `currentStep` values: 0 home, 1 review, 2 my schedule, 3 full schedule,
+5 evaluate, 6 settings, 7 availability, 8 candidates.
+
+**Applicant pages** use `content` instead of `content-left`, plus the applicant `Navbar`
+and `Sidebar`. Questions render through `QuestionRenderer.svelte` from the job's JSON
+schema rather than from hand-written step pages.
 
 **Form card components** (`src/lib/components/card/`): Reusable input components (Input, Checkbox, Radio, Dropdown, InputArea, InputDual) that dispatch `change` events.
 
 ### Key Directories
 
 - `src/lib/components/applicant/` — Applicant flow UI (Navbar, Sidebar, Footer, AvailabilityGrid)
-- `src/lib/components/recruiter/` — Recruiter dashboard UI (Navbar, Sidebar)
+- `src/lib/components/recruiter/` — Recruiter dashboard UI (Navbar, Sidebar, CandidateList, Toast, EmailGeneratorModal)
+- `src/lib/components/admin/` — Platform admin UI
 - `src/lib/components/card/` — Reusable form input card components
+- `src/lib/scheduling/algorithms/` — The four interview scheduling algorithms
+- `src/lib/email/` — Templates and `.ics` generation
+- `src/lib/types/` — `index.ts` (shared types), `orgSettings.ts` (`readOrgSettings()` normalizer)
 - `src/styles/` — SCSS files (Bootstrap theme + color tokens)
-- `archive/` — Legacy page copies, not part of active routing
+- `supabase/migrations/` — Forward-only SQL migrations
+- `scripts/` — `setup.mjs` (first-run setup), `cross-platform-deps.mjs` (Windows/WSL deps)
+- `docs/` — V1 context, feature inventory, build plan, deployment notes
 - `e2e/` — Playwright E2E tests
+
+(`archive/` was deleted in Phase 0 — don't expect it.)

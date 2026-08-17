@@ -1,0 +1,19 @@
+# Line-ending normalization.
+#
+# This repo lives on a Windows drive and is edited from both PowerShell and WSL.
+# Without this file, switching between them rewrites whole files with CRLF and
+# `git status` shows ~17 files as fully modified when nothing actually changed.
+#
+# `text=auto eol=lf` stores LF in the index and checks out LF everywhere, so both
+# environments agree. Existing CRLF working-tree files are compared normalized,
+# so they go quiet immediately without needing a renormalize commit.
+* text=auto eol=lf
+
+# Binary assets git must never line-ending-convert.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary

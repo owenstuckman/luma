@@ -8,7 +8,7 @@ Order is roughly the build order — earlier phases unblock later ones. Within a
 
 ## Phase 0 — Audit & Cleanup ✅ (complete)
 
-- [x] **Git status assessed.** 89/93 "modified" files were pure CRLF noise from Windows/WSL line endings; only the 4 docs we edited had real changes. No commit/revert needed — `npm run format` normalized everything.
+- [x] **Git status assessed.** 89/93 "modified" files were pure CRLF noise from Windows/WSL line endings; only the 4 docs we edited had real changes. No commit/revert needed — `npm run format` normalized everything. _(Recurred afterward; permanently fixed in Phase 1.6 with `.gitattributes`.)_
 - [x] **`npm install` + `npm run check` + `npm run lint`** all green. Fixes applied:
   - `src/hooks.server.ts`: `event.url.pathname` instead of `event.request.url.pathname`; cast supabase client through `unknown` to bridge `@supabase/ssr` ↔ `@supabase/supabase-js` generic mismatch.
   - `src/app.d.ts`: dropped reference to nonexistent `./database.types.ts`; `SupabaseClient` no longer parameterized (acceptable for V1 — generate types in Phase 1).
@@ -48,31 +48,161 @@ Order is roughly the build order — earlier phases unblock later ones. Within a
 
 **Net result:** `npm run check` (0 errors), `npm run lint` (0 errors), `npm run build` clean. 7 new migrations land additively (no drops, no renames). Safe to start Phase 2 once migrations are applied to Supabase.
 
-**Owner action before Phase 2 (also in HUMAN-TODO.md):**
-1. Apply `00014`–`00020` to the prod Supabase project (`supabase db push` or paste each into the SQL editor in order).
-2. Confirm the Archimedes org row exists (`select * from organizations where slug = 'archimedes'`); if not, create it before re-running `00015` to get the seed.
+**✅ Applied 2026-08-16** via the Supabase MCP server, each migration registered separately
+in Supabase's migration history. All four V1 tables exist with RLS + policies, the Archimedes
+teams are seeded, and security advisors report 0 ERROR-level findings. See `HUMAN-TODO.md`
+for the full verification. **Everything gated on "migrations not applied" is now unblocked.**
 
-## Phase 2 — Form Builder + Application Flow (2-3 days; critical path)
+## Phase 1.5 — Candidate Profiles & Roster ✅ (complete)
 
-- [ ] Form builder UI at `/private/[slug]/settings/jobs/[id]/builder` — drag-to-reorder questions, edit per-question metadata (type, title, options, `team_scope`, `reject_if`, `blinded`).
-- [ ] Team picker step component — first step of any multi-team form, writes selected teams into the draft.
-- [ ] Extend `QuestionRenderer.svelte` to honor `team_scope` (skip questions whose teams aren't selected).
-- [ ] Save-and-resume:
+Added to scope mid-build: a single place to see every candidate and click through
+to their full history.
+
+- [x] **`src/lib/utils/candidates.ts`** — the only module that joins the pipeline tables.
+      `getCandidates(orgId, jobId?)` returns `CandidateRow` (applicant + job name, team
+      names, interview/evaluation counts, avg rating, decisions, derived stage, hire-conflict
+      flag). `getCandidateTimeline(orgId, applicant)` unions `application_drafts`,
+      `applicants`, `interviews` (scheduled / held / evaluated), `decisions`, `email_log`,
+      and inline comments into one sorted `TimelineEvent[]`. Queries against V1 tables are
+      failure-tolerant so an un-migrated deployment degrades instead of erroring.
+- [x] **`CandidateList.svelte`** — shared list owning search / stage+status filter / sort /
+      pagination / selection, with card and table views. Host pages supply toolbar buttons
+      via the `actions` slot and bulk UI via `bulk` / `bulk-panels`.
+- [x] **`/private/[slug]/candidates`** — org-wide roster: stage-count strip, hire-conflict
+      banner, job filter, bulk status update, CSV export.
+- [x] **`/review` refactored onto `CandidateList`** — keeps its job picker, realtime toast,
+      and all four bulk actions; gains stage/rating/decision columns. Realtime INSERT now
+      re-fetches instead of pushing the raw row (the list needs enriched state).
+- [x] **Timeline card on `/review/candidate`** — chronological pipeline history with
+      per-kind icons/colors. Back link honors `?from=candidates`.
+- [x] **Sidebar** — new "Candidates" item (`currentStep === 8`), desktop + mobile drawer.
+
+Known gaps, deliberately left for later phases:
+
+- Inline comments have no stored timestamp, so they sort to the end of the timeline
+  labeled "No timestamp". Fix when Phase 3 replaces them with timestamped votes.
+- Round numbers are derived by ordering interviews on `start_time`. Switch to
+  `interview.metadata.round` once Phase 4 writes it.
+- Stage transitions aren't recorded as events (no audit table); stage is derived at
+  read time from current state.
+- `/candidates` shows all org candidates to any member. Revisit if Phase 3 blinded
+  review needs to apply here too.
+
+## Phase 1.6 — Cross-platform dev environment ✅ (complete)
+
+The repo lives on a Windows drive and is used from both PowerShell and WSL, which share
+one `node_modules` and one working tree. Two recurring failures came from that:
+
+- [x] **`npm run dev` failed in PowerShell.** Rollup, esbuild, and lightningcss each ship
+      their native binary as a separate platform-specific package, and `npm install` only
+      fetches the one matching the installing OS. Phase 0 reinstalled from WSL, so only
+      `rollup-linux-x64-gnu` / `@esbuild/linux-x64` / `lightningcss-linux-x64-gnu` were
+      present and Windows died with `Cannot find module @rollup/rollup-win32-x64-msvc`.
+      Fixed by installing both platforms' binaries side by side — they're inert on the OS
+      they don't match, since each library resolves from `process.platform` at runtime.
+- [x] **`scripts/cross-platform-deps.mjs` + `npm run deps:cross`** — restores the other
+      platform's binaries after any `npm install`, pinned to the installed host versions.
+      Uses `--no-save --force` so the manifests stay byte-identical (verified by diff).
+      Deliberately not a `postinstall` hook: Vercel builds on Linux.
+- [x] **`.gitattributes` (`* text=auto eol=lf`)** — ends the recurring CRLF churn that
+      showed ~17 migration/Dockerfile/CSV files as fully modified whenever the OS changed.
+      Adding it cleared them from `git status` immediately, with no renormalize commit
+      needed (the index was already LF).
+- [x] **Docs refreshed** — root `CLAUDE.md` had stale routing (`/applicant/1_verification`,
+      `/private/recruiter/*`), a stale table list, a claim that no Svelte stores exist, and a
+      reference to the deleted `archive/`. README gained the cross-platform section, the
+      candidate-roster feature, and the V1 tables.
+
+**Open issue surfaced here, resolved 2026-08-16:** the docs specified **EmailJS** while all
+shipped code used **Resend**. Owen chose Resend — zero rewrite. See Phase 4.5.
+
+## Phase 2 — Form Builder + Application Flow (2-3 days; critical path) — 🔧 in progress
+
+Done:
+
+- [x] **`src/lib/utils/formSchema.ts`** — pure, DB- and DOM-free schema logic, so the same
+      code runs on the client (hiding questions live) and on a server endpoint later.
+      Exports `isQuestionVisible` / `visibleSteps` (team_scope) and
+      `matchesRule` / `evaluateRejectRules` / `describeRejectMatch` (reject_if).
+      **Safety property:** apart from `falsy`, no rule fires on an unanswered question —
+      auto-reject is silent and destructive, so "skipped it" must never be treated as
+      "gave the disqualifying answer".
+- [x] **Verified with 33 assertions** (`esbuild` transpile + `node:assert`; no test runner
+      is installed — see the open question below). This caught a real bug before it shipped:
+      `Number('')` is `0`, so a `lt` rule on GPA auto-rejected every applicant who left the
+      field blank. Fixed by rejecting blank input in `toNumber`.
+- [x] **Team picker step** on `/apply/[slug]/[job_id]` — inserted after Personal Info, only
+      when the org has teams. Selection persists to `localStorage` and is validated before
+      advancing. Slugs that no longer exist are dropped on load.
+- [x] **team_scope honored** — later steps render only questions in scope for the picked
+      teams, and steps emptied by filtering are skipped rather than shown blank.
+- [x] **Auto-reject on submit** — evaluated against _visible_ questions only, so a rule on a
+      team the applicant didn't pick can't reject them. Sets `status: 'denied'` and writes
+      `metadata.auto_rejected` / `auto_reject_reasons` / `auto_rejected_at` for the audit trail.
+- [x] **Graceful degradation** — `getTeams()` returns `[]` if the `teams` table is missing,
+      and `selected_team_slugs` is only sent when non-empty. An org without migrations
+      `00015`/`00020` keeps a working application form instead of 400-ing on unknown columns.
+      Verified against the live DB, which currently has neither table.
+
+Remaining:
+
+- [ ] Form builder UI at `/private/[slug]/settings/jobs/[id]/builder` — drag-to-reorder questions, edit per-question metadata (type, title, options, `team_scope`, `reject_if`, `blinded`). **This is the largest remaining piece of Phase 2.**
+- [ ] Save-and-resume — ⛔ blocked on the email-provider decision (the magic link has to be sent by something):
   - [ ] Magic-link endpoint: `POST /api/applicant/start` → emails resume link
   - [ ] Draft autosave on form change (debounced 1s) → `application_drafts`
   - [ ] Resume route loads draft by token, prefills form
-- [ ] Auto-reject evaluator: server-side function `evaluateRejectRules(answers, schema)` → returns matched rules. Called on submit.
-- [ ] On submit: write applicant, run auto-reject, set status, fire confirmation email.
+- [ ] Confirmation email on submit — ⛔ same blocker.
 - [ ] Update `/apply/[slug]/[job_id]/success/+page.svelte` to handle both happy path and auto-rejected (different copy if admin enables auto-reject email).
+- [ ] **Move auto-reject enforcement server-side.** It currently runs in the browser, so a
+      crafted request could skip it. Severity is low — the existing `sendApplication()` already
+      trusts the client for name, email, and every answer, so this is consistent with the
+      current trust model rather than a new hole, and the fallback is that a human reviews
+      the applicant instead. Harden with the rest of the submit path.
 
-## Phase 3 — Review Stage (1-2 days)
+**Open question — no unit test runner.** `formSchema.ts` is exactly the kind of pure logic
+that wants unit tests, and its first version shipped a real bug that assertions caught.
+`npm test` only runs Playwright. Recommend adding `vitest` (Vite is already present, so it's
+near-zero config) and committing the 33 assertions as a real suite. Not done unprompted
+because it adds a dev dependency.
 
-- [ ] Reviewer pool assignment UI on job edit page.
-- [ ] `/private/[slug]/review` — list view filtered to current user's assigned applications.
-- [ ] Blinded mode: server strips name/email/year fields before sending to client when `org.settings.blinded_review = true` AND user role is `reviewer` only (advisors/admins see identity).
-- [ ] Approve/reject vote endpoint + UI buttons. Tally against thresholds. Auto-advance state on threshold met.
-- [ ] Weighted scoring: per-interviewer weight stored on `org_members.metadata.review_weight`. Default 1.0. Apply weight when computing approval tally.
-- [ ] Comments UI (extend existing `CommentEntry` flow).
+## Phase 3 — Review Stage (1-2 days) — 🔧 in progress
+
+Done:
+
+- [x] **`src/lib/utils/review.ts`** — pure review logic: `normalizeVote`, `tallyVotes`,
+      `thresholdOutcome`, `votesRemaining`, `buildWeightMap`, `redactApplicant`, `shouldBlind`.
+      **Verified with 29 assertions.**
+- [x] **Approve/reject voting + auto-advance** on the candidate page. Votes are stored as
+      comments (so they appear in the existing thread and the timeline) and crossing a
+      threshold updates `applicants.status` immediately — the auto-advance option from the
+      Open Decisions list.
+- [x] **Last vote wins per reviewer.** A reviewer who changes their mind is counted once;
+      without this they'd be double-counted and could cross a threshold alone.
+- [x] **Split votes never advance.** Rejection is evaluated first, so an applicant meeting
+      both thresholds is denied rather than silently advanced into interviews.
+- [x] **Legacy vote spellings normalized** — `positive`/`accepted`/`yes` and
+      `negative`/`denied`/`no` all count, so comments written before Phase 3 still tally.
+- [x] **Weighted scoring** — reads `org_members.metadata.review_weight`; missing, non-numeric,
+      or negative values fall back to 1 so a bad value can't erase someone's vote. Weights key
+      off real emails via the `get_org_members_with_email` RPC (`org_members` only stores `user_id`).
+- [x] **Blinded review** — plain reviewers see `Applicant #<id>`, a hidden email, and `[hidden]`
+      for any answer whose question is flagged `blinded`. Advisors/admins/owners/eboard always
+      see the real record. Redaction copies rather than mutates the source object.
+- [x] **Per-question `blinded` / `team_scope` / `reject_if` controls in the form builder**
+      (`settings/jobs/[job_id]`) — completes the Phase 2 builder item. Keys are omitted from
+      the stored JSON when unset, and the reject operand is validated before the question can
+      be added. Badges + a one-line summary surface the metadata on collapsed rows.
+
+Remaining:
+
+- [ ] Reviewer pool assignment UI on job edit page (needs `job_reviewers`, migration 00018).
+- [ ] `/private/[slug]/review` — filter the list to the current user's assigned applications.
+- [ ] **Move blinding server-side.** It is currently a client-side redaction, so the
+      un-blinded record still reaches the browser. Fine for an honest-reviewer model, not for
+      a hostile one — do it in a `+page.server.ts` load before launch.
+- [ ] Auto-advance currently runs only when a vote is cast from the candidate page. A
+      applicant whose threshold is crossed by a bulk comment won't advance until someone
+      opens them. Consider a DB trigger or a nightly sweep.
 
 ## Phase 4 — Scheduling Polish (1-2 days)
 
@@ -84,6 +214,35 @@ Order is roughly the build order — earlier phases unblock later ones. Within a
 - [ ] R2 trigger: "Schedule Round 2" button on candidate page → modal with two options: auto-schedule | candidate-picks-slot link.
 - [ ] Candidate-picks-slot flow: tokenized URL `/schedule/pick/[token]` → shows available slots → writes interview on selection.
 - [ ] R3 "Schedule Follow-Up" button — same modal, sets `interview.metadata.round = 3`.
+
+## Phase 4.5 — Email layer on Resend ✅ (templates done)
+
+Provider decided 2026-08-16: **Resend**. No code changed — everything already used it.
+
+- [x] All EmailJS references purged from `docs/CLAUDE.md`, `docs/DEPLOYMENT.md`,
+      `docs/HUMAN-TODO.md`. `DEPLOYMENT.md`'s env-var and DNS tables now describe
+      `RESEND_API_KEY` / `LUMA_FROM_EMAIL` as Supabase Edge Function secrets.
+- [x] **Three new templates** in `src/lib/email/templates.ts`, matching the existing
+      plain-text `EmailDraft` style: `applicationReceivedEmail`, `autoRejectedEmail`,
+      `decisionEmail` (hire / reject / waitlist, with an optional admin-authored override).
+      **Verified with 14 assertions**, including two deliberate guarantees: - the auto-reject email **never says which rule fired** — naming the disqualifying
+      answer just teaches people how to game a resubmit; - **reject and waitlist share a subject line**, so the outcome isn't spoiled in the
+      inbox preview before the applicant opens it.
+- [x] Fixed a typo in `.env.local`: `UPABASE_SERVICE_ROLE_KEY` → `SUPABASE_SERVICE_ROLE_KEY`
+      (missing leading `S`). Any server code reading the correct name was getting `undefined`.
+
+Remaining — the **send path**, which is an architecture decision, not just wiring:
+
+- [ ] Interview emails already send via the `notify-interviews` edge function, proxied
+      through `/private/[slug]/schedule/notify` with the recruiter's JWT. Decision emails
+      can reuse that pattern directly (recruiter-authenticated).
+- [ ] The **application confirmation is different** — it fires for an _unauthenticated_
+      applicant at submit time, so it cannot go through the JWT-proxied endpoint. Options:
+      (a) a new edge function invoked with the anon key, (b) a Postgres webhook on
+      `applicants` INSERT, or (c) a SvelteKit server endpoint holding the Resend key.
+      (b) is the most robust — it can't be skipped by a client that never calls it.
+- [ ] Wire `OrgSettings.email` toggles to each send.
+- [ ] Record every send in `email_log` (table exists, migration 00010).
 
 ## Phase 5 — Selection & Decision Emails (1 day)
 

@@ -10,17 +10,28 @@ Things only Owen can do — accounts, DNS, secrets, decisions. Sorted by when th
 
 - [x] **Sending address** — `noreply@archimedesvt.org` (confirmed).
 
-> ⏸️ **EmailJS setup deferred — remind Owen to gather these before Phase 5 (Decisions) or Phase 6 (Observability), whichever ships first.** Public user_id (`Jb0db_Gi8slMQgNYj`) is already known.
+> 📧 **Resend setup — needed before Phase 5 (Decisions) and before any real email sends.**
 >
-> When ready, collect:
->
-> - [ ] **EmailJS private key** — EmailJS → Account → Security → "Private Key". Env: `EMAILJS_PRIVATE_KEY` (server-only).
-> - [ ] **EmailJS service_id** — create/confirm a service sending from `noreply@archimedesvt.org`; verify domain via DKIM/SPF records EmailJS prescribes. Env: `PUBLIC_EMAILJS_SERVICE_ID`.
-> - [ ] **EmailJS template_ids** — one per outbound event (application_received, application_auto_rejected, interview_scheduled, decision_hire, decision_reject, decision_waitlist).
-> - [ ] Put `PUBLIC_EMAILJS_USER_ID=Jb0db_Gi8slMQgNYj` in Vercel env.
+> - [ ] **Resend API key** — resend.com → API Keys → create. Set it as a Supabase Edge
+>       Function secret, **not** in `.env.local` and **not** in Vercel client env:
+>       `supabase secrets set RESEND_API_KEY=re_...`
+> - [ ] **Verify the sending domain** — add Resend's SPF/DKIM DNS records for
+>       `archimedesvt.org`. Until this shows "Verified", delivery will fail or land in spam.
+> - [ ] **Set the from address:**
+>       `supabase secrets set LUMA_FROM_EMAIL="Archimedes Society <noreply@archimedesvt.org>"`
+> - [ ] Confirm real delivery. **Without `RESEND_API_KEY` the edge functions run in dry-run
+>       mode** — they report success and a count, but send nothing. Easy to mistake for working.
 
 - [x] **PostHog** — keys confirmed correct, in `.env.local`.
-- [x] **Supabase** — confirm `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_ANON_KEY` in current `.env.local` point to the _production_ project you actually want V1 to run on. If they point to a dev project, send me the prod values.
+- [x] **Supabase** — project `cspuessflpakiyxygcay` was paused/unreachable on 2026-08-16
+      (`getaddrinfo ENOTFOUND` → `npm run dev` flooded with `TypeError: fetch failed`).
+      Owen restored it the same day. Re-verified end to end: DNS resolves, `/auth/v1/health`
+      200, PostgREST schema cache warm, anon key valid (ref matches, role `anon`, exp 2035),
+      and `npm run dev` serves `/`, `/auth`, `/apply/archimedes`,
+      `/private/archimedes/{review,candidates}` with **zero** fetch errors.
+      Orgs present: `archimedes` (id 2), `gdg-at-vt` (id 5).
+      _If it pauses again, the symptom is identical — restore from the Supabase dashboard
+      and allow ~2 min for the origin (HTTP 521) and schema cache (PGRST002) to warm up._
 - [x] **Supabase service role key** — `SUPABASE_SERVICE_ROLE_KEY`. Needed for server-side admin actions (auto-reject writes, decision emails). Get from Supabase dashboard → Settings → API → `service_role` (secret). Put in Vercel env, NOT in `.env.local` if `.env.local` is committed (it shouldn't be).
 
 ### Vercel project setup
@@ -33,6 +44,9 @@ Things only Owen can do — accounts, DNS, secrets, decisions. Sorted by when th
 
 ### Decisions I need from you
 
+- [x] **Email provider — RESEND.** Decided 2026-08-16. All EmailJS references purged from
+      `docs/CLAUDE.md`, `docs/DEPLOYMENT.md`, and this file. No code changes were needed —
+      everything already used Resend.
 - [x] **Sending email address** — `noreply@archimedesvt.org`.
 - [ ] **Org name displayed in emails** — "Archimedes Society"? "Archimedes @ VT"?
 - [ ] **Whether to wipe the current Supabase prod data** before V1 launch, or migrate it forward. (If you have real applicants in there, migration; if it's test data, wipe is easier.)
@@ -44,7 +58,23 @@ Things only Owen can do — accounts, DNS, secrets, decisions. Sorted by when th
 
 ### Before Phase 2 (Form Builder)
 
-- [ ] **Apply Phase 1 migrations** (`00014`–`00020`) to the prod Supabase project. Either `supabase db push` from the linked project, or paste each file from `supabase/migrations/` into the Supabase SQL editor in order. All are additive (no drops, no renames). Confirm the Archimedes org exists with `slug = 'archimedes'` so the team seed in `00015` runs.
+- [x] ✅ **Migrations `00014`–`00020` APPLIED** — 2026-08-16, via the Supabase MCP server
+      once Owen authorized it. Applied individually so each is registered in Supabase's
+      migration history rather than pasted as one blob.
+
+  Verified after applying:
+  - 4 V1 tables exist: `teams`, `job_reviewers`, `decisions`, `application_drafts`
+  - `applicants.prior_team_id` + `selected_team_slugs` present
+  - `org_members.roles` present, `has_app_role()` created
+  - 4 Archimedes teams seeded (Infinitum / Astra / Terra / Juvo)
+  - **RLS enabled with policies on all four** (teams 5, decisions 4, job_reviewers 4,
+    drafts 2). Anon can read active teams — which the public apply form needs — but gets
+    `[]` from `decisions` and `application_drafts`.
+  - Security advisors: **0 ERROR-level**, no RLS or policy findings. The 95 WARNs are all
+    pre-existing categories (SECURITY DEFINER exposure, pg_graphql), unrelated to V1.
+  - App re-verified against the migrated schema: `/apply/archimedes/6`, `/candidates`,
+    `/review`, `/settings/jobs/6` all 200 with zero runtime errors.
+
 - [ ] Send me the **actual question list** you want for the V1 Archimedes cycle: shared questions + per-team questions. Even a rough Google Doc works — I'll convert it to the JSON schema. If you want me to draft it from the V1 background doc + last year's CSVs, say so.
 - [ ] Tell me your **auto-reject rules** in plain English (e.g., "if 'Are you 18+' = No → reject"). I'll wire them into the question schema.
 
@@ -66,7 +96,7 @@ Things only Owen can do — accounts, DNS, secrets, decisions. Sorted by when th
 
 ## Pre-launch (day-of)
 
-- [ ] **DNS final check** — `dig luma.archimedesvt.org` resolves to Vercel. Verify EmailJS domain status is "verified" in their dashboard.
+- [ ] **DNS final check** — `dig luma.archimedesvt.org` resolves to Vercel. Verify the sending domain shows "Verified" in the Resend dashboard (Domains).
 - [ ] Send yourself a test email through the app's "submit application" flow — confirm it arrives, looks right, no spam folder.
 - [ ] Add a real applicant test through the full flow on production. Then delete the test row.
 - [ ] Announce go-live to advisors / eboard.
@@ -76,5 +106,5 @@ Things only Owen can do — accounts, DNS, secrets, decisions. Sorted by when th
 ## Post-launch (week 1)
 
 - [ ] Watch PostHog daily for the first week — drop-offs in the apply funnel are the first thing to fix.
-- [ ] Check EmailJS dashboard → History for failed sends. (EmailJS has no bounce webhook — manually review for delivery issues weekly.)
+- [ ] Check Resend → Logs for failed sends, and query `email_log` for `status = 'failed'` rows. Bounces arrive via the webhook at `/api/email-webhook`.
 - [ ] Be ready to manually un-reject if auto-reject rules fire wrong.

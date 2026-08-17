@@ -27,36 +27,50 @@ Authoritative feature inventory for LUMA V1. Status legend:
 | Supabase email/password auth (recruiter side) | ✅     | `/auth`                                                  |
 | Org member invites                            | 🔧     | Functions exist (migration 00004) — verify UI            |
 | Roles: owner/admin/recruiter/viewer           | ✅     | Existing `OrgRole`                                       |
-| Roles: advisor, reviewer, interviewer alias   | 🆕     | Extend `OrgRole` or add a parallel roles array           |
-| Candidate magic-link auth (save & resume)     | 🆕     | Supabase magic links — new                               |
-| Multi-role membership                         | 🆕     | A user can be advisor + interviewer; design array column |
+| Roles: advisor, reviewer, interviewer alias   | 🔧     | `AppRole` + `org_members.roles[]` (00016); UI unenforced |
+| Candidate magic-link auth (save & resume)     | 🆕     | Unblocked (Resend); needs the draft send path            |
+| Multi-role membership                         | ✅     | `roles text[]` + `has_app_role()` helper (00016)         |
 
 ## Applicant Flow
 
-| Feature                                                                  | Status | Notes                                          |
-| ------------------------------------------------------------------------ | ------ | ---------------------------------------------- |
-| Org-slug application URL (`/apply/[slug]/[job_id]`)                      | ✅     | Replaces old `/applicant/*` flow               |
-| Dynamic question rendering from JSON schema                              | ✅     | `QuestionRenderer.svelte`                      |
-| Question types: input/textarea/radio/checkbox/dropdown/availability/dual | ✅     | All in `QuestionRenderer`                      |
-| Team selector (choose 1-N teams to apply to)                             | 🆕     | First step of every multi-team form            |
-| Conditional rendering (per-team questions)                               | 🆕     | Extend schema with `team_scope`                |
-| Auto-reject rules per question                                           | 🆕     | `reject_if` on question; server-eval on submit |
-| Save & resume partial application                                        | 🆕     | DB-backed draft + magic link                   |
-| File upload question type                                                | ⏭️     | Supabase Storage buckets exist; defer V1.1     |
-| Video link question                                                      | ✅     | Use existing URL input                         |
-| Application submission email confirmation                                | 🔧     | Verify Resend wiring                           |
+| Feature                                                                  | Status | Notes                                         |
+| ------------------------------------------------------------------------ | ------ | --------------------------------------------- |
+| Org-slug application URL (`/apply/[slug]/[job_id]`)                      | ✅     | Replaces old `/applicant/*` flow              |
+| Dynamic question rendering from JSON schema                              | ✅     | `QuestionRenderer.svelte`                     |
+| Question types: input/textarea/radio/checkbox/dropdown/availability/dual | ✅     | All in `QuestionRenderer`                     |
+| Team selector (choose 1-N teams to apply to)                             | ✅     | Step 2 of the form when the org has teams     |
+| Conditional rendering (per-team questions)                               | ✅     | `visibleSteps()` in `utils/formSchema.ts`     |
+| Auto-reject rules per question                                           | 🔧     | Evaluated on submit; move server-side (Ph. 2) |
+| Save & resume partial application                                        | 🆕     | DB-backed draft + magic link                  |
+| File upload question type                                                | ⏭️     | Supabase Storage buckets exist; defer V1.1    |
+| Video link question                                                      | ✅     | Use existing URL input                        |
+| Application submission email confirmation                                | 🔧     | Verify Resend wiring                          |
 
 ## Review (Manual Reject)
 
 | Feature                                 | Status | Notes                                                  |
 | --------------------------------------- | ------ | ------------------------------------------------------ |
-| Review page (`/private/[slug]/review`)  | 🔧     | UI exists; needs blinded mode + threshold logic        |
-| Blinded reviewer view (hide name/email) | 🆕     | Toggle per-org in `OrgSettings`                        |
-| Fixed reviewer pool assignment per job  | 🆕     | New table or `job_posting.metadata.reviewers`          |
-| Configurable approve/reject thresholds  | 🆕     | Per-org or per-job setting                             |
-| Approve/reject voting + comments        | 🔧     | `CommentEntry` exists; wire to vote tally              |
-| Weighted average scoring                | 🆕     | Per-interviewer weight to normalize harsh/easy graders |
-| Auto-advance on threshold               | 🆕     | Trigger or scheduled job                               |
+| Review page (`/private/[slug]/review`)  | 🔧     | Needs per-reviewer assignment filter (Phase 3)         |
+| Blinded reviewer view (hide name/email) | 🔧     | Works; redaction is client-side — move to server load  |
+| Fixed reviewer pool assignment per job  | 🆕     | `job_reviewers` table now exists; UI not built yet     |
+| Configurable approve/reject thresholds  | ✅     | `OrgSettings.review_thresholds` + `thresholdOutcome()` |
+| Approve/reject voting + comments        | ✅     | Vote buttons on candidate page; last vote wins         |
+| Weighted average scoring                | ✅     | `org_members.metadata.review_weight`, defaults to 1    |
+| Auto-advance on threshold               | 🔧     | Fires on vote; no sweep for bulk-comment crossings     |
+
+## Candidate Profiles
+
+| Feature                                          | Status | Notes                                                                       |
+| ------------------------------------------------ | ------ | --------------------------------------------------------------------------- |
+| Org-wide candidate roster (`/[slug]/candidates`) | ✅     | Every applicant across every job, with pipeline stage                       |
+| Shared list component                            | ✅     | `CandidateList.svelte`, mounted on `/candidates` and `/review`              |
+| Card + table view toggle                         | ✅     | Table adds stage/rating/decision columns                                    |
+| Derived pipeline stage                           | ✅     | `deriveStage()` in `src/lib/utils/candidates.ts`                            |
+| Candidate timeline on profile page               | ✅     | `getCandidateTimeline()` unions drafts, interviews, evals, decisions, email |
+| Dual-team hire conflict flag                     | ✅     | Row flag + roster banner; reads `decisions`                                 |
+| Filter roster by job / stage / status            | ✅     | Plus search, sort, CSV export                                               |
+| Reviewer-scoped `/review` queue                  | 🔧     | Phase 3 narrows `/review` to the current user's assignments                 |
+| Stage transition timestamps                      | 🔧     | Comments carry no timestamp; add one when review voting lands (Phase 3)     |
 
 ## Scheduling
 
@@ -86,16 +100,24 @@ Authoritative feature inventory for LUMA V1. Status legend:
 
 ## Email
 
-| Feature                                                   | Status | Notes                                                                           |
-| --------------------------------------------------------- | ------ | ------------------------------------------------------------------------------- |
-| EmailJS integration                                       | 🆕     | Replaces Resend. `@emailjs/browser` for client sends, REST API for server sends |
-| Migrate `src/lib/email/generate.ts` from Resend → EmailJS | 🔧     | Repoint to EmailJS REST API                                                     |
-| Email log table                                           | ✅     | Migration 00010 — keep, log EmailJS responses                                   |
-| Email webhook handler (`/api/email-webhook`)              | 🔧     | Was Resend-shaped; EmailJS has no webhooks (limitation — accept for V1)         |
-| ICS calendar attachments                                  | 🔧     | Existing `.ics` generation works; verify EmailJS templates accept attachments   |
-| Per-org sending domain config                             | 🆕     | EmailJS service config; DNS verified through their dashboard                    |
-| EmailJS template authoring                                | 🆕     | Templates live in EmailJS dashboard, not repo                                   |
-| Google Calendar OAuth push                                | ⏭️     | Spike post-V1                                                                   |
+| Feature | Status | Notes |
+| ------- | ------ | ----- |
+
+**Provider: Resend** (decided 2026-08-16). EmailJS was never installed and is not coming back.
+
+| Feature                                                   | Status | Notes                                                                    |
+| --------------------------------------------------------- | ------ | ------------------------------------------------------------------------ |
+| Resend integration                                        | ✅     | Edge functions `notify-interviews`, `send-reminders`; server-side only   |
+| Interview + reminder emails                               | ✅     | `applicantEmail` / `interviewerEmail` in `lib/email/templates.ts`        |
+| Application received / auto-rejected / decision templates | ✅     | Added 2026-08-16, 14 assertions covering tone and non-disclosure         |
+| Send path for applicant confirmation                      | 🆕     | Unauthenticated at submit — needs a DB webhook or anon-key edge function |
+| Decision email send path                                  | 🆕     | Can reuse the JWT-proxied `schedule/notify` pattern                      |
+| Per-event send toggles                                    | 🔧     | `OrgSettings.email` exists; not yet wired to the send calls              |
+| Email log table                                           | ✅     | Migration 00010 — log every Resend response                              |
+| Email webhook handler (`/api/email-webhook`)              | ✅     | Resend-shaped; receives bounces and delivery events                      |
+| ICS calendar attachments                                  | ✅     | `lib/email/ics.ts`; Resend supports attachments natively                 |
+| Per-org sending domain config                             | 🆕     | Resend Domains + SPF/DKIM; single domain for V1                          |
+| Google Calendar OAuth push                                | ⏭️     | Spike post-V1                                                            |
 
 ## Admin / Settings
 

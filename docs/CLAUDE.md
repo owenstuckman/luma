@@ -26,7 +26,12 @@ Rebuild LUMA into a **generalized, multi-tenant ATS** that handles Archimedes' f
 
 ## Roles
 
-System roles (extend existing `OrgRole` if needed):
+**Status:** implemented in Phase 1 — `org_members.roles text[]` (migration `00016`),
+the `AppRole` type in `src/lib/types/index.ts`, and the `has_app_role(org_id, role)`
+RLS helper. The singular `org_members.role` column stays for back-compat with
+`has_org_role`. The per-role _permissions_ below are still to be enforced in the UI.
+
+System roles:
 
 - `owner` — billing/org settings (existing)
 - `admin` — configures rules, scheduling, emails, members
@@ -93,12 +98,30 @@ On submit, server evaluates all `reject_if` rules → if any fire, applicant sta
 
 ## Email & Calendar
 
-- **EmailJS** is the provider. Public `user_id` is browser-safe; **private key** is required for server-triggered sends via EmailJS REST API (`https://api.emailjs.com/api/v1.0/email/send`).
-- Templates are managed in EmailJS dashboard (not in repo). `src/lib/email/templates.ts` becomes a thin mapping layer: each app-level event (`application_received`, `decision_hire`, etc.) resolves to a `template_id` + variables map.
-- Sending address: `noreply@archimedesvt.org`. Configure the EmailJS service to send from this address (verify the domain in EmailJS).
-- Outbound email events: application received, auto-rejected (optional), advanced to interview, interview scheduled, decision (hire/reject/waitlist).
-- Browser-triggered sends (e.g., applicant submission confirmation) can use the public user_id directly via `@emailjs/browser`. Server-triggered sends (decision emails, scheduled batches) call the REST API from SvelteKit endpoints using the private key.
-- **Calendar:** ship `.ics` attachments first (already implemented in `src/lib/email/ics.ts`). EmailJS supports attachments via template variables — confirm during Phase 6. Spike Google OAuth as a follow-up — see FEATURES.md. Don't block V1 on it.
+**Provider: Resend.** Decided 2026-08-16, resolving a long-standing docs/code split — an
+earlier draft of this file specified EmailJS, but every line of shipped code already used
+Resend and no EmailJS package was ever installed. Keeping Resend meant zero rewrite.
+**Do not reintroduce EmailJS.**
+
+- **Resend** is the only provider. Server-side only — the API key must never reach the browser.
+- Existing send paths, all Resend: `supabase/functions/notify-interviews/`,
+  `supabase/functions/send-reminders/`, `src/routes/api/email-webhook/`, and the bulk-email
+  action on the review page (via `/private/[slug]/schedule/notify`).
+- Secrets are Supabase Edge Function secrets, not `.env.local`:
+  - `supabase secrets set RESEND_API_KEY=re_...`
+  - `supabase secrets set LUMA_FROM_EMAIL="Archimedes Society <noreply@archimedesvt.org>"`
+  - Without `RESEND_API_KEY` the functions run in **dry-run mode** and return a count of
+    emails that would have been sent — useful for testing, and the reason a "successful"
+    send may deliver nothing.
+- Sending address: `noreply@archimedesvt.org`. The domain must be verified in Resend
+  (SPF/DKIM records) before real delivery works.
+- `src/lib/email/templates.ts` holds the templates in-repo (not in a vendor dashboard), so
+  they are code-reviewed and versioned like everything else.
+- Outbound events: application received, auto-rejected (optional), advanced to interview,
+  interview scheduled, decision (hire/reject/waitlist). Each is individually toggleable
+  through `OrgSettings.email`.
+- **Calendar:** `.ics` attachments, already implemented in `src/lib/email/ics.ts`. Resend
+  supports attachments natively. Google Calendar OAuth is a post-V1 follow-up — don't block on it.
 
 ---
 
@@ -110,11 +133,12 @@ On submit, server evaluates all `reject_if` rules → if any fire, applicant sta
 
 ## Code conventions (V1-specific additions to root CLAUDE.md)
 
-- New code uses **Svelte 5 runes** (`$state`, `$derived`, `$props`). Don't migrate existing Svelte 4 components unless touching them for V1 reasons.
-- All new DB access goes through `src/lib/utils/supabase.ts`. No inline `supabase.from(...)` in components.
+- New code uses **Svelte 5 runes** (`$state`, `$derived`, `$props`). Don't migrate existing Svelte 4 components unless touching them for V1 reasons. **Exception:** a new _shared_ component that must interop with a Svelte 4 host (slots + `createEventDispatcher`) should match the host — `CandidateList.svelte` is Svelte 4 because `/review` is.
+- All new DB access goes through `src/lib/utils/*.ts`. No inline `supabase.from(...)` in components. `supabase.ts` holds single-table helpers; `candidates.ts` holds cross-table aggregation (roster rows, candidate timeline). Add a new module rather than growing `supabase.ts` without bound.
 - Org-scoping is **mandatory** — every new query filters by `org_id` (or relies on RLS). When in doubt, verify with `is_org_member()`.
-- Settings are stored on `organizations.settings` JSONB. Define a TS type `OrgSettings` in `src/lib/types/index.ts` and use it everywhere — never read raw `settings.foo`.
-- Migrations are forward-only and additive. Don't consolidate the existing 13; add 14+ for V1 changes.
+- Settings are stored on `organizations.settings` JSONB. The canonical `OrgSettings` type and its `readOrgSettings(raw)` normalizer live in **`src/lib/types/orgSettings.ts`** (not `index.ts`). Always read settings through the normalizer — never touch `org.settings.foo` directly.
+- Migrations are forward-only and additive. `00001`–`00020` exist; add `00021+` for new V1 changes. Don't consolidate.
+- Queries against tables added in `00015`–`00020` should degrade gracefully if the migration hasn't been applied yet (see the failure-tolerant pattern in `candidates.ts`).
 
 ---
 

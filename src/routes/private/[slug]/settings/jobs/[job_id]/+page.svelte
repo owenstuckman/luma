@@ -2,8 +2,9 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { supabase } from '$lib/utils/supabase';
+	import { supabase, getTeams } from '$lib/utils/supabase';
 	import { updateJobPosting } from '$lib/utils/supabase';
+	import type { Team, RejectRule } from '$lib/types';
 	import Sidebar from '$lib/components/recruiter/Sidebar.svelte';
 	import Navbar from '$lib/components/recruiter/Navbar.svelte';
 	import QuestionRenderer from '$lib/components/QuestionRenderer.svelte';
@@ -31,6 +32,90 @@
 	// New question form
 	let addingQuestionToStep: number | null = null;
 	let newQ: FormQuestion = emptyQuestion();
+
+	// --- V1 per-question metadata (team_scope / reject_if / blinded) ---
+	// Held as flat UI state and folded into the question on add, because the
+	// stored shapes are unions that are awkward to bind directly.
+	let teams: Team[] = [];
+	let newQTeamSlugs: string[] = [];
+	let newQRejectOp: '' | RejectRule['op'] = '';
+	let newQRejectValue = '';
+
+	/** Ops that need no operand — the rest read `newQRejectValue`. */
+	const NULLARY_OPS = ['truthy', 'falsy'];
+	/** Ops whose operand is a list, entered comma-separated. */
+	const LIST_OPS = ['in', 'not_in'];
+	/** Ops whose operand must be numeric. */
+	const NUMERIC_OPS = ['lt', 'gt'];
+
+	const rejectOps: { value: RejectRule['op']; label: string }[] = [
+		{ value: 'eq', label: 'is exactly' },
+		{ value: 'neq', label: 'is anything other than' },
+		{ value: 'in', label: 'is one of' },
+		{ value: 'not_in', label: 'is none of' },
+		{ value: 'lt', label: 'is less than' },
+		{ value: 'gt', label: 'is greater than' },
+		{ value: 'truthy', label: 'is answered at all' },
+		{ value: 'falsy', label: 'is left blank' }
+	];
+
+	$: rejectNeedsValue = newQRejectOp !== '' && !NULLARY_OPS.includes(newQRejectOp);
+	$: rejectValueInvalid =
+		rejectNeedsValue &&
+		(newQRejectValue.trim() === '' ||
+			(NUMERIC_OPS.includes(newQRejectOp) && Number.isNaN(Number(newQRejectValue.trim()))));
+
+	/** Build the stored `reject_if` union from the flat form state. */
+	function buildRejectRule(): RejectRule | undefined {
+		if (newQRejectOp === '') return undefined;
+		const op = newQRejectOp;
+		if (NULLARY_OPS.includes(op)) return { op } as RejectRule;
+		const raw = newQRejectValue.trim();
+		if (!raw) return undefined;
+		if (LIST_OPS.includes(op)) {
+			return {
+				op,
+				value: raw
+					.split(',')
+					.map((s) => s.trim())
+					.filter(Boolean)
+			} as RejectRule;
+		}
+		if (NUMERIC_OPS.includes(op)) {
+			const n = Number(raw);
+			return Number.isFinite(n) ? ({ op, value: n } as RejectRule) : undefined;
+		}
+		return { op, value: raw } as RejectRule;
+	}
+
+	function resetQuestionMeta() {
+		newQTeamSlugs = [];
+		newQRejectOp = '';
+		newQRejectValue = '';
+	}
+
+	function toggleNewQTeam(slug: string) {
+		newQTeamSlugs = newQTeamSlugs.includes(slug)
+			? newQTeamSlugs.filter((s) => s !== slug)
+			: [...newQTeamSlugs, slug];
+	}
+
+	/** One-line summary of a question's V1 metadata, for the collapsed list row. */
+	function metaSummary(q: FormQuestion): string {
+		const bits: string[] = [];
+		const scope = q.team_scope;
+		if (scope && scope !== 'shared' && scope.teams?.length) {
+			const names = scope.teams.map((s) => teams.find((t) => t.slug === s)?.name ?? s);
+			bits.push(names.join(' / '));
+		}
+		if (q.reject_if) {
+			const op = rejectOps.find((o) => o.value === q.reject_if!.op)?.label ?? q.reject_if.op;
+			const v = 'value' in q.reject_if ? ` ${JSON.stringify(q.reject_if.value)}` : '';
+			bits.push(`auto-reject if ${op}${v}`);
+		}
+		if (q.blinded) bits.push('blinded');
+		return bits.join(' · ');
+	}
 
 	$: slug = $page.params.slug;
 	$: jobId = Number($page.params.job_id);
@@ -91,6 +176,9 @@
 		jobName = jobData.name;
 		jobDescription = jobData.description || '';
 		steps = jobData.questions?.steps || [];
+		// Empty when migration 00015 isn't applied — the team-scope control then
+		// hides itself and questions stay shared, which is the correct default.
+		if (jobData.org_id) teams = await getTeams(jobData.org_id);
 		loading = false;
 	});
 
@@ -141,12 +229,26 @@
 	// Question management
 	function addQuestion(stepIndex: number) {
 		if (!newQ.title.trim() || !newQ.id.trim()) return;
+		if (rejectValueInvalid) return;
 		const q = { ...newQ };
 		// Clean up options
 		if (q.options) q.options = q.options.filter((o) => o.trim() !== '');
+
+		// Fold the V1 metadata in. Omit each key entirely when unset so the
+		// stored schema stays clean and `undefined` never lands in the JSON.
+		if (newQTeamSlugs.length > 0) q.team_scope = { teams: [...newQTeamSlugs] };
+		else delete q.team_scope;
+
+		const rule = buildRejectRule();
+		if (rule) q.reject_if = rule;
+		else delete q.reject_if;
+
+		if (!q.blinded) delete q.blinded;
+
 		steps[stepIndex].questions = [...steps[stepIndex].questions, q];
 		steps = [...steps];
 		newQ = emptyQuestion();
+		resetQuestionMeta();
 		addingQuestionToStep = null;
 	}
 
@@ -337,7 +439,19 @@
 									{#if question.options && question.options.length > 0}
 										<span class="options-count">{question.options.length} options</span>
 									{/if}
+									{#if question.reject_if}
+										<span class="reject-badge">Auto-reject</span>
+									{/if}
+									{#if question.team_scope && question.team_scope !== 'shared'}
+										<span class="scope-badge">Team-scoped</span>
+									{/if}
+									{#if question.blinded}
+										<span class="blind-badge">Blinded</span>
+									{/if}
 								</div>
+								{#if metaSummary(question)}
+									<p class="meta-summary">{metaSummary(question)}</p>
+								{/if}
 							</div>
 							<div class="question-actions">
 								<button
@@ -500,9 +614,81 @@
 								</label>
 							</div>
 
+							<!-- V1 metadata: who sees this question, what disqualifies, what reviewers see -->
+							<div class="meta-section">
+								{#if teams.length > 0}
+									<div class="field">
+										<label>Show this question to</label>
+										<div class="scope-row">
+											{#each teams as team (team.id)}
+												<label
+													class="scope-chip"
+													class:scope-on={newQTeamSlugs.includes(team.slug)}
+												>
+													<input
+														type="checkbox"
+														checked={newQTeamSlugs.includes(team.slug)}
+														on:change={() => toggleNewQTeam(team.slug)}
+													/>
+													{team.name}
+												</label>
+											{/each}
+										</div>
+										<p class="hint">
+											{newQTeamSlugs.length === 0
+												? 'No teams selected — shown to everyone.'
+												: `Only applicants who pick ${newQTeamSlugs.length} selected team(s) will see this.`}
+										</p>
+									</div>
+								{/if}
+
+								<div class="field">
+									<label for="reject-op">Auto-reject the applicant if this answer…</label>
+									<div class="reject-row">
+										<select id="reject-op" class="form-control" bind:value={newQRejectOp}>
+											<option value="">Never auto-reject</option>
+											{#each rejectOps as op (op.value)}
+												<option value={op.value}>{op.label}</option>
+											{/each}
+										</select>
+										{#if rejectNeedsValue}
+											<input
+												type={NUMERIC_OPS.includes(newQRejectOp) ? 'number' : 'text'}
+												class="form-control"
+												bind:value={newQRejectValue}
+												placeholder={LIST_OPS.includes(newQRejectOp)
+													? 'Comma-separated values'
+													: 'Value'}
+											/>
+										{/if}
+									</div>
+									{#if rejectValueInvalid}
+										<p class="field-error">
+											{NUMERIC_OPS.includes(newQRejectOp)
+												? 'Enter a number.'
+												: 'Enter a value to compare against.'}
+										</p>
+									{:else if newQRejectOp !== ''}
+										<p class="hint">
+											Applied automatically on submit. A blank answer never triggers auto-reject
+											except with "is left blank".
+										</p>
+									{/if}
+								</div>
+
+								<div class="field">
+									<label class="check-label">
+										<input type="checkbox" bind:checked={newQ.blinded} />
+										Hide this answer from blinded reviewers
+									</label>
+								</div>
+							</div>
+
 							<div style="display: flex; gap: 8px;">
-								<button class="btn btn-tertiary btn-sm" on:click={() => addQuestion(stepIndex)}
-									>Add Question</button
+								<button
+									class="btn btn-tertiary btn-sm"
+									disabled={rejectValueInvalid}
+									on:click={() => addQuestion(stepIndex)}>Add Question</button
 								>
 								<button
 									class="btn btn-quaternary btn-sm"
@@ -510,6 +696,7 @@
 										addingQuestionToStep = null;
 										newQ = emptyQuestion();
 										optionsText = '';
+										resetQuestionMeta();
 									}}>Cancel</button
 								>
 							</div>
@@ -856,6 +1043,71 @@
 	.options-count {
 		font-size: 10px;
 		color: $light-tertiary;
+	}
+
+	/* V1 question metadata */
+	.reject-badge,
+	.scope-badge,
+	.blind-badge {
+		font-size: 10px;
+		font-weight: 700;
+		padding: 1px 6px;
+		border-radius: 999px;
+		color: white;
+	}
+	.reject-badge {
+		background-color: #ef4444;
+	}
+	.scope-badge {
+		background-color: #8b5cf6;
+	}
+	.blind-badge {
+		background-color: #0ea5e9;
+	}
+	.meta-summary {
+		font-size: 11px;
+		color: $light-tertiary;
+		margin: 4px 0 0;
+	}
+	.meta-section {
+		border-top: 1px solid #e5e7eb;
+		margin-top: 12px;
+		padding-top: 12px;
+	}
+	.scope-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+	.scope-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		font-size: 12px;
+		font-weight: 600;
+		padding: 4px 10px;
+		border: 1px solid #e5e7eb;
+		border-radius: 999px;
+		cursor: pointer;
+	}
+	.scope-on {
+		border-color: $yellow-primary;
+		background-color: rgba(250, 204, 21, 0.12);
+	}
+	.reject-row {
+		display: flex;
+		gap: 8px;
+		flex-wrap: wrap;
+
+		select,
+		input {
+			max-width: 240px;
+		}
+	}
+	.field-error {
+		font-size: 11px;
+		color: #ef4444;
+		margin: 4px 0 0;
 	}
 	.question-actions {
 		display: flex;

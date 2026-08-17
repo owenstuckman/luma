@@ -2,14 +2,24 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { supabase, isMaintenanceMode } from '$lib/utils/supabase';
+	import { supabase, isMaintenanceMode, getTeams } from '$lib/utils/supabase';
 	import { sendApplication } from '$lib/utils/supabase';
-	import type { Organization, JobPosting, FormStep } from '$lib/types';
+	import { visibleSteps, evaluateRejectRules, describeRejectMatch } from '$lib/utils/formSchema';
+	import type { Organization, JobPosting, FormStep, Team, QuestionSchema } from '$lib/types';
 	import QuestionRenderer from '$lib/components/QuestionRenderer.svelte';
 
 	let org: Organization | null = null;
 	let job: JobPosting | null = null;
-	let steps: FormStep[] = [];
+	let schema: QuestionSchema | null = null;
+	let teams: Team[] = [];
+	let selectedTeamSlugs: string[] = [];
+	let teamError = '';
+
+	// Questions are filtered to the teams this applicant picked. With no teams
+	// configured the picker is skipped entirely and every question is shared,
+	// which is how single-team orgs (and pre-00015 deployments) behave.
+	$: steps = visibleSteps(schema, selectedTeamSlugs) as FormStep[];
+	$: hasTeamStep = teams.length > 0;
 	let currentStep = 0;
 	let loading = true;
 	let error = '';
@@ -23,12 +33,18 @@
 	let email = '';
 	let step0Errors: { firstName?: string; lastName?: string; email?: string } = {};
 
-	$: totalSteps = steps.length + 2; // +1 for personal info, +1 for review/submit
+	// Step layout: personal info, [team picker], ...question steps, review.
+	$: teamStepIndex = hasTeamStep ? 1 : -1;
+	$: firstQuestionStep = hasTeamStep ? 2 : 1;
+	$: totalSteps = steps.length + (hasTeamStep ? 3 : 2);
 	$: isFirstStep = currentStep === 0;
 	$: isLastStep = currentStep === totalSteps - 1;
 	$: isReviewStep = currentStep === totalSteps - 1;
+	$: isTeamStep = hasTeamStep && currentStep === teamStepIndex;
 	$: currentFormStep =
-		currentStep > 0 && currentStep < totalSteps - 1 ? steps[currentStep - 1] : null;
+		currentStep >= firstQuestionStep && currentStep < totalSteps - 1
+			? (steps[currentStep - firstQuestionStep] ?? null)
+			: null;
 	$: storagePrefix = job ? `job_${job.id}` : '';
 
 	onMount(async () => {
@@ -68,12 +84,21 @@
 			return;
 		}
 		job = jobData;
-		steps = jobData.questions?.steps || [];
+		schema = jobData.questions ?? null;
+
+		teams = await getTeams(orgData.id);
 
 		// Load personal info from localStorage
 		firstName = localStorage.getItem(`${storagePrefix}_firstName`) || '';
 		lastName = localStorage.getItem(`${storagePrefix}_lastName`) || '';
 		email = localStorage.getItem(`${storagePrefix}_email`) || '';
+		const storedTeams = localStorage.getItem(`${storagePrefix}_teams`);
+		if (storedTeams) {
+			// Drop any slug that no longer exists so a renamed team can't leave
+			// the applicant answering questions for a team they can't apply to.
+			const valid = new Set(teams.map((t) => t.slug));
+			selectedTeamSlugs = storedTeams.split(',').filter((s) => valid.has(s));
+		}
 
 		// Check URL for step param
 		const stepParam = $page.url.searchParams.get('step');
@@ -94,12 +119,27 @@
 		return Object.keys(step0Errors).length === 0;
 	}
 
+	function toggleTeam(slug: string) {
+		selectedTeamSlugs = selectedTeamSlugs.includes(slug)
+			? selectedTeamSlugs.filter((s) => s !== slug)
+			: [...selectedTeamSlugs, slug];
+		teamError = '';
+		localStorage.setItem(`${storagePrefix}_teams`, selectedTeamSlugs.join(','));
+	}
+
 	function nextStep() {
 		if (currentStep === 0) {
 			if (!validateStep0()) return;
 			localStorage.setItem(`${storagePrefix}_firstName`, firstName);
 			localStorage.setItem(`${storagePrefix}_lastName`, lastName);
 			localStorage.setItem(`${storagePrefix}_email`, email);
+		}
+		if (isTeamStep) {
+			if (selectedTeamSlugs.length === 0) {
+				teamError = 'Select at least one team to continue.';
+				return;
+			}
+			localStorage.setItem(`${storagePrefix}_teams`, selectedTeamSlugs.join(','));
 		}
 		if (currentStep < totalSteps - 1) {
 			currentStep++;
@@ -134,12 +174,30 @@
 				}
 			}
 
+			// Auto-reject rules are evaluated against the visible questions only,
+			// so a rule attached to a team the applicant didn't pick can't fire.
+			const matches = evaluateRejectRules(recruitInfo, schema, selectedTeamSlugs);
+			const autoRejected = matches.length > 0;
+
 			await sendApplication({
 				name: `${firstName} ${lastName}`,
 				email,
 				recruitInfo,
 				job: job.id,
-				org_id: org.id
+				org_id: org.id,
+				status: autoRejected ? 'denied' : 'pending',
+				metadata: autoRejected
+					? {
+							auto_rejected: true,
+							auto_reject_reasons: matches.map(describeRejectMatch),
+							auto_rejected_at: new Date().toISOString()
+						}
+					: {},
+				// `selected_team_slugs` arrives with migration 00020. Only send the
+				// column when the applicant actually picked teams (which requires the
+				// `teams` table from 00015), so orgs without the V1 migrations keep a
+				// working application form instead of a 400 on an unknown column.
+				...(selectedTeamSlugs.length > 0 ? { selected_team_slugs: selectedTeamSlugs } : {})
 			});
 
 			// Clear localStorage for this application
@@ -160,6 +218,7 @@
 	// Sidebar step labels
 	$: sidebarSteps = [
 		{ title: 'Personal Info', icon: 'fi-br-file-user' },
+		...(hasTeamStep ? [{ title: 'Choose Teams', icon: 'fi-br-users' }] : []),
 		...steps.map((s) => ({ title: s.title, icon: s.icon })),
 		{ title: 'Review & Submit', icon: 'fi-br-paper-plane' }
 	];
@@ -287,6 +346,34 @@
 					/>
 					{#if step0Errors.email}<p class="field-error">{step0Errors.email}</p>{/if}
 				</div>
+			{:else if isTeamStep}
+				<!-- Team picker: drives which questions the rest of the form shows -->
+				<h4>Which teams are you applying to?</h4>
+				<p class="review-hint">
+					Select one or more. Later steps will only ask questions relevant to the teams you pick.
+				</p>
+
+				<div class="team-grid">
+					{#each teams as team (team.id)}
+						<button
+							type="button"
+							class="team-card"
+							class:team-selected={selectedTeamSlugs.includes(team.slug)}
+							aria-pressed={selectedTeamSlugs.includes(team.slug)}
+							on:click={() => toggleTeam(team.slug)}
+						>
+							<span class="team-check" aria-hidden="true">
+								{selectedTeamSlugs.includes(team.slug) ? '✓' : ''}
+							</span>
+							<span class="team-name">{team.name}</span>
+							{#if team.description}
+								<span class="team-desc">{team.description}</span>
+							{/if}
+						</button>
+					{/each}
+				</div>
+
+				{#if teamError}<p class="field-error">{teamError}</p>{/if}
 			{:else if isReviewStep}
 				<!-- Review & Submit -->
 				<h4>Review & Submit</h4>
@@ -506,6 +593,53 @@
 		font-size: 13px;
 		color: $light-tertiary;
 		margin-bottom: 12px;
+	}
+
+	/* Team picker */
+	.team-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+		gap: 12px;
+		margin-top: 8px;
+	}
+	.team-card {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 4px;
+		text-align: left;
+		background-color: white;
+		border: 2px solid transparent;
+		border-radius: 8px;
+		padding: 16px;
+		box-shadow: 0 0px 12px rgba(0, 0, 0, 0.08);
+		cursor: pointer;
+		transition:
+			border-color 0.15s ease,
+			transform 0.15s ease;
+	}
+	.team-card:hover {
+		transform: translateY(-1px);
+	}
+	.team-selected {
+		border-color: $yellow-primary;
+	}
+	.team-check {
+		position: absolute;
+		top: 10px;
+		right: 12px;
+		font-weight: 800;
+		color: $yellow-primary;
+	}
+	.team-name {
+		font-weight: 700;
+		font-size: 15px;
+		color: $dark-primary;
+	}
+	.team-desc {
+		font-size: 12px;
+		color: $light-tertiary;
 	}
 	.review-card {
 		cursor: pointer;
