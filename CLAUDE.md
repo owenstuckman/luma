@@ -23,8 +23,15 @@ LUMA is an open-source Applicant Tracking System (ATS) built with SvelteKit. It 
 | `npm test`        | Run Playwright E2E tests (builds first) |
 | `npm run setup`   | Guided first-time setup                 |
 
+**Node 22+ is required** (`engines.node: ">=22"`). `@supabase/realtime-js` needs a native
+global `WebSocket`, which arrived in Node 22 and which it version-gates on; under Node 20
+`createServerClient` throws in `src/hooks.server.ts` and every SSR route 500s. PowerShell
+and WSL have separate Node installs — check `node -v` in both.
+
 If the repo is used from both PowerShell and WSL, run `npm run deps:cross` after any
-`npm install` — see the README section "Working from both Windows and WSL".
+`npm install` — see the README section "Working from both Windows and WSL". It places a
+correctly-versioned native binary next to _every_ copy of rollup/esbuild/lightningcss in
+the tree, including nested ones, since each copy rejects a version-mismatched binary.
 
 ## Environment Variables
 

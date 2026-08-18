@@ -133,6 +133,31 @@ Helper functions: `is_org_member()`, `has_org_role()`, `has_app_role()`.
 | `npm run format`     | Auto-format                                |
 | `npm run deps:cross` | Add the other OS's native binaries (below) |
 
+### Node.js version
+
+**Node 22 or newer is required** (`engines.node: ">=22"`, and `.nvmrc` pins 22).
+
+This is not a style preference. `@supabase/realtime-js` requires a native global
+`WebSocket`, which Node only gained in v22, and it hard-checks the major version. On
+Node 20 the server-side Supabase client throws the moment it is constructed in
+`src/hooks.server.ts`, so **every SSR route returns HTTP 500**:
+
+```
+Error: Node.js 20 detected without native WebSocket support.
+```
+
+Separately, `npm install` on Node < 20.19 emits `EBADENGINE` warnings for `sass`,
+`chokidar`, `readdirp`, and `eslint-visitor-keys`.
+
+Both symptoms have the same cure — upgrade Node:
+
+```powershell
+winget install OpenJS.NodeJS.LTS     # Windows
+```
+
+Check with `node -v` in _each_ environment you use. PowerShell and WSL have separate
+Node installations, and upgrading one does not upgrade the other.
+
 ### Working from both Windows and WSL
 
 If you keep the repo on a Windows drive and run it from **both** PowerShell and WSL,
@@ -148,7 +173,12 @@ npm run deps:cross
 ```
 
 It installs the other platform's binaries alongside the current ones, pinned to the
-versions already installed. The extra packages are inert on the OS they don't match —
+versions already installed. Note that a dependency can appear several times in the tree
+at different versions — this repo has `esbuild` four times, top-level plus nested copies
+under `vite` and `@sveltejs/adapter-vercel` — and each copy refuses a binary whose
+version doesn't match it exactly (`Host version "0.25.12" does not match binary version
+"0.27.7"`). The script walks the whole tree and places a correctly-versioned binary next
+to every copy. The extra packages are inert on the OS they don't match —
 each library resolves its binary from `process.platform` at runtime — and the command
 uses `--no-save`, so `package.json` and `package-lock.json` are untouched. It is
 deliberately not a `postinstall` hook, since Vercel builds on Linux and has no use for

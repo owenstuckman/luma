@@ -6,6 +6,20 @@ Things only Owen can do — accounts, DNS, secrets, decisions. Sorted by when th
 
 ## Before any code ships (blockers)
 
+### Local dev environment
+
+- [ ] **Upgrade Node on Windows to 22 LTS** — currently 20.18.0, which is the cause of both
+      the `npm run dev` 500 and the `EBADENGINE` install warnings. `@supabase/realtime-js`
+      requires a native `WebSocket` (Node 22+) and version-gates on it, so on Node 20 every
+      server-rendered route throws in `src/hooks.server.ts`. WSL is already on Node 25.
+
+      ```powershell
+      winget install OpenJS.NodeJS.LTS
+      ```
+
+      Then, from either environment: `npm install` followed by `npm run deps:cross`.
+      Verify with `node -v` in **both** PowerShell and WSL — they are separate installs.
+
 ### Accounts & API keys
 
 - [x] **Sending address** — `noreply@archimedesvt.org` (confirmed).
