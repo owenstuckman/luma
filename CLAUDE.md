@@ -71,6 +71,10 @@ Auth guard in `src/hooks.server.ts` redirects unauthenticated users from `/priva
 - Client-side utilities in `src/lib/utils/supabase.ts` (uses `createBrowserClient` from `@supabase/ssr`)
 - Aggregation across pipeline tables lives in `src/lib/utils/candidates.ts` — the roster
   and candidate timeline both read from there rather than joining inline
+- Pure logic modules take no DB or DOM dependency so they can run on either side:
+  `src/lib/utils/formSchema.ts` (question `team_scope` visibility, `reject_if` auto-reject
+  evaluation) and `src/lib/utils/review.ts` (vote tallying, thresholds, weighted scoring,
+  blinded redaction). Keep them side-effect free — the plan is to reuse them server-side.
 - Server-side client created in `src/hooks.server.ts` (uses `createServerClient` with cookie auth)
 - In server files, access Supabase via `event.locals.supabase`
 - New DB access belongs in `src/lib/utils/*.ts`, not inline `supabase.from()` in components
@@ -129,7 +133,7 @@ schema rather than from hand-written step pages.
 - `src/lib/components/admin/` — Platform admin UI
 - `src/lib/components/card/` — Reusable form input card components
 - `src/lib/scheduling/algorithms/` — The four interview scheduling algorithms
-- `src/lib/email/` — Templates and `.ics` generation
+- `src/lib/email/` — Templates (`templates.ts`, provider-agnostic `EmailDraft` objects) and `.ics` generation
 - `src/lib/types/` — `index.ts` (shared types), `orgSettings.ts` (`readOrgSettings()` normalizer)
 - `src/styles/` — SCSS files (Bootstrap theme + color tokens)
 - `supabase/migrations/` — Forward-only SQL migrations

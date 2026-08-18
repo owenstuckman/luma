@@ -116,7 +116,7 @@ one `node_modules` and one working tree. Two recurring failures came from that:
 **Open issue surfaced here, resolved 2026-08-16:** the docs specified **EmailJS** while all
 shipped code used **Resend**. Owen chose Resend — zero rewrite. See Phase 4.5.
 
-## Phase 2 — Form Builder + Application Flow (2-3 days; critical path) — 🔧 in progress
+## Phase 2 — Form Builder + Application Flow — 🔧 in progress (only save-and-resume left)
 
 Done:
 
@@ -144,14 +144,23 @@ Done:
       `00015`/`00020` keeps a working application form instead of 400-ing on unknown columns.
       Verified against the live DB, which currently has neither table.
 
+- [x] **Form builder UI** — shipped at `/private/[slug]/settings/jobs/[job_id]` (not a
+      separate `/builder` route: the job edit page already owned the schema, so a second
+      route would have split ownership of the same JSON). Add/remove/reorder steps and
+      questions, edit type/title/options, and set the V1 per-question metadata
+      (`team_scope`, `reject_if`, `blinded`). Unset keys are omitted from the stored JSON
+      rather than written as nulls, and a live preview renders the form as an applicant
+      sees it.
+
 Remaining:
 
-- [ ] Form builder UI at `/private/[slug]/settings/jobs/[id]/builder` — drag-to-reorder questions, edit per-question metadata (type, title, options, `team_scope`, `reject_if`, `blinded`). **This is the largest remaining piece of Phase 2.**
-- [ ] Save-and-resume — ⛔ blocked on the email-provider decision (the magic link has to be sent by something):
+- [ ] Save-and-resume — **unblocked** (provider decided: Resend, 2026-08-16). The last
+      substantial Phase 2 item:
   - [ ] Magic-link endpoint: `POST /api/applicant/start` → emails resume link
   - [ ] Draft autosave on form change (debounced 1s) → `application_drafts`
   - [ ] Resume route loads draft by token, prefills form
-- [ ] Confirmation email on submit — ⛔ same blocker.
+- [ ] Confirmation email on submit — template ready (`applicationReceivedEmail` in
+      `src/lib/email/templates.ts`); needs the send call wired to Resend.
 - [ ] Update `/apply/[slug]/[job_id]/success/+page.svelte` to handle both happy path and auto-rejected (different copy if admin enables auto-reject email).
 - [ ] **Move auto-reject enforcement server-side.** It currently runs in the browser, so a
       crafted request could skip it. Severity is low — the existing `sendApplication()` already

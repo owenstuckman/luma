@@ -70,7 +70,7 @@ Authoritative feature inventory for LUMA V1. Status legend:
 | Dual-team hire conflict flag                     | ✅     | Row flag + roster banner; reads `decisions`                                 |
 | Filter roster by job / stage / status            | ✅     | Plus search, sort, CSV export                                               |
 | Reviewer-scoped `/review` queue                  | 🔧     | Phase 3 narrows `/review` to the current user's assignments                 |
-| Stage transition timestamps                      | 🔧     | Comments carry no timestamp; add one when review voting lands (Phase 3)     |
+| Stage transition timestamps                      | 🔧     | `CommentEntry` still has no timestamp, so votes sort last on the timeline   |
 
 ## Scheduling
 
@@ -121,14 +121,15 @@ Authoritative feature inventory for LUMA V1. Status legend:
 
 ## Admin / Settings
 
-| Feature                                        | Status | Notes                                               |
-| ---------------------------------------------- | ------ | --------------------------------------------------- |
-| Org settings page (`/private/[slug]/settings`) | ✅     | Exists                                              |
-| Job posting CRUD                               | 🔧     | `/settings/jobs` exists — verify create/edit/delete |
-| Form builder UI (visual question editor)       | 🆕     | Biggest new build — drives everything               |
-| Scheduling settings page                       | ✅     | `/settings/scheduling`                              |
-| Email template editor                          | 🆕     | Per-event templates                                 |
-| Member management UI                           | 🔧     | Backend functions exist; verify UI                  |
+| Feature                                         | Status | Notes                                                      |
+| ----------------------------------------------- | ------ | ---------------------------------------------------------- |
+| Org settings page (`/private/[slug]/settings`)  | ✅     | Exists                                                     |
+| Job posting CRUD                                | 🔧     | `/settings/jobs` exists — verify create/edit/delete        |
+| Form builder UI (visual question editor)        | ✅     | `/settings/jobs/[job_id]` — steps, questions, live preview |
+| Per-question `team_scope`/`reject_if`/`blinded` | ✅     | Edited in the form builder; unset keys omitted from JSON   |
+| Scheduling settings page                        | ✅     | `/settings/scheduling`                                     |
+| Email template editor                           | 🆕     | Per-event templates                                        |
+| Member management UI                            | 🔧     | Backend functions exist; verify UI                         |
 
 ## Observability
 
