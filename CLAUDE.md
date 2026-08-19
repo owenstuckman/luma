@@ -5,6 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > **For V1 rebuild work, read `docs/CLAUDE.md` first** — it carries the V1-specific
 > decisions, scope, and conventions, and overrides this file where they disagree.
 > Feature status lives in `docs/FEATURES.md`; the build plan lives in `docs/TODO.md`.
+> `docs/README.md` indexes everything under `docs/`.
 
 ## Project Overview
 
@@ -39,6 +40,25 @@ Requires a `.env.local` with:
 
 - `PUBLIC_SUPABASE_URL` — Supabase project URL
 - `PUBLIC_SUPABASE_ANON_KEY` — Supabase public anon key
+
+## Repo layout
+
+Root stays deliberately thin, but most config files there **cannot** move — the tools look
+for them in the project root and moving them costs a flag on every invocation:
+
+| File(s)                                             | Why it's at the root                                                                                                                                                                                       |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `svelte.config.js`, `vite.config.ts`                | SvelteKit and Vite resolve these from the project root only                                                                                                                                                |
+| `tsconfig.json`                                     | Extends `.svelte-kit/tsconfig.json`; `svelte-check` points at it                                                                                                                                           |
+| `eslint.config.js`                                  | Flat-config discovery walks up to the root                                                                                                                                                                 |
+| `package.json`, `package-lock.json`, `.npmrc`       | npm                                                                                                                                                                                                        |
+| `.prettierrc`, `.prettierignore`                    | Prettier discovery; the ignore file must be a real file                                                                                                                                                    |
+| `.gitattributes`, `.gitignore`                      | git                                                                                                                                                                                                        |
+| `.nvmrc`                                            | Node version pin (see the Node requirement above)                                                                                                                                                          |
+| `Dockerfile`, `docker-compose.yml`, `.dockerignore` | Conventional root placement — `docker build .` and `docker compose up` work with no flags. The self-hosted path is out of scope for V1 and untested; leaving it conventional is cheaper than relocating it |
+
+Everything that _can_ live elsewhere already does: docs in `docs/`, E2E specs in `e2e/`,
+one-off scripts in `scripts/`, SQL in `supabase/migrations/`.
 
 ## Architecture
 
@@ -145,7 +165,9 @@ schema rather than from hand-written step pages.
 - `src/styles/` — SCSS files (Bootstrap theme + color tokens)
 - `supabase/migrations/` — Forward-only SQL migrations
 - `scripts/` — `setup.mjs` (first-run setup), `cross-platform-deps.mjs` (Windows/WSL deps)
-- `docs/` — V1 context, feature inventory, build plan, deployment notes
+- `docs/` — all project documentation; start at `docs/README.md`. `v1/` holds the inputs
+  that set V1 scope (`background.md`, `Questions.md`, last cycle's CSVs); `v0/` is the
+  pre-rebuild app's docs, kept as history only
 - `e2e/` — Playwright E2E tests
 
 (`archive/` was deleted in Phase 0 — don't expect it.)

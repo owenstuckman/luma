@@ -1,6 +1,6 @@
 # CLAUDE.md — V1 Context
 
-This file is the working context for V1 development. The root `/CLAUDE.md` is the general project guide; this one captures **decisions, scope, and conventions specific to the V1 rebuild** (driven by `docs/v1/background.md` and `docs/Questions.md`).
+This file is the working context for V1 development. The root `/CLAUDE.md` is the general project guide; this one captures **decisions, scope, and conventions specific to the V1 rebuild** (driven by `docs/v1/background.md` and `docs/v1/Questions.md`).
 
 If anything here contradicts the root `CLAUDE.md`, this file wins for V1 work. When V1 ships, fold relevant pieces back into root `CLAUDE.md` and delete this file.
 
@@ -14,7 +14,7 @@ Rebuild LUMA into a **generalized, multi-tenant ATS** that handles Archimedes' f
 
 ---
 
-## Non-negotiables (from Questions.md answers)
+## Non-negotiables (from `docs/v1/Questions.md` answers)
 
 1. **Multi-tenant stays.** Do not collapse `organizations` / `org_members` / `slug` routing. Generalize anything Archimedes-specific behind org settings — no hardcoded team names, no hardcoded counts.
 2. **Archimedes is just the first tenant.** Teams (Infinitum, Astra, Terra, Juvo) are seed data for the Archimedes org, _not_ schema constants.

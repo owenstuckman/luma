@@ -6,6 +6,36 @@ Order is roughly the build order — earlier phases unblock later ones. Within a
 
 ---
 
+## Snapshot — what's actually left
+
+Phases 0, 1, 1.5, 1.6, 1.7 and 4.5 are done. Everything still outstanding, in rough
+dependency order:
+
+| #   | Work                                                                 | Blocks                            |
+| --- | -------------------------------------------------------------------- | --------------------------------- |
+| ⛔  | **Apply migrations `00013` + `00012` to prod** (owner action)        | Correct interview data everywhere |
+| ⛔  | **Upgrade Windows Node to 22+** (owner action)                       | All Windows dev                   |
+| 2   | Save-and-resume drafts + magic link; submit confirmation email       | —                                 |
+| 2   | Move auto-reject enforcement server-side                             | Launch hardening                  |
+| 3   | Reviewer-pool assignment UI; filter `/review` to the current user    | Needs 3.5                         |
+| 3   | Move blinded redaction server-side                                   | Launch hardening                  |
+| 3.5 | **Org membership: `roles[]` editor, real invites, `review_weight`**  | Phase 3 pool, Phase 4 advisors    |
+| 4   | Scheduling polish, buffer setting, advisor exclusion, R2/R3 triggers | Needs 3.5 for advisors            |
+| 5   | Hire/reject/waitlist decisions + automated emails                    | —                                 |
+| 6   | PostHog analytics + error tracking                                   | —                                 |
+| 7   | Pre-launch QA, E2E, load test, security pass                         | Everything above                  |
+
+Cross-cutting, not tied to one phase:
+
+- **No unit test runner.** `formSchema.ts` and `review.ts` are pure logic verified only by
+  throwaway assertion scripts (33 and 29 respectively) that were never committed. The
+  formSchema one caught a real bug (`Number('')` is `0`, so a `lt` GPA rule rejected every
+  blank answer). Recommend `vitest` — Vite is already here, so it's near-zero config.
+- **Client-side trust.** Auto-reject and blinded redaction both run in the browser. Neither
+  is a new hole (`sendApplication()` already trusts the client for every answer), but both
+  should move server-side before launch.
+- **`CommentEntry` has no timestamp**, so review votes sort last on the candidate timeline.
+
 ## Phase 0 — Audit & Cleanup ✅ (complete)
 
 - [x] **Git status assessed.** 89/93 "modified" files were pure CRLF noise from Windows/WSL line endings; only the 4 docs we edited had real changes. No commit/revert needed — `npm run format` normalized everything. _(Recurred afterward; permanently fixed in Phase 1.6 with `.gitattributes`.)_
@@ -29,7 +59,11 @@ Order is roughly the build order — earlier phases unblock later ones. Within a
 - [ ] ~~Delete `docs/v0/`~~ — kept as historical reference (versioned alongside `docs/v1/`).
 - [ ] **`npm run build`** clean (one harmless `@opentelemetry/api` soft-import warning from supabase-js).
 - [ ] Open the app locally against current Supabase, walk: signup → create org → create job → submit application → review → schedule. _Skipped here — needs human in the loop with running browser. Recommend doing during Phase 7 QA._
-- [ ] Verify migrations 00001-00013 applied to prod Supabase. _Owner action — see HUMAN-TODO.md._
+- [x] Verify migrations 00001-00013 applied to prod Supabase. **Done 2026-08-18 — and it
+      found two that were not applied:** `00013_rename_interview_columns` (so 891 interview
+      rows are invisible to every query) and `00012_org_assets_bucket` (so logo upload
+      fails). `00011` is applied; `00001` predates migration tracking but its schema is
+      present. _Owner action to apply the two — see `HUMAN-TODO.md`._
 
 **Net result:** lint green (0 errors / 203 warnings), check green (0 errors / 117 warnings), build green. Safe to start Phase 1.
 
@@ -115,6 +149,38 @@ one `node_modules` and one working tree. Two recurring failures came from that:
 
 **Open issue surfaced here, resolved 2026-08-16:** the docs specified **EmailJS** while all
 shipped code used **Resend**. Owen chose Resend — zero rewrite. See Phase 4.5.
+
+## Phase 1.7 — Windows runtime fixes ✅ (complete)
+
+Phase 1.6 fixed _a_ cross-platform problem but not all of them. Windows was still unusable:
+`npm install` errored and `npm run dev` returned 500 on every page. Two independent causes.
+
+- [x] **Node 20 on Windows → 500 on every SSR route.** `@supabase/realtime-js` requires a
+      native global `WebSocket` and hard-gates on `nodeVersion >= 22`. Under Node 20 the
+      server client throws the instant it is constructed in `src/hooks.server.ts`:
+      `Error: Node.js 20 detected without native WebSocket support`. WSL was on Node 25 and
+      worked, which is why this looked Windows-specific rather than version-specific.
+      The same Node 20 caused the `EBADENGINE` install failures (`sass`, `chokidar`,
+      `readdirp`, `eslint-visitor-keys` all want `>=20.19`), made hard errors rather than
+      warnings by the pre-existing `engine-strict=true` in `.npmrc`.
+      **Recorded as `engines.node: ">=22"` + `.nvmrc`.** _Owner action to upgrade — see
+      `HUMAN-TODO.md`._
+- [x] **`deps:cross` only handled the top-level copy of each native dep.** A package can
+      appear many times in the tree at different versions — this repo has `esbuild` four
+      times across three versions (top-level, plus nested under `vite` and
+      `@sveltejs/adapter-vercel`), and `rollup` twice. Each copy loads a binary of its own
+      version and refuses any binary whose version differs, with a
+      `Host version ... does not match binary version ...` error. The script now walks the
+      whole tree and places a correctly-versioned binary beside every copy.
+- [x] **Nested installs can't use `npm install --prefix <dir>`.** npm then reads that
+      dependency's own `package.json` as a project manifest, and vite's declares
+      `link:./src/types`, which only resolves inside vite's repo → `EUNSUPPORTEDPROTOCOL`.
+      Nested targets go through `npm pack` + tar extract instead, which is safe because
+      these platform packages are a prebuilt binary plus a manifest, with no install scripts.
+
+**Verified:** Windows `npm run build` passes (it failed before); Windows dev server starts
+and serves. WSL `build` / `lint` / `check` unchanged. The only remaining Windows blocker is
+the Node upgrade, which needs Owen.
 
 ## Phase 2 — Form Builder + Application Flow — 🔧 in progress (only save-and-resume left)
 
@@ -213,6 +279,60 @@ Remaining:
       applicant whose threshold is crossed by a bulk comment won't advance until someone
       opens them. Consider a DB trigger or a nightly sweep.
 
+## Phase 3.5 — Org Membership & Roles — 🆕 not started
+
+**Why this is its own phase:** Phase 3's reviewer pool and Phase 4's advisor exclusion both
+key off `org_members.roles[]`, and _nothing in the app can currently write that column_. So
+this blocks both. It also covers the question "how do I add a user to my organization?",
+which today has an awkward answer (see Current state).
+
+### Current state
+
+- **Adding an existing user works.** `/private/[slug]/settings` → Members has an add-by-email
+  box, backed by `invite_member_by_email()` (migration `00004`) via
+  `inviteMemberByEmail()`. Admins and owners only.
+- **It is not actually an invite.** The function looks the address up in `auth.users` and
+  returns `No user found with email: ...` if they haven't signed up. The person must first
+  create their own account at `/auth`, and only then can they be added. There is no email,
+  no pending state, and no token.
+- **Only the legacy singular role is editable.** The UI offers viewer / recruiter / admin,
+  writing `org_members.role`. The V1 `roles[]` array — `advisor`, `reviewer`, `interviewer`,
+  `eboard` — has no UI at all, so the roles the rest of V1 depends on can only be set by
+  hand in SQL.
+- **`review_weight` has no UI.** Weighted scoring reads `org_members.metadata.review_weight`
+  and defaults it to 1; `updateMemberMetadata()` is only ever called with `teams`.
+- Platform admins can add users to any org from `/admin` (`adminAddUserToOrg`), which is a
+  superuser path, not an org-owner one.
+
+### Tasks
+
+- [ ] **Multi-role editor** on the Members table — checkboxes over `AppRole`, writing
+      `org_members.roles[]`. Keep the singular `role` in sync (it still backs `has_org_role`
+      and therefore most RLS policies) rather than dropping it.
+- [ ] **New migration `00021`** — `update_member_roles(target_org_id, target_user_id, roles text[])`,
+      `SECURITY DEFINER`, admin/owner-gated, validating every entry against the `AppRole` set
+      and refusing to strip the last owner.
+- [ ] **`review_weight` field** on each member row (number, default 1). Small input next to
+      the role editor; validate `> 0` before writing.
+- [ ] **Real invitations** for people without accounts. Needs a `pending_invites` table
+      (`org_id`, `email`, `roles[]`, `token`, `invited_by`, `expires_at`, `accepted_at`) plus:
+  - [ ] `POST` endpoint that creates the invite and sends it via Resend
+  - [ ] `/invite/[token]` route → signup or login, then auto-join with the stored roles
+  - [ ] Pending invites listed on the settings page, with resend and revoke
+  - [ ] Expiry (recommend 14 days, matching `application_drafts`)
+- [ ] **Decide the trust model for invite acceptance.** Binding the invite to the exact
+      invited address is the safe default; allowing any signup that holds the token is more
+      forgiving but lets a forwarded link join a stranger. Recommend binding to the address.
+- [ ] Show each member's roles on the Members table (badges), not just the singular role.
+
+### Open question
+
+Should an org owner be able to invite someone as `owner`? Today `remove_org_member` refuses
+to remove owners, so a mistaken owner grant is unrecoverable through the UI. Recommend
+allowing at most one owner change at a time, through an explicit "transfer ownership" action
+rather than the normal role editor — `adminTransferOwnership` already exists for the
+platform-admin path and can be mirrored.
+
 ## Phase 4 — Scheduling Polish (1-2 days)
 
 - [ ] Verify all four algorithms run end-to-end against real data. Write a smoke test per algorithm.
@@ -280,9 +400,13 @@ Remaining — the **send path**, which is an architecture decision, not just wir
 
 ---
 
-## Open Decisions (resolve before starting the phase)
+## Open Decisions
 
-- **Phase 1 / Phase 2:** Pick a validation lib or hand-roll? Recommend hand-roll (no zod) — schema is small.
-- **Phase 3:** When threshold is met, do we auto-advance immediately, or admin-confirm? Recommend auto-advance with audit log entry.
-- **Phase 4:** Should candidate-picks-slot link expire? Recommend 7 days.
-- **Phase 5:** Decision emails — admins can disable per-outcome (e.g., auto-send hires but not rejects)? Recommend yes, three independent toggles.
+**These live in `HUMAN-TODO.md` now** — anything needing Owen belongs in one place, so it
+doesn't get missed here. Kept as a pointer only:
+
+- ✅ **Resolved — Phase 1 / Phase 2:** hand-rolled validation, no zod.
+- ✅ **Resolved — Phase 3:** auto-advance fires immediately on the crossing vote.
+- ⏳ **Open:** Phase 3.5 owner-grant policy, Phase 4 slot-link expiry, Phase 5 per-outcome
+  email toggles, adding `vitest`, and whether to move auto-reject + blinding server-side
+  before launch. See **`HUMAN-TODO.md` → Decisions I need from you**.

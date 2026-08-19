@@ -6,12 +6,44 @@ Things only Owen can do — accounts, DNS, secrets, decisions. Sorted by when th
 
 ## Before any code ships (blockers)
 
+### 🔴 Unapplied migrations on prod (found 2026-08-18)
+
+Two migration files in the repo were never applied to the live database. Both cause
+**silent** wrongness, not errors, which is why earlier "all routes return 200" checks
+missed them. Verified against prod via `list_migrations` + schema inspection.
+
+- [ ] **Apply `00013_rename_interview_columns.sql`** — ⚠️ **highest priority.**
+      The live `interviews` table still has `"startTime"` / `"endTime"`; every DB query in
+      the app asks for `start_time` / `end_time`. There are **891 interview rows** currently
+      invisible to the app: - `/candidates` and the candidate timeline swallow the failed query by design
+      (failure-tolerant reads), so every candidate shows 0 interviews, no rating, and a
+      pipeline stage that never advances past "In Review". **The roster looks fine and is
+      wrong.** - `/evaluate` orders by `start_time` and will error outright.
+
+      Safe to apply: it is a pure rename, and no code writes the camelCase names — the
+      scheduler's `startTime`/`endTime` are in-memory DTOs converted at the DB boundary
+      (`start_time: iv.startTime`). Confirmed zero camelCase writes.
+
+- [ ] **Apply `00012_org_assets_bucket.sql`** — `storage.buckets` is empty, so the
+      `org-assets` bucket does not exist. Org logo upload in `Settings → Branding` writes to
+      it and fails. Lower severity than 00013 but user-visible.
+
+_(`00011_interview_violations` **is** applied — the `violations` column exists.
+`00001_initial_schema` predates Supabase migration tracking; the schema is present.)_
+
+**Say the word and I'll apply both** — I did not do it unprompted because it changes the
+production schema.
+
 ### Local dev environment
 
 - [ ] **Upgrade Node on Windows to 22 LTS** — currently 20.18.0, which is the cause of both
-      the `npm run dev` 500 and the `EBADENGINE` install warnings. `@supabase/realtime-js`
+      the `npm run dev` 500 and the `EBADENGINE` install failures. `@supabase/realtime-js`
       requires a native `WebSocket` (Node 22+) and version-gates on it, so on Node 20 every
       server-rendered route throws in `src/hooks.server.ts`. WSL is already on Node 25.
+
+      Note `.npmrc` sets `engine-strict=true`, so with the `engines.node: ">=22"` field now
+      in `package.json`, **`npm install` refuses to run at all on Node 20** — it errors
+      rather than warning. Upgrade first, then install; the order matters.
 
       ```powershell
       winget install OpenJS.NodeJS.LTS
@@ -43,6 +75,8 @@ Things only Owen can do — accounts, DNS, secrets, decisions. Sorted by when th
       200, PostgREST schema cache warm, anon key valid (ref matches, role `anon`, exp 2035),
       and `npm run dev` serves `/`, `/auth`, `/apply/archimedes`,
       `/private/archimedes/{review,candidates}` with **zero** fetch errors.
+      _Caveat: HTTP 200 on those routes did **not** mean the data was right — see the
+      unapplied-migration section above, which those checks failed to catch._
       Orgs present: `archimedes` (id 2), `gdg-at-vt` (id 5).
       _If it pauses again, the symptom is identical — restore from the Supabase dashboard
       and allow ~2 min for the origin (HTTP 521) and schema cache (PGRST002) to warm up._
@@ -65,6 +99,31 @@ Things only Owen can do — accounts, DNS, secrets, decisions. Sorted by when th
 - [ ] **Org name displayed in emails** — "Archimedes Society"? "Archimedes @ VT"?
 - [ ] **Whether to wipe the current Supabase prod data** before V1 launch, or migrate it forward. (If you have real applicants in there, migration; if it's test data, wipe is easier.)
 - [ ] **Who else gets admin access** to the production app on day 1? List emails — I'll seed them as admins.
+
+These were sitting only in `TODO.md`'s "Open Decisions" and needed to be here, since each
+one blocks a phase until you answer. My recommendation is given for each — say "all
+recommended" and I'll proceed with every one of them.
+
+- [ ] **Phase 3.5 — can an org owner grant the `owner` role?** `remove_org_member` refuses to
+      remove owners, so a mis-click is unrecoverable through the UI. _Recommend: no — keep
+      owner changes behind an explicit "transfer ownership" action._
+- [ ] **Phase 4 — should the candidate-picks-slot link expire?** _Recommend: yes, 7 days._
+- [ ] **Phase 5 — per-outcome decision-email toggles** (auto-send hires but not rejects)?
+      _Recommend: yes, three independent toggles._
+- [ ] **Add `vitest` as a dev dependency?** `formSchema.ts` and `review.ts` are pure logic
+      currently covered only by throwaway assertion scripts (33 and 29) that were never
+      committed — and the formSchema one caught a real bug before it shipped (`Number('')`
+      is `0`, so a `lt` GPA rule auto-rejected every blank answer). _Recommend: yes. Vite is
+      already here, so it's near-zero config._ Not done unprompted since it adds a dependency.
+- [ ] **Ship with client-side auto-reject and blinded review, or block launch on moving them
+      server-side?** Both currently run in the browser. Neither is a new hole — the existing
+      submit path already trusts the client for every answer — but a determined applicant
+      could skip auto-reject, and a curious reviewer could read un-blinded data in devtools.
+      _Recommend: move both server-side before launch; they're small changes._
+
+**Resolved, recorded here so they don't get re-litigated:** validation is hand-rolled (no
+zod); review auto-advance fires immediately on the crossing vote rather than waiting for
+admin confirmation.
 
 ---
 
@@ -95,6 +154,14 @@ Things only Owen can do — accounts, DNS, secrets, decisions. Sorted by when th
 ### Before Phase 3 (Review)
 
 - [ ] List of **reviewers** for the V1 cycle (names + emails). I'll create their accounts and assign them to the reviewer pool.
+
+      ⚠️ Note on how adding people works today: `Settings → Members` can only add someone who
+      **already has a LUMA account** — it looks the email up in `auth.users` and errors with
+      `No user found with email: ...` otherwise. So each reviewer must sign up at `/auth`
+      first, then be added. A real invite flow (pending invite + emailed link) is Phase 3.5.
+      Until that ships, either have people self-signup first, or send me the list and I'll
+      seed the rows directly.
+
 - [ ] Confirm **threshold defaults**: I'm planning 3 approves to advance, 2 rejects to deny. Override if you want different.
 
 ### Before Phase 4 (Scheduling)

@@ -206,20 +206,33 @@ Any Node.js host works. Build with `npm run build`, then serve the output. Set t
 
 ## Migrating Existing Data
 
-If you have data from before multi-tenancy (records with `org_id = NULL`), see the migration guide in [docs/usage.md](docs/usage.md#migrating-existing-data).
+If you have data from before multi-tenancy (records with `org_id = NULL`), see the migration guide in [docs/v0/usage.md](docs/v0/usage.md#migrating-existing-data).
 
 ## Documentation
 
-| Doc                                                        | Contents                                                       |
-| ---------------------------------------------------------- | -------------------------------------------------------------- |
-| [Usage Guide](docs/usage.md)                               | Routes, workflows, database schema, RPC functions              |
-| [Architecture](docs/architecture.md)                       | Multi-tenancy, question engine, RLS, realtime, email           |
-| [Scheduling](docs/scheduling.md)                           | Algorithms, admin UI, interviewer availability, database       |
-| [Email Notifications](docs/email-notifications.md)         | Templates, ICS invites, Resend setup, email log                |
-| [Multi-Tenant Signup](docs/multitenant.md)                 | Self-service org registration flow                             |
-| [Features](docs/features.md)                               | Complete list of implemented features                          |
-| [TODO](docs/TODO.md)                                       | Remaining work and tech debt                                   |
-| [Scheduling Enhancements](docs/scheduling-enhancements.md) | Advanced scheduler features (relaxed pass, attribute matching) |
+All docs live in [`docs/`](docs/); [`docs/README.md`](docs/README.md) indexes them.
+
+**Current (V1):**
+
+| Doc                                        | Contents                                                     |
+| ------------------------------------------ | ------------------------------------------------------------ |
+| [Features](docs/FEATURES.md)               | Authoritative feature inventory with per-feature status      |
+| [TODO](docs/TODO.md)                       | Phase-by-phase build plan; what's done, what's left, and why |
+| [Human TODO](docs/HUMAN-TODO.md)           | Owner-only actions: accounts, DNS, secrets, decisions        |
+| [V1 Context](docs/CLAUDE.md)               | V1 decisions, scope, and conventions                         |
+| [Deployment](docs/DEPLOYMENT.md)           | Getting V1 to production                                     |
+| [Admin Panel Design](docs/DESIGN-ADMIN.md) | Planned expansion of `/admin` (not yet built)                |
+
+**Pre-rebuild (`docs/v0/`) — historical reference, describes the old app:**
+
+| Doc                                                           | Contents                                        |
+| ------------------------------------------------------------- | ----------------------------------------------- |
+| [Usage Guide](docs/v0/usage.md)                               | Routes, workflows, schema, RPC functions        |
+| [Architecture](docs/v0/architecture.md)                       | Multi-tenancy, question engine, RLS, realtime   |
+| [Scheduling](docs/v0/scheduling.md)                           | Algorithms, admin UI, availability              |
+| [Email Notifications](docs/v0/email-notifications.md)         | Templates, ICS invites, Resend setup, email log |
+| [Multi-Tenant Signup](docs/v0/multitenant.md)                 | Self-service org registration flow              |
+| [Scheduling Enhancements](docs/v0/scheduling-enhancements.md) | Relaxed pass, attribute matching                |
 
 ## License
 
