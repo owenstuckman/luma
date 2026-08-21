@@ -41,6 +41,15 @@ Requires a `.env.local` with:
 - `PUBLIC_SUPABASE_URL` — Supabase project URL
 - `PUBLIC_SUPABASE_ANON_KEY` — Supabase public anon key
 
+Optional:
+
+- `PUBLIC_POSTHOG_KEY`, `PUBLIC_POSTHOG_HOST` — analytics + error tracking. Unset means
+  analytics silently no-ops; nothing else changes. See `docs/ANALYTICS.md`.
+
+`env.example` is the template. Note that a variable name wrapped in backticks or quotes is
+not exported by Vite at all — and because analytics fails soft, that mistake looks exactly
+like "no events yet".
+
 ## Repo layout
 
 Root stays deliberately thin, but most config files there **cannot** move — the tools look
@@ -74,12 +83,17 @@ route trees are scoped by it.
 - `/apply/[slug]` and `/apply/[slug]/[job_id]` — Public application form, rendered
   dynamically from the job's question schema. (The old `/applicant/1_verification`…
   `7_submit` step routes are gone.)
-- `/auth` — Recruiter login/signup (Supabase Auth), plus `/auth/confirm`, `/auth/reset`
+- `/auth` — Recruiter login/signup (Supabase Auth), plus `/auth/confirm`, `/auth/reset`.
+  Both `login` and `signup` honour a `?redirect=` param, and signup carries it through the
+  confirmation email so an invited user isn't stranded after confirming.
+- `/invite/[token]` — Public invite landing page. Renders logged-out via the `anon`-granted
+  `get_invite_details()`; the accept action joins the org and redirects to its dashboard.
 - `/private/[slug]/*` — Auth-protected, org-scoped recruiter dashboard:
   `dashboard`, `review`, `review/candidate`, `candidates`, `schedule/my`,
   `schedule/full`, `evaluate`, `availability`, `settings`, `settings/jobs`,
   `settings/scheduling`
-- `/admin` — Platform admin view (cross-org)
+- `/admin` — Platform admin view (cross-org), gated on `is_platform_admin()`. The
+  **Orgs** tab has a per-org **Settings** drawer; **Admins** manages platform admins
 - `/api/health`, `/api/email-webhook` — Server endpoints
 
 Auth guard in `src/hooks.server.ts` redirects unauthenticated users from `/private/*` to `/auth` and authenticated users from `/auth` to `/private`.
@@ -108,9 +122,18 @@ Auth guard in `src/hooks.server.ts` redirects unauthenticated users from `/priva
 - Tables: `organizations`, `org_members`, `job_posting`, `applicants`, `interviews`,
   `interviewers`, `interviewer_availability`, `scheduling_config`, `email_log`,
   `platform_admins`, `platform_settings`, `platform_activity_log`, plus the V1 additions
-  `teams`, `application_drafts`, `job_reviewers`, `decisions`
-- Migrations are forward-only and additive (`supabase/migrations/00001`–`00020`)
+  `teams`, `application_drafts`, `job_reviewers`, `decisions`, `org_invites`
+- Migrations are forward-only and additive (`supabase/migrations/00001`–`00022`)
 - RLS helpers: `is_org_member()`, `has_org_role()`, `has_app_role()`
+- Org settings render through the shared `OrgSettingsPanel.svelte` on both the org page and
+  the admin panel. It takes the org as a **prop** — never resolve an org from a slug inside
+  it, and never collapse "couldn't load" into "not authorized" (the page it replaced did
+  exactly that, and the resulting misdiagnosis cost real debugging time)
+- Anything a **non-member** must read goes through a `SECURITY DEFINER` function rather than
+  a table read — RLS would otherwise hide the row from precisely the person who needs it.
+  The invite flow (`get_invite_details`, `accept_org_invite`) is the reference case.
+- Analytics is separate from DB access: `src/lib/analytics/posthog.ts`, never `posthog-js`
+  directly. See `docs/ANALYTICS.md`.
 
 ### Styling
 
@@ -157,10 +180,13 @@ schema rather than from hand-written step pages.
 
 - `src/lib/components/applicant/` — Applicant flow UI (Navbar, Sidebar, Footer, AvailabilityGrid)
 - `src/lib/components/recruiter/` — Recruiter dashboard UI (Navbar, Sidebar, CandidateList, Toast, EmailGeneratorModal)
-- `src/lib/components/admin/` — Platform admin UI
+- `src/lib/components/admin/` — Platform admin UI (Svelte 5 runes throughout), including
+  `OrgSettingsPanel.svelte`, which is **also** mounted by `/private/[slug]/settings`
 - `src/lib/components/card/` — Reusable form input card components
 - `src/lib/scheduling/algorithms/` — The four interview scheduling algorithms
 - `src/lib/email/` — Templates (`templates.ts`, provider-agnostic `EmailDraft` objects) and `.ics` generation
+- `src/lib/analytics/` — `posthog.ts`: init, `EVENTS` constants, capture helpers. No-ops
+  when `PUBLIC_POSTHOG_KEY` is unset
 - `src/lib/types/` — `index.ts` (shared types), `orgSettings.ts` (`readOrgSettings()` normalizer)
 - `src/styles/` — SCSS files (Bootstrap theme + color tokens)
 - `supabase/migrations/` — Forward-only SQL migrations

@@ -36,6 +36,8 @@
 	// Auth
 	let authenticated = false;
 	let isAdmin = false;
+	// Passed down so the per-org settings panel can stop you removing yourself.
+	let currentUserId = '';
 	let loading = true;
 	let email = '';
 	let password = '';
@@ -91,6 +93,7 @@
 		const { data } = await supabase.auth.getUser();
 		if (data?.user) {
 			authenticated = true;
+			currentUserId = data.user.id;
 			isAdmin = await isPlatformAdmin();
 			if (isAdmin) await loadAllData();
 		}
@@ -105,6 +108,8 @@
 			return;
 		}
 		authenticated = true;
+		const { data: loggedIn } = await supabase.auth.getUser();
+		currentUserId = loggedIn?.user?.id ?? '';
 		isAdmin = await isPlatformAdmin();
 		if (!isAdmin) {
 			loginError = 'You do not have platform admin access.';
@@ -267,7 +272,7 @@
 					class:active={activeTab === 'settings'}
 					on:click={() => (activeTab = 'settings')}
 				>
-					<i class="fi fi-br-settings" aria-hidden="true"></i> Settings
+					<i class="fi fi-br-settings" aria-hidden="true"></i> Platform
 				</button>
 				<button
 					class="nav-item"
@@ -296,7 +301,7 @@
 						onretryAnalytics={loadAnalytics}
 					/>
 				{:else if activeTab === 'orgs'}
-					<OrgsTab {organizations} {platformSettings} onreload={loadOrgs} />
+					<OrgsTab {organizations} {platformSettings} {currentUserId} onreload={loadOrgs} />
 				{:else if activeTab === 'users'}
 					<UsersTab {users} {organizations} />
 				{:else if activeTab === 'jobs'}

@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { supabase } from '$lib/utils/supabase';
+	import { capture, EVENTS, setOrgGroup } from '$lib/analytics/posthog';
 
 	let orgName = '';
 	let orgSlug = '';
@@ -99,6 +100,9 @@
 			submitting = false;
 			return;
 		}
+
+		setOrgGroup(orgData.id, orgName);
+		capture(EVENTS.ORG_CREATED, { org_id: orgData.id, org_slug: orgSlug });
 
 		goto(`/private/${orgSlug}/dashboard`);
 	}

@@ -8,15 +8,15 @@ Read top-to-bottom. Each step says **who** runs it (HUMAN = Owen, CLAUDE = me) a
 
 ## Stack snapshot
 
-| Layer              | Tool                   | Notes                                                                            |
-| ------------------ | ---------------------- | -------------------------------------------------------------------------------- |
-| Frontend + SSR     | SvelteKit 2 / Svelte 5 | `@sveltejs/adapter-vercel`                                                       |
-| Hosting            | Vercel                 | Auto-deploys on push to `main`                                                   |
-| Database + Auth    | Supabase               | Postgres + RLS + Auth (email + magic link)                                       |
-| Email              | Resend                 | Server-side only, via Supabase Edge Functions; API key never reaches the browser |
-| Analytics + errors | PostHog                | Single vendor, replaces Sentry                                                   |
-| Calendar           | `.ics` attachments     | Google Calendar OAuth deferred                                                   |
-| Storage            | Supabase Storage       | `org_assets` bucket exists (migration 00012)                                     |
+| Layer              | Tool                   | Notes                                                                              |
+| ------------------ | ---------------------- | ---------------------------------------------------------------------------------- |
+| Frontend + SSR     | SvelteKit 2 / Svelte 5 | `@sveltejs/adapter-vercel`                                                         |
+| Hosting            | Vercel                 | Auto-deploys on push to `main`                                                     |
+| Database + Auth    | Supabase               | Postgres + RLS + Auth (email + magic link)                                         |
+| Email              | Resend                 | Server-side only, via Supabase Edge Functions; API key never reaches the browser   |
+| Analytics + errors | PostHog                | Single vendor, replaces Sentry. Wiring + event guide: [ANALYTICS.md](ANALYTICS.md) |
+| Calendar           | `.ics` attachments     | Google Calendar OAuth deferred                                                     |
+| Storage            | Supabase Storage       | `org_assets` bucket exists (migration 00012)                                       |
 
 ---
 
@@ -151,7 +151,7 @@ Set in Vercel for Production. Mirror in `.env.local` (with non-prod values where
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → API → service_role (secret)                                        | Server only                                 |
 | `RESEND_API_KEY`            | Resend → API Keys. Set via `supabase secrets set`, NOT Vercel                 | Edge function secret                        |
 | `LUMA_FROM_EMAIL`           | `"Archimedes Society <noreply@archimedesvt.org>"`, via `supabase secrets set` | Edge function secret                        |
-| `PUBLIC_POSTHOG_KEY`        | PostHog → Project Settings → Project API Key                                  | Client                                      |
+| `PUBLIC_POSTHOG_KEY`        | PostHog → Project Settings → Project API Key (`phc_…`, public write-only key) | Client                                      |
 | `PUBLIC_POSTHOG_HOST`       | PostHog → Project Settings → API Host (usually `https://us.i.posthog.com`)    | Client                                      |
 | `PUBLIC_APP_URL`            | `https://luma.archimedesvt.org`                                               | Client + server (for magic links, ics URLs) |
 

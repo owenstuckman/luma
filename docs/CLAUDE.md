@@ -46,6 +46,27 @@ Multi-role users are common (e.g., advisor + interviewer). Use a many-to-many me
 
 ---
 
+## Adding people to an org
+
+Three paths, documented in full in `TODO.md` Phase 3.5:
+
+Reachable from either settings surface — the org's own page (`/private/[slug]/settings`) or
+the platform admin panel (`/admin` → Orgs → Settings). Both mount the same
+`OrgSettingsPanel.svelte`.
+
+1. **Invite link** — Invite Links card. Creates an `org_invites` row and copies
+   `/invite/[token]` to the clipboard. The recipient signs up or logs in and is joined
+   automatically. This is the answer to "how do I add a recruiter?".
+2. **Add an existing account** — the add-by-email box. Only works if they already have a
+   LUMA account.
+3. **Platform admin** — `adminAddUserToOrg`, the superuser path.
+
+Invites bind to the invited email address by default; "shareable link" is a separate,
+explicitly-labelled mode with an N-use cap. An invite can't grant `owner` unless its
+creator is an owner.
+
+---
+
 ## Application Form Model
 
 - **One** application per job posting / recruitment cycle.
@@ -127,7 +148,16 @@ Resend and no EmailJS package was ever installed. Keeping Resend meant zero rewr
 
 ## Observability
 
-- **PostHog** — both product analytics (funnel: apply → submit → interview → decision) and error tracking via PostHog's error tracking. One vendor for V1.
+- **PostHog** — both product analytics (funnel: apply → submit → interview → decision) and
+  error tracking. One vendor for V1; no Sentry.
+- Wiring, the full event list, and **how to add a new event** live in
+  **[ANALYTICS.md](ANALYTICS.md)**. Read it before adding a `capture()` call.
+- Import from `$lib/analytics/posthog` — never `posthog-js` directly. The module holds the
+  browser/enabled guard and the `EVENTS` constants, and it no-ops entirely when
+  `PUBLIC_POSTHOG_KEY` is unset (the normal state in local dev).
+- **Never put applicant content in an event property.** IDs, enums and counts only.
+  Autocapture and session replay are off deliberately, and applicants are never
+  `identify()`d.
 
 ---
 
@@ -137,7 +167,21 @@ Resend and no EmailJS package was ever installed. Keeping Resend meant zero rewr
 - All new DB access goes through `src/lib/utils/*.ts`. No inline `supabase.from(...)` in components. `supabase.ts` holds single-table helpers; `candidates.ts` holds cross-table aggregation (roster rows, candidate timeline). Add a new module rather than growing `supabase.ts` without bound.
 - Org-scoping is **mandatory** — every new query filters by `org_id` (or relies on RLS). When in doubt, verify with `is_org_member()`.
 - Settings are stored on `organizations.settings` JSONB. The canonical `OrgSettings` type and its `readOrgSettings(raw)` normalizer live in **`src/lib/types/orgSettings.ts`** (not `index.ts`). Always read settings through the normalizer — never touch `org.settings.foo` directly.
-- Migrations are forward-only and additive. `00001`–`00020` exist; add `00021+` for new V1 changes. Don't consolidate.
+- Migrations are forward-only and additive. `00001`–`00022` exist; add `00023+` for new V1 changes. Don't consolidate.
+- **Check applied migrations against the repo before trusting the DB.** Two files (`00012`,
+  `00013`) sat unapplied on prod for weeks without erroring, because `candidates.ts` reads
+  are deliberately failure-tolerant — the roster rendered fine and simply showed no
+  interviews. `list_migrations` vs `ls supabase/migrations/` is the check.
+- Anything a non-member must read (invite landing pages, public application forms) goes
+  through a `SECURITY DEFINER` function, not a table read — RLS will otherwise hide the row
+  from exactly the person who needs it. `get_invite_details` is the reference example, and
+  it deliberately returns less than it knows.
+- **After any new table or SECURITY DEFINER function, run `get_advisors({type:'security'})`
+  and revoke what you didn't mean to grant.** Supabase gives `anon` and `authenticated`
+  full CRUD on every new `public` table by default, and functions are `EXECUTE`-able by
+  `PUBLIC` unless revoked — so a `GRANT ... TO authenticated` adds a grant without removing
+  anon's. Migration `00022` is the worked example. RLS still has to be the real gate; these
+  revokes are the second layer, not the first.
 - Queries against tables added in `00015`–`00020` should degrade gracefully if the migration hasn't been applied yet (see the failure-tolerant pattern in `candidates.ts`).
 
 ---

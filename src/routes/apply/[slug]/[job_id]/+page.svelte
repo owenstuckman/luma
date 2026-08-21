@@ -7,6 +7,7 @@
 	import { visibleSteps, evaluateRejectRules, describeRejectMatch } from '$lib/utils/formSchema';
 	import type { Organization, JobPosting, FormStep, Team, QuestionSchema } from '$lib/types';
 	import QuestionRenderer from '$lib/components/QuestionRenderer.svelte';
+	import { capture, EVENTS } from '$lib/analytics/posthog';
 
 	let org: Organization | null = null;
 	let job: JobPosting | null = null;
@@ -104,6 +105,15 @@
 		const stepParam = $page.url.searchParams.get('step');
 		if (stepParam) currentStep = Number(stepParam);
 
+		// Top of the apply funnel. Fires once the form is actually renderable, so
+		// it isn't inflated by hits on a dead org/job slug.
+		capture(EVENTS.APPLICATION_STARTED, {
+			org_id: orgData.id,
+			org_slug: orgData.slug,
+			job_id: jobData.id,
+			resumed: Boolean(firstName || lastName || email)
+		});
+
 		loading = false;
 	});
 
@@ -199,6 +209,24 @@
 				// working application form instead of a 400 on an unknown column.
 				...(selectedTeamSlugs.length > 0 ? { selected_team_slugs: selectedTeamSlugs } : {})
 			});
+
+			// Funnel endpoint. IDs and counts only — never the answers themselves.
+			capture(EVENTS.APPLICATION_SUBMITTED, {
+				org_id: org.id,
+				org_slug: org.slug,
+				job_id: job.id,
+				team_count: selectedTeamSlugs.length,
+				question_count: Object.keys(recruitInfo).length,
+				auto_rejected: autoRejected
+			});
+			if (autoRejected) {
+				capture(EVENTS.APPLICATION_AUTO_REJECTED, {
+					org_id: org.id,
+					job_id: job.id,
+					// The rule that fired, not the answer that tripped it.
+					rule_count: matches.length
+				});
+			}
 
 			// Clear localStorage for this application
 			const keysToRemove = Object.keys(localStorage).filter((k) => k.startsWith(storagePrefix));

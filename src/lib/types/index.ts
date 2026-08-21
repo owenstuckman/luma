@@ -38,6 +38,34 @@ export interface OrgMember {
 	metadata: Record<string, unknown>;
 }
 
+// V1: A shareable invite link. `email` null means an open link anyone holding
+// the token can redeem (up to `max_uses`); non-null binds it to one address.
+export interface OrgInvite {
+	id: number;
+	created_at: string;
+	token: string;
+	email: string | null;
+	role: OrgRole;
+	roles: AppRole[];
+	expires_at: string;
+	max_uses: number;
+	used_count: number;
+	revoked_at: string | null;
+	created_by_email: string | null;
+}
+
+// What the /invite/[token] landing page can learn before the visitor signs in.
+export interface InviteDetails {
+	valid: boolean;
+	reason?: 'not_found' | 'revoked' | 'expired' | 'used_up';
+	org_name?: string;
+	org_slug?: string;
+	logo_url?: string | null;
+	role?: OrgRole;
+	requires_email?: boolean;
+	expires_at?: string;
+}
+
 // V1: Per-org subteam (e.g., Infinitum/Astra/Terra/Juvo for Archimedes).
 export interface Team {
 	id: number;

@@ -3,6 +3,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { supabase, isPlatformAdmin } from '$lib/utils/supabase';
+	import { setOrgGroup } from '$lib/analytics/posthog';
 	import type { Organization, OrgMember } from '$lib/types';
 
 	let { children } = $props();
@@ -69,6 +70,11 @@
 			} else {
 				membership = memberData;
 			}
+
+			// Every recruiter-side event from here on is attributable to this org,
+			// which is what makes per-org funnels possible on a multi-tenant install.
+			setOrgGroup(orgData.id, orgData.name);
+
 			loading = false;
 		} catch (err) {
 			console.error('Layout error:', err);

@@ -6,17 +6,25 @@
 		adminTransferOwnership,
 		getPlatformSettings
 	} from '$lib/utils/supabase';
+	import OrgSettingsPanel from './OrgSettingsPanel.svelte';
+
 	import type { Organization, PlatformSettings } from '$lib/types';
 
 	let {
 		organizations,
 		platformSettings,
+		currentUserId = '',
 		onreload = () => {}
 	}: {
 		organizations: (Organization & { member_count?: number; applicant_count?: number })[];
 		platformSettings: PlatformSettings;
+		currentUserId?: string;
 		onreload?: () => void;
 	} = $props();
+
+	// Which org's full settings panel is expanded. Org settings moved here from
+	// `/private/[slug]/settings`, which no longer exists.
+	let settingsOrgId = $state<number | null>(null);
 
 	let newOrgName = $state('');
 	let newOrgSlug = $state('');
@@ -223,6 +231,12 @@
 			</div>
 			<div class="row-actions">
 				<a href="/private/{org.slug}/dashboard" class="btn btn-quaternary btn-sm">Dashboard</a>
+				<button
+					class="btn btn-primary btn-sm"
+					onclick={() => (settingsOrgId = settingsOrgId === org.id ? null : org.id)}
+				>
+					{settingsOrgId === org.id ? 'Close Settings' : 'Settings'}
+				</button>
 				<button class="btn btn-quaternary btn-sm" onclick={() => startEditOrg(org)}>Edit</button>
 				<button
 					class="btn btn-quaternary btn-sm"
@@ -242,6 +256,18 @@
 			</div>
 		{/if}
 	</div>
+
+	{#if settingsOrgId === org.id}
+		<div class="settings-drawer">
+			<div class="settings-drawer-head">
+				<h6>{org.name} — Settings</h6>
+				<button class="btn btn-quaternary btn-sm" onclick={() => (settingsOrgId = null)}>
+					Close
+				</button>
+			</div>
+			<OrgSettingsPanel {org} {currentUserId} viewerIsPlatformAdmin={true} {onreload} />
+		</div>
+	{/if}
 {/each}
 
 {#if transferOrgId}
@@ -319,6 +345,24 @@
 
 <style lang="scss">
 	@use '../../../styles/col.scss' as *;
+
+	.settings-drawer {
+		background-color: white;
+		border: 1px solid #e5e7eb;
+		border-radius: 8px;
+		padding: 18px;
+		margin: -4px 0 14px;
+	}
+	.settings-drawer-head {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 14px;
+	}
+	.settings-drawer-head h6 {
+		margin: 0;
+		font-weight: 700;
+	}
 
 	.form-card {
 		background: white;

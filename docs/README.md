@@ -11,6 +11,7 @@ Start here. Files are grouped by what they're for, not by when they were written
 | [TODO.md](TODO.md)                 | Phase-by-phase engineering tracker. What is done, what is left, and why.          |
 | [HUMAN-TODO.md](HUMAN-TODO.md)     | Owner-only actions: accounts, DNS, secrets, decisions.                            |
 | [DEPLOYMENT.md](DEPLOYMENT.md)     | How V1 gets to production.                                                        |
+| [ANALYTICS.md](ANALYTICS.md)       | PostHog wiring, how to add a new event, privacy posture, troubleshooting.         |
 | [DESIGN-ADMIN.md](DESIGN-ADMIN.md) | Design for expanding the platform admin panel (`/admin`). Not yet built.          |
 
 The root [`/README.md`](../README.md) covers setup, prerequisites, and local development.

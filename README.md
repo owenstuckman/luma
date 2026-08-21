@@ -41,6 +41,12 @@ Then:
 2. Go to `/register` and create your organization
 3. Go to Settings → Manage Postings → create a job → build the form
 4. Share `/apply/your-slug` with applicants
+5. Invite your team: Settings → **Invite Links**. Create a link, send it, and they sign up
+   and join automatically — they don't need an account first.
+
+Org settings are also editable for any org from the platform admin panel (`/admin` → Orgs →
+Settings), which mounts the same UI. That view additionally lets a platform admin grant or
+revoke platform admin per member.
 
 ## Tech Stack
 
@@ -51,6 +57,7 @@ Then:
 | Database   | Supabase (Postgres + Auth + RLS) |
 | Styling    | Bootstrap 5 + SCSS               |
 | Calendar   | Schedule-X                       |
+| Analytics  | PostHog (optional)               |
 | Deployment | Vercel (or any Node host)        |
 
 ## Project Structure
@@ -63,15 +70,18 @@ src/
 │   │   ├── recruiter/    # Recruiter dashboard UI (Navbar, Sidebar, CandidateList, Toast, EmailModal)
 │   │   ├── admin/        # Platform admin UI
 │   │   └── card/         # Reusable form input components
+│   ├── analytics/        # PostHog init, event names, capture helpers
 │   ├── email/            # Email templates, ICS generation, recipient grouping
 │   ├── scheduling/       # Auto-scheduling algorithms + registry
 │   ├── stores/           # jobFilter, mobileMenu
 │   ├── types/            # Shared interfaces + OrgSettings normalizer
-│   └── utils/            # supabase.ts (queries), candidates.ts (roster + timeline)
+│   └── utils/            # supabase.ts (queries), candidates.ts (roster + timeline),
+│                         #   invites.ts (org invite links)
 ├── routes/
 │   ├── apply/[slug]/     # Public application forms
 │   ├── auth/             # Login / signup
 │   ├── register/         # Create new organization
+│   ├── invite/[token]/   # Public invite landing — sign up and auto-join an org
 │   ├── admin/            # Super-admin panel
 │   ├── api/              # health, email-webhook
 │   └── private/[slug]/   # Authenticated recruiter pages
@@ -108,9 +118,14 @@ Core tables, all scoped by `org_id`:
 | `application_drafts`       | Save-and-resume partial applications           |
 | `job_reviewers`            | Reviewer pool + weight per job posting         |
 | `decisions`                | Per-team hire / reject / waitlist outcomes     |
+| `org_invites`              | Shareable invite links (token, role, expiry)   |
 
 Row-Level Security enforces data isolation — users can only see data from orgs they belong to.
 Helper functions: `is_org_member()`, `has_org_role()`, `has_app_role()`.
+
+Anything a **non-member** legitimately needs to read — the invite landing page, public
+application forms — goes through a `SECURITY DEFINER` function instead of a table read,
+since RLS would otherwise hide the row from exactly the person who needs it.
 
 ## Roles
 
@@ -120,6 +135,14 @@ Helper functions: `is_org_member()`, `has_org_role()`, `has_app_role()`.
 | Recruiter | Yes + comment | No          | No                      |
 | Admin     | Yes           | Yes         | Yes                     |
 | Owner     | Yes           | Yes         | Yes (cannot be removed) |
+
+Admins and owners configure their own org at Settings — profile, branding, email, members,
+and **invite links**, which can be bound to one email address or shareable with an N-use
+cap. Only an owner can create an invite that grants `owner`.
+
+**Platform admins** are separate and cross-org: they can open any org's settings from
+`/admin`, and grant or revoke platform admin for anyone. Membership lives in
+`platform_admins`.
 
 ## Commands
 
@@ -221,6 +244,7 @@ All docs live in [`docs/`](docs/); [`docs/README.md`](docs/README.md) indexes th
 | [Human TODO](docs/HUMAN-TODO.md)           | Owner-only actions: accounts, DNS, secrets, decisions        |
 | [V1 Context](docs/CLAUDE.md)               | V1 decisions, scope, and conventions                         |
 | [Deployment](docs/DEPLOYMENT.md)           | Getting V1 to production                                     |
+| [Analytics](docs/ANALYTICS.md)             | PostHog setup, adding events, privacy posture                |
 | [Admin Panel Design](docs/DESIGN-ADMIN.md) | Planned expansion of `/admin` (not yet built)                |
 
 **Pre-rebuild (`docs/v0/`) — historical reference, describes the old app:**

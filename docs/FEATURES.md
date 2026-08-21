@@ -6,7 +6,8 @@ Authoritative feature inventory for LUMA V1. Status legend:
 - 🔧 **Partial** — exists but needs work (see TODO.md)
 - 🆕 **New** — not built yet
 - ⏭️ **Deferred** — V1.1 or later
-- 🔴 **Blocked** — code is done but something environmental stops it working (see `HUMAN-TODO.md`)
+- 🔴 **Blocked** — code is done but something environmental stops it working (see `HUMAN-TODO.md`).
+  _Nothing currently carries this status._
 
 ---
 
@@ -23,18 +24,21 @@ Authoritative feature inventory for LUMA V1. Status legend:
 
 ## Auth & Roles
 
-| Feature                                       | Status | Notes                                                                    |
-| --------------------------------------------- | ------ | ------------------------------------------------------------------------ |
-| Supabase email/password auth (recruiter side) | ✅     | `/auth`                                                                  |
-| Add an **existing** user to an org            | ✅     | Settings → Members, `invite_member_by_email()` (00004)                   |
-| Invite a user with **no account yet**         | 🆕     | No pending-invite table or email — they must self-signup first (Ph. 3.5) |
-| Assign V1 `roles[]` (advisor/reviewer/…)      | 🆕     | Column exists (00016); **no UI writes it** — SQL only (Ph. 3.5)          |
-| Per-member `review_weight` editing            | 🆕     | Weighted scoring reads it; nothing sets it (Ph. 3.5)                     |
-| Remove member / change singular role          | ✅     | Settings → Members; owners protected from removal                        |
-| Roles: owner/admin/recruiter/viewer           | ✅     | Existing `OrgRole`                                                       |
-| Roles: advisor, reviewer, interviewer alias   | 🔧     | `AppRole` + `org_members.roles[]` (00016); UI unenforced                 |
-| Candidate magic-link auth (save & resume)     | 🆕     | Unblocked (Resend); needs the draft send path                            |
-| Multi-role membership                         | ✅     | `roles text[]` + `has_app_role()` helper (00016)                         |
+| Feature                                       | Status | Notes                                                               |
+| --------------------------------------------- | ------ | ------------------------------------------------------------------- |
+| Supabase email/password auth (recruiter side) | ✅     | `/auth`                                                             |
+| Add an **existing** user to an org            | ✅     | Settings → Members, `invite_member_by_email()` (00004)              |
+| Invite a user with **no account yet**         | ✅     | `org_invites` (00021) → `/invite/[token]`; signs up and auto-joins  |
+| Shareable open invite link (N uses)           | ✅     | Same table; `email` null, `max_uses > 1`, explicit opt-in in the UI |
+| Invite expiry + revoke                        | ✅     | Default 14 days; revoke from Settings → Members → Invite Links      |
+| **Email** the invite instead of copying it    | 🆕     | Link is clipboard-only today; Resend template not written (Ph. 3.5) |
+| Assign V1 `roles[]` (advisor/reviewer/…)      | 🆕     | Column exists (00016); **no UI writes it** — SQL only (Ph. 3.5)     |
+| Per-member `review_weight` editing            | 🆕     | Weighted scoring reads it; nothing sets it (Ph. 3.5)                |
+| Remove member / change singular role          | ✅     | Settings → Members; owners protected from removal                   |
+| Roles: owner/admin/recruiter/viewer           | ✅     | Existing `OrgRole`                                                  |
+| Roles: advisor, reviewer, interviewer alias   | 🔧     | `AppRole` + `org_members.roles[]` (00016); UI unenforced            |
+| Candidate magic-link auth (save & resume)     | 🆕     | Unblocked (Resend); needs the draft send path                       |
+| Multi-role membership                         | ✅     | `roles text[]` + `has_app_role()` helper (00016)                    |
 
 ## Applicant Flow
 
@@ -65,18 +69,18 @@ Authoritative feature inventory for LUMA V1. Status legend:
 
 ## Candidate Profiles
 
-| Feature                                          | Status | Notes                                                                                                                     |
-| ------------------------------------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------- |
-| Org-wide candidate roster (`/[slug]/candidates`) | ✅     | Every applicant across every job, with pipeline stage                                                                     |
-| Shared list component                            | ✅     | `CandidateList.svelte`, mounted on `/candidates` and `/review`                                                            |
-| Card + table view toggle                         | ✅     | Table adds stage/rating/decision columns                                                                                  |
-| Derived pipeline stage                           | ✅     | `deriveStage()` in `src/lib/utils/candidates.ts`                                                                          |
-| Candidate timeline on profile page               | ✅     | `getCandidateTimeline()` unions drafts, interviews, evals, decisions, email                                               |
-| ⚠️ Interview data on roster + timeline           | 🔴     | **Blocked in prod:** migration `00013` unapplied, so `start_time` queries return nothing. Code is correct; the DB is not. |
-| Dual-team hire conflict flag                     | ✅     | Row flag + roster banner; reads `decisions`                                                                               |
-| Filter roster by job / stage / status            | ✅     | Plus search, sort, CSV export                                                                                             |
-| Reviewer-scoped `/review` queue                  | 🔧     | Phase 3 narrows `/review` to the current user's assignments                                                               |
-| Stage transition timestamps                      | 🔧     | `CommentEntry` still has no timestamp, so votes sort last on the timeline                                                 |
+| Feature                                          | Status | Notes                                                                                                         |
+| ------------------------------------------------ | ------ | ------------------------------------------------------------------------------------------------------------- |
+| Org-wide candidate roster (`/[slug]/candidates`) | ✅     | Every applicant across every job, with pipeline stage                                                         |
+| Shared list component                            | ✅     | `CandidateList.svelte`, mounted on `/candidates` and `/review`                                                |
+| Card + table view toggle                         | ✅     | Table adds stage/rating/decision columns                                                                      |
+| Derived pipeline stage                           | ✅     | `deriveStage()` in `src/lib/utils/candidates.ts`                                                              |
+| Candidate timeline on profile page               | ✅     | `getCandidateTimeline()` unions drafts, interviews, evals, decisions, email                                   |
+| Interview data on roster + timeline              | ✅     | Was blocked by unapplied migration `00013`; applied 2026-08-20 and all 891 interview rows are readable again. |
+| Dual-team hire conflict flag                     | ✅     | Row flag + roster banner; reads `decisions`                                                                   |
+| Filter roster by job / stage / status            | ✅     | Plus search, sort, CSV export                                                                                 |
+| Reviewer-scoped `/review` queue                  | 🔧     | Phase 3 narrows `/review` to the current user's assignments                                                   |
+| Stage transition timestamps                      | 🔧     | `CommentEntry` still has no timestamp, so votes sort last on the timeline                                     |
 
 ## Scheduling
 
@@ -127,23 +131,28 @@ Authoritative feature inventory for LUMA V1. Status legend:
 
 ## Admin / Settings
 
-| Feature                                         | Status | Notes                                                                      |
-| ----------------------------------------------- | ------ | -------------------------------------------------------------------------- |
-| Org settings page (`/private/[slug]/settings`)  | ✅     | Exists                                                                     |
-| Job posting CRUD                                | 🔧     | `/settings/jobs` exists — verify create/edit/delete                        |
-| Form builder UI (visual question editor)        | ✅     | `/settings/jobs/[job_id]` — steps, questions, live preview                 |
-| Per-question `team_scope`/`reject_if`/`blinded` | ✅     | Edited in the form builder; unset keys omitted from JSON                   |
-| Scheduling settings page                        | ✅     | `/settings/scheduling`                                                     |
-| Email template editor                           | 🆕     | Per-event templates                                                        |
-| Member management UI                            | 🔧     | Add/remove/singular-role works; `roles[]` + real invites missing (Ph. 3.5) |
+| Feature                                         | Status | Notes                                                                                                             |
+| ----------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------- |
+| Org settings (platform admin only)              | ✅     | Moved out of the org dashboard 2026-08-21 → `/admin` → Orgs → **Settings**. `/private/[slug]/settings` is deleted |
+| Job posting CRUD                                | 🔧     | `/settings/jobs` exists — verify create/edit/delete                                                               |
+| Form builder UI (visual question editor)        | ✅     | `/settings/jobs/[job_id]` — steps, questions, live preview                                                        |
+| Per-question `team_scope`/`reject_if`/`blinded` | ✅     | Edited in the form builder; unset keys omitted from JSON                                                          |
+| Scheduling settings page                        | ✅     | `/settings/scheduling`                                                                                            |
+| Email template editor                           | 🆕     | Per-event templates                                                                                               |
+| Member management UI                            | 🔧     | Add/remove/singular-role + invite links work; `roles[]` editor and `review_weight` still missing (Ph. 3.5)        |
+| Invite link management UI                       | ✅     | `/admin` → Orgs → Settings → Invite Links: create, copy, revoke, status per invite                                |
+| Org self-service configuration                  | ⏭️     | **Removed by design.** Orgs cannot configure themselves; a platform admin does it for them                        |
 
 ## Observability
 
-| Feature                   | Status | Notes                                  |
-| ------------------------- | ------ | -------------------------------------- |
-| PostHog product analytics | 🆕     | Apply funnel, time-to-decision metrics |
-| PostHog error tracking    | 🆕     | Replaces need for Sentry               |
-| Health endpoint           | ✅     | `/api/health`                          |
+| Feature                   | Status | Notes                                                                                            |
+| ------------------------- | ------ | ------------------------------------------------------------------------------------------------ |
+| PostHog product analytics | ✅     | `src/lib/analytics/posthog.ts`; no-ops when the key is unset. See [ANALYTICS.md](ANALYTICS.md)   |
+| PostHog error tracking    | ✅     | `capture_exceptions` + `handleError` in `src/hooks.client.ts`. No Sentry                         |
+| Apply-funnel events       | ✅     | `application_started` → `submitted` → `auto_rejected`, plus org/invite lifecycle                 |
+| Pipeline-stage events     | 🔧     | `candidate_reviewed` / `interview_scheduled` / `decision_made` reserved in `EVENTS`, not emitted |
+| Org branding logo upload  | ✅     | Was blocked on the `org-assets` bucket; migration `00012` applied 2026-08-20                     |
+| Health endpoint           | ✅     | `/api/health`                                                                                    |
 
 ---
 

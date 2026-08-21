@@ -6,33 +6,51 @@ Things only Owen can do — accounts, DNS, secrets, decisions. Sorted by when th
 
 ## Before any code ships (blockers)
 
-### 🔴 Unapplied migrations on prod (found 2026-08-18)
+### ✅ Unapplied migrations on prod (found 2026-08-18, applied 2026-08-20)
 
-Two migration files in the repo were never applied to the live database. Both cause
+Two migration files in the repo had never been applied to the live database. Both caused
 **silent** wrongness, not errors, which is why earlier "all routes return 200" checks
-missed them. Verified against prod via `list_migrations` + schema inspection.
+missed them. Both are now applied and verified.
 
-- [ ] **Apply `00013_rename_interview_columns.sql`** — ⚠️ **highest priority.**
-      The live `interviews` table still has `"startTime"` / `"endTime"`; every DB query in
-      the app asks for `start_time` / `end_time`. There are **891 interview rows** currently
-      invisible to the app: - `/candidates` and the candidate timeline swallow the failed query by design
-      (failure-tolerant reads), so every candidate shows 0 interviews, no rating, and a
-      pipeline stage that never advances past "In Review". **The roster looks fine and is
-      wrong.** - `/evaluate` orders by `start_time` and will error outright.
+- [x] **`00013_rename_interview_columns.sql`** — the live `interviews` table still had
+      `"startTime"` / `"endTime"` while every query in the app asked for `start_time` /
+      `end_time`, so **891 interview rows were invisible to the app**. `/candidates` and
+      the candidate timeline swallowed the failed query by design (failure-tolerant reads),
+      so every candidate showed 0 interviews, no rating, and a stage stuck at "In Review" —
+      the roster looked fine and was wrong. Applied; `select count(start_time)` now returns
+      all 891 rows, spanning 2025-09-11 to 2026-03-17.
+- [x] **`00012_org_assets_bucket.sql`** — `storage.buckets` was empty, so the `org-assets`
+      bucket didn't exist and logo upload in Settings → Branding failed. Bucket and its four
+      RLS policies created.
+- [x] **`00021_org_invites.sql`** — the new invite-link feature. Applied at the same time.
+- [x] **`00022_harden_invite_grants.sql`** — revokes the over-broad default grants Supabase
+      hands `anon`/`authenticated` on any new table, and the `PUBLIC` execute on the invite
+      admin RPCs. Nothing was exploitable (RLS held; the functions fail closed for anonymous
+      callers) — this is the second layer.
 
-      Safe to apply: it is a pure rename, and no code writes the camelCase names — the
-      scheduler's `startTime`/`endTime` are in-memory DTOs converted at the DB boundary
-      (`start_time: iv.startTime`). Confirmed zero camelCase writes.
+_(`00011_interview_violations` was already applied. `00001_initial_schema` predates
+Supabase migration tracking; the schema is present.)_
 
-- [ ] **Apply `00012_org_assets_bucket.sql`** — `storage.buckets` is empty, so the
-      `org-assets` bucket does not exist. Org logo upload in `Settings → Branding` writes to
-      it and fails. Lower severity than 00013 but user-visible.
+**Lesson worth keeping:** failure-tolerant reads hide schema drift. The reads in
+`candidates.ts` are still failure-tolerant on purpose — a partially-migrated org shouldn't
+500 — so re-check `list_migrations` against `supabase/migrations/` after any deploy rather
+than trusting a smoke test.
 
-_(`00011_interview_violations` **is** applied — the `violations` column exists.
-`00001_initial_schema` predates Supabase migration tracking; the schema is present.)_
+### 🔑 Platform admin access
 
-**Say the word and I'll apply both** — I did not do it unprompted because it changes the
-production schema.
+- [x] **`ostuckman@vt.edu` added to `platform_admins`** — 2026-08-21, on your say-so. Gives
+      cross-org access to `/admin`. The other platform admin is `testuser@test.com`.
+- [ ] **Decide whether `testuser@test.com` should stay a platform admin.** It's a test
+      account with full read/write on every org's applicants and members. _Recommend: remove
+      it before launch._ You can now do this yourself: `/admin` → Admins → Remove, or the
+      shield button next to them in any org's member list.
+
+Adding platform admins no longer needs a SQL insert — `/admin` → **Admins** takes an email,
+and each member row in a Settings panel has a shield toggle when you're viewing as a
+platform admin.
+
+_(Org settings were briefly platform-admin-only on 2026-08-21 and reverted the same day —
+org admins configure their own org again. See `TODO.md` Phase 3.5.)_
 
 ### Local dev environment
 
@@ -68,7 +86,15 @@ production schema.
 > - [ ] Confirm real delivery. **Without `RESEND_API_KEY` the edge functions run in dry-run
 >       mode** — they report success and a count, but send nothing. Easy to mistake for working.
 
-- [x] **PostHog** — keys confirmed correct, in `.env.local`.
+- [x] **PostHog** — keys are in `.env.local` and **now actually work.** They were present
+      but unusable until 2026-08-20: the variable _names_ were wrapped in backticks
+      (`` `PUBLIC_POSTHOG_KEY`= ``), which Vite doesn't expose, and the host value was
+      missing its leading `h` (`ttps://us.i.posthog.com`). Analytics silently no-ops when
+      the key is absent, so this looked exactly like "nothing happening yet". Both fixed.
+- [ ] **Add `PUBLIC_POSTHOG_KEY` and `PUBLIC_POSTHOG_HOST` to Vercel** → Settings →
+      Environment Variables, Production. They're `PUBLIC_` vars inlined at build time, so a
+      change needs a redeploy, not just a restart. Consider a separate PostHog project for
+      Preview/Development so local clicks don't pollute production funnels.
 - [x] **Supabase** — project `cspuessflpakiyxygcay` was paused/unreachable on 2026-08-16
       (`getaddrinfo ENOTFOUND` → `npm run dev` flooded with `TypeError: fetch failed`).
       Owen restored it the same day. Re-verified end to end: DNS resolves, `/auth/v1/health`
@@ -107,6 +133,13 @@ recommended" and I'll proceed with every one of them.
 - [ ] **Phase 3.5 — can an org owner grant the `owner` role?** `remove_org_member` refuses to
       remove owners, so a mis-click is unrecoverable through the UI. _Recommend: no — keep
       owner changes behind an explicit "transfer ownership" action._
+      **Interim:** `create_org_invite` allows an `owner` invite but only when the creator is
+      themselves an owner, and the settings UI doesn't offer `owner` in the dropdown at all.
+      So the hole isn't reachable through the app today, but the RPC would permit it.
+- [ ] **Should invite links be emailed automatically?** Today an admin creates a link and it
+      lands on their clipboard to send however they like — no Resend dependency, works
+      before the sending domain is verified. _Recommend: add the emailed version once the
+      Resend domain is live, keep copy-link as the fallback._
 - [ ] **Phase 4 — should the candidate-picks-slot link expire?** _Recommend: yes, 7 days._
 - [ ] **Phase 5 — per-outcome decision-email toggles** (auto-send hires but not rejects)?
       _Recommend: yes, three independent toggles._
@@ -123,7 +156,10 @@ recommended" and I'll proceed with every one of them.
 
 **Resolved, recorded here so they don't get re-litigated:** validation is hand-rolled (no
 zod); review auto-advance fires immediately on the crossing vote rather than waiting for
-admin confirmation.
+admin confirmation; **invite links bind to the invited email address** (a forwarded link
+can't join a stranger), with "anyone with the link" as a separate, explicitly-labelled
+mode; **PostHog is the only analytics/error vendor** — no Sentry, no session replay, no
+autocapture, and applicants are never `identify()`d.
 
 ---
 
@@ -178,6 +214,11 @@ admin confirmation.
 ## Pre-launch (day-of)
 
 - [ ] **DNS final check** — `dig luma.archimedesvt.org` resolves to Vercel. Verify the sending domain shows "Verified" in the Resend dashboard (Domains).
+- [ ] **Re-check applied migrations against the repo** — `list_migrations` vs the file count
+      in `supabase/migrations/`. Two had silently drifted before; failure-tolerant reads mean
+      a smoke test won't catch it.
+- [ ] **Confirm PostHog is receiving events from production** — open the app, then PostHog →
+      Activity. Silence means the env vars didn't make it into the Vercel build.
 - [ ] Send yourself a test email through the app's "submit application" flow — confirm it arrives, looks right, no spam folder.
 - [ ] Add a real applicant test through the full flow on production. Then delete the test row.
 - [ ] Announce go-live to advisors / eboard.

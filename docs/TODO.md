@@ -8,22 +8,23 @@ Order is roughly the build order — earlier phases unblock later ones. Within a
 
 ## Snapshot — what's actually left
 
-Phases 0, 1, 1.5, 1.6, 1.7 and 4.5 are done. Everything still outstanding, in rough
+Phases 0, 1, 1.5, 1.6, 1.7, 4.5 and 6 are done. Everything still outstanding, in rough
 dependency order:
 
-| #   | Work                                                                 | Blocks                            |
-| --- | -------------------------------------------------------------------- | --------------------------------- |
-| ⛔  | **Apply migrations `00013` + `00012` to prod** (owner action)        | Correct interview data everywhere |
-| ⛔  | **Upgrade Windows Node to 22+** (owner action)                       | All Windows dev                   |
-| 2   | Save-and-resume drafts + magic link; submit confirmation email       | —                                 |
-| 2   | Move auto-reject enforcement server-side                             | Launch hardening                  |
-| 3   | Reviewer-pool assignment UI; filter `/review` to the current user    | Needs 3.5                         |
-| 3   | Move blinded redaction server-side                                   | Launch hardening                  |
-| 3.5 | **Org membership: `roles[]` editor, real invites, `review_weight`**  | Phase 3 pool, Phase 4 advisors    |
-| 4   | Scheduling polish, buffer setting, advisor exclusion, R2/R3 triggers | Needs 3.5 for advisors            |
-| 5   | Hire/reject/waitlist decisions + automated emails                    | —                                 |
-| 6   | PostHog analytics + error tracking                                   | —                                 |
-| 7   | Pre-launch QA, E2E, load test, security pass                         | Everything above                  |
+| #   | Work                                                                 | Blocks                         |
+| --- | -------------------------------------------------------------------- | ------------------------------ |
+| ⛔  | **Upgrade Windows Node to 22+** (owner action)                       | All Windows dev                |
+| 2   | Save-and-resume drafts + magic link; submit confirmation email       | —                              |
+| 2   | Move auto-reject enforcement server-side                             | Launch hardening               |
+| 3   | Reviewer-pool assignment UI; filter `/review` to the current user    | Needs 3.5                      |
+| 3   | Move blinded redaction server-side                                   | Launch hardening               |
+| 3.5 | Membership leftovers: `roles[]` editor, `review_weight` field        | Phase 3 pool, Phase 4 advisors |
+| 4   | Scheduling polish, buffer setting, advisor exclusion, R2/R3 triggers | Needs 3.5 for advisors         |
+| 5   | Hire/reject/waitlist decisions + automated emails                    | —                              |
+| 7   | Pre-launch QA, E2E, load test, security pass                         | Everything above               |
+
+Invite links shipped, so "how do I add someone to my org?" is answered — what's left in
+3.5 is the `roles[]` and `review_weight` editors, not the invite path itself.
 
 Cross-cutting, not tied to one phase:
 
@@ -57,7 +58,7 @@ Cross-cutting, not tied to one phase:
   - In `eslint.config.js`: disabled `@typescript-eslint/no-unused-vars` for `.svelte` files (incompat with svelte-eslint-parser + projectService; svelte-check covers this already). Downgraded 9 pre-existing rule violations to `warn` (200+ findings, all style/best-practice from newer plugin versions — not real bugs, defer to a quality pass).
 - [x] **`archive/` deleted** — confirmed zero imports referenced it.
 - [ ] ~~Delete `docs/v0/`~~ — kept as historical reference (versioned alongside `docs/v1/`).
-- [ ] **`npm run build`** clean (one harmless `@opentelemetry/api` soft-import warning from supabase-js).
+- [x] **`npm run build`** clean (one harmless `@opentelemetry/api` soft-import warning from supabase-js).
 - [ ] Open the app locally against current Supabase, walk: signup → create org → create job → submit application → review → schedule. _Skipped here — needs human in the loop with running browser. Recommend doing during Phase 7 QA._
 - [x] Verify migrations 00001-00013 applied to prod Supabase. **Done 2026-08-18 — and it
       found two that were not applied:** `00013_rename_interview_columns` (so 891 interview
@@ -279,59 +280,107 @@ Remaining:
       applicant whose threshold is crossed by a bulk comment won't advance until someone
       opens them. Consider a DB trigger or a nightly sweep.
 
-## Phase 3.5 — Org Membership & Roles — 🆕 not started
+## Phase 3.5 — Org Membership & Roles — 🔧 in progress (invites + admin move done)
 
 **Why this is its own phase:** Phase 3's reviewer pool and Phase 4's advisor exclusion both
-key off `org_members.roles[]`, and _nothing in the app can currently write that column_. So
-this blocks both. It also covers the question "how do I add a user to my organization?",
-which today has an awkward answer (see Current state).
+key off `org_members.roles[]`, and _nothing in the app can currently write that column_.
+That is what still blocks them.
 
-### Current state
+### Where org settings live (settled 2026-08-21)
 
-- **Adding an existing user works.** `/private/[slug]/settings` → Members has an add-by-email
-  box, backed by `invite_member_by_email()` (migration `00004`) via
-  `inviteMemberByEmail()`. Admins and owners only.
-- **It is not actually an invite.** The function looks the address up in `auth.users` and
-  returns `No user found with email: ...` if they haven't signed up. The person must first
-  create their own account at `/auth`, and only then can they be added. There is no email,
-  no pending state, and no token.
-- **Only the legacy singular role is editable.** The UI offers viewer / recruiter / admin,
-  writing `org_members.role`. The V1 `roles[]` array — `advisor`, `reviewer`, `interviewer`,
-  `eboard` — has no UI at all, so the roles the rest of V1 depends on can only be set by
-  hand in SQL.
-- **`review_weight` has no UI.** Weighted scoring reads `org_members.metadata.review_weight`
-  and defaults it to 1; `updateMemberMetadata()` is only ever called with `teams`.
-- Platform admins can add users to any org from `/admin` (`adminAddUserToOrg`), which is a
-  superuser path, not an org-owner one.
+**Two surfaces, one component.** `src/lib/components/admin/OrgSettingsPanel.svelte` is
+mounted in both places, so they cannot drift:
+
+| Surface                    | Who                              | Reached via                          |
+| -------------------------- | -------------------------------- | ------------------------------------ |
+| `/private/[slug]/settings` | That org's own `admin` / `owner` | Sidebar → Settings (`currentStep` 6) |
+| `/admin` → Orgs → Settings | Platform admins, for any org     | Orgs tab → the org's Settings button |
+
+Both cover org profile, logo, email settings, email log, members, and invite links. Every
+write is RLS-gated on `has_org_role(org_id, 'admin')`, so mounting the panel on the org
+page grants nothing a non-admin could act on.
+
+Briefly, on 2026-08-21, org settings were moved to platform-admin-only and the org page was
+deleted. That was reverted the same day: it left orgs registering through `/register` unable
+to brand themselves, add members, or issue invites, which made `/register` a dead end.
+
+**Platform-admin grants** are the one thing gated further. When the viewer is a platform
+admin, each member row gains a shield button that grants or revokes platform admin for that
+person, with a confirm spelling out that it means every org. Ordinary org admins never see
+it, and `add_platform_admin_by_email` enforces the same rule server-side. `/admin` → Admins
+still has the standalone add-by-email form.
+
+### Adding people to an org — how it works now
+
+Three paths, in the order you'd reach for them:
+
+1. **Invite link (new, migration `00021`).** Settings → **Invite Links** (either surface). Pick
+   "Invite one person" (bound to that email address, single use) or "Shareable link"
+   (anyone holding it, up to N uses), set a role and an expiry, and the link is created
+   and copied to the clipboard. The recipient opens `/invite/[token]`, signs up or logs
+   in, and is joined automatically. Admins and owners only.
+2. **Add an existing account.** The add-by-email box, backed by `invite_member_by_email()`
+   (migration `00004`). Only works if the person already has a LUMA account — it looks the
+   address up in `auth.users`. Kept because it's one click when they're already signed up.
+3. **Platform admin.** `/admin` → `adminAddUserToOrg`, a superuser path, not an
+   org-owner one.
+
+Design notes on the invite path, since they constrain what can change later:
+
+- The accept flow never reads `org_invites` directly — the person accepting is by
+  definition not yet a member, so RLS would hide the row. Everything goes through
+  `SECURITY DEFINER` functions (`get_invite_details`, `accept_org_invite`).
+- `get_invite_details` is granted to `anon` so the landing page renders logged-out, and it
+  deliberately does **not** return the invited email address — a guessed token leaks
+  nothing but an org name.
+- **Trust model decided:** an email-bound invite verifies the accepting user's address
+  matches. A forwarded link cannot join a stranger. Open links are opt-in and explicitly
+  labelled "anyone with the link".
+- `accept_org_invite` takes `FOR UPDATE` on the row so two simultaneous accepts can't both
+  slip past `max_uses`.
+- An invite cannot grant `owner` unless the creator is themselves an owner.
+- Signup carries `redirect` through the confirmation email
+  (`/auth/confirm?next=/invite/...`), so a brand-new user isn't stranded on `/` after
+  confirming their address.
 
 ### Tasks
 
+- [x] **Real invitations** for people without accounts — `org_invites` table (`00021`), the
+      five RPCs, `/invite/[token]`, and the Invite Links card on the settings page with copy
+      and revoke.
+- [x] **Extracted org settings into `OrgSettingsPanel.svelte`**, mounted on both the org
+      settings page and the platform admin Orgs tab, plus platform-admin grant/revoke on
+      each member row for platform admins.
+- [x] **Grant hardening (`00022`).** The security advisor flagged that Supabase's defaults
+      had given `anon` and `authenticated` full CRUD on `org_invites`, and that the `GRANT`s
+      in `00021` had added `authenticated` without removing `anon`'s inherited `PUBLIC`
+      execute. RLS was holding (anon read 0 rows, verified with `set local role anon`) and
+      every admin function fails closed for an anonymous caller — but a table full of join
+      tokens shouldn't sit one policy away from exposure. `anon` now has nothing on the
+      table and can execute only `get_invite_details`, which is designed for untrusted
+      callers.
+- [x] **Decide the trust model for invite acceptance.** Bound to the invited address; open
+      links are a separate, explicit mode.
+- [ ] **Send the invite by email** rather than only copying the link. The Resend path
+      exists (`schedule/notify` pattern); this just needs a template and a call.
 - [ ] **Multi-role editor** on the Members table — checkboxes over `AppRole`, writing
       `org_members.roles[]`. Keep the singular `role` in sync (it still backs `has_org_role`
-      and therefore most RLS policies) rather than dropping it.
-- [ ] **New migration `00021`** — `update_member_roles(target_org_id, target_user_id, roles text[])`,
+      and therefore most RLS policies) rather than dropping it. `org_invites.roles[]`
+      already exists and is applied on accept, so the invite side is ready for this.
+- [ ] **New migration** — `update_member_roles(target_org_id, target_user_id, roles text[])`,
       `SECURITY DEFINER`, admin/owner-gated, validating every entry against the `AppRole` set
       and refusing to strip the last owner.
 - [ ] **`review_weight` field** on each member row (number, default 1). Small input next to
       the role editor; validate `> 0` before writing.
-- [ ] **Real invitations** for people without accounts. Needs a `pending_invites` table
-      (`org_id`, `email`, `roles[]`, `token`, `invited_by`, `expires_at`, `accepted_at`) plus:
-  - [ ] `POST` endpoint that creates the invite and sends it via Resend
-  - [ ] `/invite/[token]` route → signup or login, then auto-join with the stored roles
-  - [ ] Pending invites listed on the settings page, with resend and revoke
-  - [ ] Expiry (recommend 14 days, matching `application_drafts`)
-- [ ] **Decide the trust model for invite acceptance.** Binding the invite to the exact
-      invited address is the safe default; allowing any signup that holds the token is more
-      forgiving but lets a forwarded link join a stranger. Recommend binding to the address.
 - [ ] Show each member's roles on the Members table (badges), not just the singular role.
 
 ### Open question
 
-Should an org owner be able to invite someone as `owner`? Today `remove_org_member` refuses
-to remove owners, so a mistaken owner grant is unrecoverable through the UI. Recommend
-allowing at most one owner change at a time, through an explicit "transfer ownership" action
-rather than the normal role editor — `adminTransferOwnership` already exists for the
-platform-admin path and can be mirrored.
+Should an org owner be able to invite someone as `owner`? `create_org_invite` currently
+allows it but only when the creator is an owner. `remove_org_member` still refuses to
+remove owners, so a mistaken owner grant remains unrecoverable through the UI. Recommend an
+explicit "transfer ownership" action rather than the normal role editor —
+`adminTransferOwnership` already exists for the platform-admin path and can be mirrored.
 
 ## Phase 4 — Scheduling Polish (1-2 days)
 
@@ -381,12 +430,36 @@ Remaining — the **send path**, which is an architecture decision, not just wir
 - [ ] Settings page section: "Automatic decision emails" toggle + per-outcome template editor (hire, reject, waitlist). Use existing template system in `src/lib/email/templates.ts`.
 - [ ] On decision write, if auto-email enabled, queue send via Resend; record `email_sent_at`.
 
-## Phase 6 — Observability (half day)
+## Phase 6 — Observability ✅ (complete)
 
-- [ ] Install `posthog-js`. Init in root layout with org_id + user_id properties.
-- [ ] Enable PostHog error tracking (autocapture exceptions).
-- [ ] Track key events: `application_started`, `application_submitted`, `application_auto_rejected`, `review_voted`, `interview_scheduled`, `decision_made`.
-- [ ] Add `POSTHOG_KEY` to `env.example` and `.env.local`.
+Full guide, including how to add a new event, lives in **[ANALYTICS.md](ANALYTICS.md)**.
+
+- [x] Installed `posthog-js`. Init lives in `src/lib/analytics/posthog.ts`, called from the
+      root layout. Users are `identify()`d on auth change and `reset()` on sign-out; the
+      org-scoped layout calls `setOrgGroup()` so events break down per org.
+- [x] Error tracking via `capture_exceptions: true` plus a `handleError` hook in
+      `src/hooks.client.ts` for errors SvelteKit swallows into an error page. 404s are
+      excluded — logging them buries the real errors. No Sentry.
+- [x] Events wired: `application_started`, `application_submitted`,
+      `application_auto_rejected`, `org_created`, `invite_created`, `invite_accepted`.
+      Names are constants in `EVENTS`, so a typo is a compile error rather than a silently
+      empty funnel.
+- [x] `PUBLIC_POSTHOG_KEY` / `PUBLIC_POSTHOG_HOST` documented in `env.example`.
+- [x] Fixed two live config bugs in `.env.local`: the variable **names** were wrapped in
+      backticks (Vite exposes nothing, and the app no-ops silently), and the host value was
+      missing the leading `h` (`ttps://`). Analytics had never actually reported.
+
+Deliberate privacy posture, set in `initAnalytics()` — `autocapture: false`,
+`disable_session_recording: true`, applicants never `identify()`d. LUMA handles names,
+emails and essay answers; none of that belongs in an analytics warehouse.
+
+Remaining, and blocked on the features themselves rather than on analytics:
+
+- [ ] `candidate_reviewed`, `interview_scheduled`, `interview_evaluated` — names reserved
+      in `EVENTS`, no `capture()` call yet.
+- [ ] `decision_made` — needs Phase 5.
+- [ ] `application_draft_saved` — needs Phase 2 save-and-resume.
+- [ ] Build the apply funnel in the PostHog UI once real events are flowing.
 
 ## Phase 7 — Pre-launch QA (half day)
 

@@ -3,13 +3,21 @@ import { redirect } from '@sveltejs/kit';
 import type { Actions } from './$types';
 
 export const actions: Actions = {
-	signup: async ({ request, locals: { supabase } }) => {
+	signup: async ({ request, url, locals: { supabase } }) => {
 		const formData = await request.formData();
 		const email = formData.get('email') as string;
 		const password = formData.get('password') as string;
 		const redirectTo = formData.get('redirect') as string | null;
 
-		const { error } = await supabase.auth.signUp({ email, password });
+		// Carry `redirect` through the confirmation email too. Without this an
+		// invited user confirms their address and lands on `/`, stranded from the
+		// invite link they started at.
+		const next = redirectTo || '/private';
+		const { error } = await supabase.auth.signUp({
+			email,
+			password,
+			options: { emailRedirectTo: `${url.origin}/auth/confirm?next=${encodeURIComponent(next)}` }
+		});
 		if (error) {
 			console.error(error);
 			const params = new URLSearchParams({ error: error.message });

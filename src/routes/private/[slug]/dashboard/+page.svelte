@@ -233,6 +233,7 @@
 				<div style="display: flex; gap: 10px; flex-wrap: wrap;">
 					<a href="/private/{slug}/review" class="btn btn-tertiary">Review Applicants</a>
 					<a href="/private/{slug}/schedule/full" class="btn btn-tertiary">View Schedule</a>
+					<a href="/private/{slug}/candidates" class="btn btn-tertiary">Candidates</a>
 					<a href="/private/{slug}/settings" class="btn btn-tertiary">Settings</a>
 				</div>
 			</div>
