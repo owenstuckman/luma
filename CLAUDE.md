@@ -122,8 +122,9 @@ Auth guard in `src/hooks.server.ts` redirects unauthenticated users from `/priva
 - Tables: `organizations`, `org_members`, `job_posting`, `applicants`, `interviews`,
   `interviewers`, `interviewer_availability`, `scheduling_config`, `email_log`,
   `platform_admins`, `platform_settings`, `platform_activity_log`, plus the V1 additions
-  `teams`, `application_drafts`, `job_reviewers`, `decisions`, `org_invites`
-- Migrations are forward-only and additive (`supabase/migrations/00001`–`00022`)
+  `teams`, `application_drafts`, `job_reviewers`, `decisions`, `org_invites`,
+  `org_invite_redemptions`
+- Migrations are forward-only and additive (`supabase/migrations/00001`–`00023`)
 - RLS helpers: `is_org_member()`, `has_org_role()`, `has_app_role()`
 - Org settings render through the shared `OrgSettingsPanel.svelte` on both the org page and
   the admin panel. It takes the org as a **prop** — never resolve an org from a slug inside

@@ -13,7 +13,7 @@
  */
 import { supabase } from './supabase';
 
-import type { InviteDetails, OrgInvite } from '$lib/types';
+import type { InviteDetails, InviteRedemption, OrgInvite } from '$lib/types';
 
 export interface CreateInviteOptions {
 	/** Bind the invite to one address. Omit for a link anyone can redeem. */
@@ -53,6 +53,37 @@ export const getOrgInvites = async (orgId: number): Promise<OrgInvite[]> => {
 		return [];
 	}
 	return (data ?? []) as OrgInvite[];
+};
+
+/**
+ * Who actually used this org's invite links, newest first.
+ *
+ * One call per org rather than per invite — the caller groups by `invite_id`.
+ * Returns [] for non-admins. Only covers redemptions from migration 00023
+ * onward; earlier ones were never recorded, so an older invite can show a
+ * `used_count` with no names behind it.
+ */
+export const getInviteRedemptions = async (orgId: number): Promise<InviteRedemption[]> => {
+	const { data, error } = await supabase.rpc('get_invite_redemptions', { target_org_id: orgId });
+
+	if (error) {
+		console.error('Error fetching invite redemptions:', error);
+		return [];
+	}
+	return (data ?? []) as InviteRedemption[];
+};
+
+/** Group redemptions by the invite they came from, for rendering under each row. */
+export const redemptionsByInvite = (
+	redemptions: InviteRedemption[]
+): Map<number, InviteRedemption[]> => {
+	const grouped = new Map<number, InviteRedemption[]>();
+	for (const r of redemptions) {
+		const list = grouped.get(r.invite_id);
+		if (list) list.push(r);
+		else grouped.set(r.invite_id, [r]);
+	}
+	return grouped;
 };
 
 export const revokeOrgInvite = async (inviteId: number): Promise<void> => {

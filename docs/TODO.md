@@ -339,6 +339,18 @@ Design notes on the invite path, since they constrain what can change later:
 - `accept_org_invite` takes `FOR UPDATE` on the row so two simultaneous accepts can't both
   slip past `max_uses`.
 - An invite cannot grant `owner` unless the creator is themselves an owner.
+- **Redemptions are recorded per account (migration `00023`).** `used_count` alone answers
+  "how many", which is useless for a link posted in a group chat. `org_invite_redemptions`
+  adds one row per accept — written in the same transaction that increments `used_count`
+  and inserts the `org_members` row, so the count and the names can never disagree. The
+  invite list shows "Used by N accounts", expandable to addresses and timestamps.
+- The redemption row stores the email **as it was at accept time** and keeps the row when
+  the account is deleted (`user_id` goes null, the address survives). Reads prefer the
+  account's current address so the list matches the Members table, and flag anyone who has
+  since been removed from the org rather than implying the roster is bigger than it is.
+- No backfill was possible — redemptions before `00023` were never recorded, so older
+  invites show their `used_count` with an explicit "no record of who" note instead of a
+  misleading empty list.
 - Signup carries `redirect` through the confirmation email
   (`/auth/confirm?next=/invite/...`), so a brand-new user isn't stranded on `/` after
   confirming their address.
@@ -359,6 +371,10 @@ Design notes on the invite path, since they constrain what can change later:
       tokens shouldn't sit one policy away from exposure. `anon` now has nothing on the
       table and can execute only `get_invite_details`, which is designed for untrusted
       callers.
+- [x] **Track who used each invite link (`00023`).** `org_invite_redemptions` +
+      `get_invite_redemptions()`, surfaced as an expandable "Used by N accounts" row under
+      each invite on both settings surfaces. Same admin-only audience as the invites
+      themselves; `anon` has nothing on the table and cannot execute the function.
 - [x] **Decide the trust model for invite acceptance.** Bound to the invited address; open
       links are a separate, explicit mode.
 - [ ] **Send the invite by email** rather than only copying the link. The Resend path

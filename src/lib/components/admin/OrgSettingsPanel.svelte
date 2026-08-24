@@ -36,12 +36,14 @@
 		createOrgInvite,
 		getOrgInvites,
 		revokeOrgInvite,
+		getInviteRedemptions,
+		redemptionsByInvite,
 		inviteUrl,
 		inviteStatus
 	} from '$lib/utils/invites';
 	import { capture, EVENTS } from '$lib/analytics/posthog';
 
-	import type { Organization, OrgInvite, OrgMember } from '$lib/types';
+	import type { InviteRedemption, Organization, OrgInvite, OrgMember } from '$lib/types';
 
 	let {
 		org,
@@ -102,6 +104,8 @@
 	// Invite links
 	let invites = $state<OrgInvite[]>([]);
 	let invitesLoading = $state(false);
+	let redemptions = $state<InviteRedemption[]>([]);
+	let expandedInviteId = $state<number | null>(null);
 	let linkEmail = $state('');
 	let linkRole = $state('recruiter');
 	let linkExpiryDays = $state(14);
@@ -116,6 +120,9 @@
 	let editingAttrUserId = $state<string | null>(null);
 	let attrTeamsInput = $state('');
 	let attrSaveMsg = $state('');
+
+	// Who used which link, keyed by invite id.
+	let usesByInvite = $derived(redemptionsByInvite(redemptions));
 
 	// Reload whenever the caller switches to a different org.
 	$effect(() => {
@@ -166,10 +173,24 @@
 	async function loadInvites(orgId: number = org.id) {
 		invitesLoading = true;
 		try {
-			invites = await getOrgInvites(orgId);
+			// Both are admin-gated and independent, so pay one round trip.
+			[invites, redemptions] = await Promise.all([
+				getOrgInvites(orgId),
+				getInviteRedemptions(orgId)
+			]);
 		} finally {
 			invitesLoading = false;
 		}
+	}
+
+	function formatRedeemedAt(iso: string) {
+		return new Date(iso).toLocaleString(undefined, {
+			month: 'short',
+			day: 'numeric',
+			year: 'numeric',
+			hour: 'numeric',
+			minute: '2-digit'
+		});
 	}
 
 	async function saveSettings() {
@@ -799,6 +820,7 @@
 			<div class="member-list">
 				{#each invites as invite (invite.id)}
 					{@const status = inviteStatus(invite)}
+					{@const uses = usesByInvite.get(invite.id) ?? []}
 					<div class="member-card">
 						<div class="member-row">
 							<div class="member-info">
@@ -830,6 +852,40 @@
 								{/if}
 							</div>
 						</div>
+
+						{#if uses.length > 0}
+							<button
+								class="uses-toggle"
+								onclick={() =>
+									(expandedInviteId = expandedInviteId === invite.id ? null : invite.id)}
+								aria-expanded={expandedInviteId === invite.id}
+							>
+								<i class="fi fi-br-angle-small-{expandedInviteId === invite.id ? 'up' : 'down'}"
+								></i>
+								Used by {uses.length}
+								{uses.length === 1 ? 'account' : 'accounts'}
+							</button>
+
+							{#if expandedInviteId === invite.id}
+								<ul class="uses-list">
+									{#each uses as use (use.id)}
+										<li class="use-row">
+											<span class="use-email">{use.email ?? 'Deleted account'}</span>
+											{#if !use.is_member}
+												<span class="use-flag">no longer a member</span>
+											{/if}
+											<span class="use-when">{formatRedeemedAt(use.redeemed_at)}</span>
+										</li>
+									{/each}
+								</ul>
+							{/if}
+						{:else if invite.used_count > 0}
+							<p class="uses-untracked">
+								Used {invite.used_count}
+								{invite.used_count === 1 ? 'time' : 'times'} before this org tracked redemptions — no
+								record of who.
+							</p>
+						{/if}
 					</div>
 				{/each}
 			</div>
@@ -1140,5 +1196,74 @@
 		font-size: 12px;
 		font-weight: 600;
 		margin-bottom: 2px;
+	}
+
+	.uses-toggle {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		margin-top: 8px;
+		padding: 0;
+		background: none;
+		border: none;
+		font-size: 12px;
+		font-weight: 600;
+		color: $light-tertiary;
+		cursor: pointer;
+
+		&:hover {
+			color: $yellow-primary;
+		}
+
+		i {
+			font-size: 10px;
+			line-height: 1;
+		}
+	}
+
+	.uses-list {
+		list-style: none;
+		margin: 6px 0 0;
+		padding: 8px 10px;
+		border-radius: 6px;
+		background: rgba(255, 255, 255, 0.03);
+	}
+
+	.use-row {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 3px 0;
+		font-size: 12px;
+	}
+
+	.use-email {
+		color: $default;
+		word-break: break-all;
+	}
+
+	.use-flag {
+		font-size: 10px;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		padding: 1px 6px;
+		border-radius: 10px;
+		background: rgba(255, 255, 255, 0.08);
+		color: $light-tertiary;
+		white-space: nowrap;
+	}
+
+	.use-when {
+		margin-left: auto;
+		font-size: 11px;
+		color: $light-tertiary;
+		white-space: nowrap;
+	}
+
+	.uses-untracked {
+		margin: 8px 0 0;
+		font-size: 11px;
+		color: $light-tertiary;
 	}
 </style>

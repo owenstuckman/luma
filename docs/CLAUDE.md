@@ -65,6 +65,12 @@ Invites bind to the invited email address by default; "shareable link" is a sepa
 explicitly-labelled mode with an N-use cap. An invite can't grant `owner` unless its
 creator is an owner.
 
+Every accept writes an `org_invite_redemptions` row (`00023`) in the same transaction as
+the `org_members` insert, so "Used by N accounts" under each invite always matches
+`used_count`. If you add another path that joins someone to an org, decide deliberately
+whether it belongs in that audit trail — a bare `org_members` insert will not appear
+there.
+
 ---
 
 ## Application Form Model
@@ -167,7 +173,7 @@ Resend and no EmailJS package was ever installed. Keeping Resend meant zero rewr
 - All new DB access goes through `src/lib/utils/*.ts`. No inline `supabase.from(...)` in components. `supabase.ts` holds single-table helpers; `candidates.ts` holds cross-table aggregation (roster rows, candidate timeline). Add a new module rather than growing `supabase.ts` without bound.
 - Org-scoping is **mandatory** — every new query filters by `org_id` (or relies on RLS). When in doubt, verify with `is_org_member()`.
 - Settings are stored on `organizations.settings` JSONB. The canonical `OrgSettings` type and its `readOrgSettings(raw)` normalizer live in **`src/lib/types/orgSettings.ts`** (not `index.ts`). Always read settings through the normalizer — never touch `org.settings.foo` directly.
-- Migrations are forward-only and additive. `00001`–`00022` exist; add `00023+` for new V1 changes. Don't consolidate.
+- Migrations are forward-only and additive. `00001`–`00023` exist; add `00024+` for new V1 changes. Don't consolidate.
 - **Check applied migrations against the repo before trusting the DB.** Two files (`00012`,
   `00013`) sat unapplied on prod for weeks without erroring, because `candidates.ts` reads
   are deliberately failure-tolerant — the roster rendered fine and simply showed no

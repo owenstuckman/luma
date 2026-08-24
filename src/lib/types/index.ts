@@ -54,6 +54,18 @@ export interface OrgInvite {
 	created_by_email: string | null;
 }
 
+// One row per successful invite redemption (migration 00023). `email` is the
+// account's current address when it still exists, otherwise the one recorded at
+// redemption time. `is_member` is false if they were removed from the org after.
+export interface InviteRedemption {
+	id: number;
+	invite_id: number;
+	user_id: string | null;
+	email: string | null;
+	redeemed_at: string;
+	is_member: boolean;
+}
+
 // What the /invite/[token] landing page can learn before the visitor signs in.
 export interface InviteDetails {
 	valid: boolean;

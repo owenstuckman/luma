@@ -30,6 +30,7 @@ Authoritative feature inventory for LUMA V1. Status legend:
 | Add an **existing** user to an org            | ✅     | Settings → Members, `invite_member_by_email()` (00004)              |
 | Invite a user with **no account yet**         | ✅     | `org_invites` (00021) → `/invite/[token]`; signs up and auto-joins  |
 | Shareable open invite link (N uses)           | ✅     | Same table; `email` null, `max_uses > 1`, explicit opt-in in the UI |
+| See **which accounts** redeemed a link        | ✅     | `org_invite_redemptions` (00023); expandable "Used by N" per invite |
 | Invite expiry + revoke                        | ✅     | Default 14 days; revoke from Settings → Members → Invite Links      |
 | **Email** the invite instead of copying it    | 🆕     | Link is clipboard-only today; Resend template not written (Ph. 3.5) |
 | Assign V1 `roles[]` (advisor/reviewer/…)      | 🆕     | Column exists (00016); **no UI writes it** — SQL only (Ph. 3.5)     |
@@ -140,7 +141,7 @@ Authoritative feature inventory for LUMA V1. Status legend:
 | Scheduling settings page                        | ✅     | `/settings/scheduling`                                                                                            |
 | Email template editor                           | 🆕     | Per-event templates                                                                                               |
 | Member management UI                            | 🔧     | Add/remove/singular-role + invite links work; `roles[]` editor and `review_weight` still missing (Ph. 3.5)        |
-| Invite link management UI                       | ✅     | `/admin` → Orgs → Settings → Invite Links: create, copy, revoke, status per invite                                |
+| Invite link management UI                       | ✅     | Settings → Invite Links (either surface): create, copy, revoke, status, and who redeemed each link                |
 | Org self-service configuration                  | ⏭️     | **Removed by design.** Orgs cannot configure themselves; a platform admin does it for them                        |
 
 ## Observability
