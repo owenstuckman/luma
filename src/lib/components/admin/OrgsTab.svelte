@@ -145,14 +145,14 @@
 </div>
 
 {#if orgCreateSuccess}
-	<div class="alert-success">{orgCreateSuccess}</div>
+	<div class="alert-soft alert-success">{orgCreateSuccess}</div>
 {/if}
 
 {#if showCreateOrg}
-	<div class="form-card">
+	<div class="panel">
 		<h6>Create Organization</h6>
-		<div class="form-row">
-			<label>Name</label>
+		<div class="field">
+			<label class="field-label">Name</label>
 			<input
 				class="form-control"
 				bind:value={newOrgName}
@@ -160,26 +160,26 @@
 				placeholder="My Organization"
 			/>
 		</div>
-		<div class="form-row">
-			<label>Slug</label>
+		<div class="field">
+			<label class="field-label">Slug</label>
 			<input class="form-control" bind:value={newOrgSlug} placeholder="my-organization" />
 		</div>
-		<div class="form-row">
-			<label>Owner Email</label>
+		<div class="field">
+			<label class="field-label">Owner Email</label>
 			<input class="form-control" bind:value={newOrgOwnerEmail} placeholder="owner@example.com" />
 		</div>
-		<div class="form-row color-row">
+		<div class="field color-row">
 			<div>
-				<label>Primary Color</label>
+				<label class="field-label">Primary Color</label>
 				<input type="color" bind:value={newOrgPrimaryColor} />
 			</div>
 			<div>
-				<label>Secondary Color</label>
+				<label class="field-label">Secondary Color</label>
 				<input type="color" bind:value={newOrgSecondaryColor} />
 			</div>
 		</div>
 		{#if orgCreateError}
-			<p class="error-text">{orgCreateError}</p>
+			<p class="field-error">{orgCreateError}</p>
 		{/if}
 		<button class="btn btn-primary" onclick={createOrg}>Create</button>
 	</div>
@@ -189,26 +189,26 @@
 	<div class="list-row org-expandable">
 		{#if editingOrgId === org.id}
 			<div class="edit-form">
-				<div class="form-row">
-					<label>Name</label>
+				<div class="field">
+					<label class="field-label">Name</label>
 					<input class="form-control" bind:value={editOrgName} />
 				</div>
-				<div class="form-row">
-					<label>Slug</label>
+				<div class="field">
+					<label class="field-label">Slug</label>
 					<input class="form-control" bind:value={editOrgSlug} />
 				</div>
-				<div class="form-row color-row">
+				<div class="field color-row">
 					<div>
-						<label>Primary</label>
+						<label class="field-label">Primary</label>
 						<input type="color" bind:value={editOrgPrimary} />
 					</div>
 					<div>
-						<label>Secondary</label>
+						<label class="field-label">Secondary</label>
 						<input type="color" bind:value={editOrgSecondary} />
 					</div>
 				</div>
 				{#if orgEditError}
-					<p class="error-text">{orgEditError}</p>
+					<p class="field-error">{orgEditError}</p>
 				{/if}
 				<div class="btn-group">
 					<button class="btn btn-primary btn-sm" onclick={saveEditOrg}>Save</button>
@@ -272,12 +272,12 @@
 
 {#if transferOrgId}
 	<div
-		class="modal-overlay"
+		class="modal-backdrop-luma"
 		onclick={() => (transferOrgId = null)}
 		onkeydown={(e) => e.key === 'Escape' && (transferOrgId = null)}
 	>
 		<div
-			class="modal-content"
+			class="modal-panel modal-narrow"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
 			role="dialog"
@@ -287,12 +287,12 @@
 			<p class="muted" style="font-size: 13px;">
 				The new owner must already have an account. The current owner will be demoted to admin.
 			</p>
-			<div class="form-row">
-				<label>New Owner Email</label>
+			<div class="field">
+				<label class="field-label">New Owner Email</label>
 				<input class="form-control" bind:value={transferEmail} placeholder="newowner@example.com" />
 			</div>
 			{#if transferError}
-				<p class="error-text">{transferError}</p>
+				<p class="field-error">{transferError}</p>
 			{/if}
 			<div class="btn-group">
 				<button class="btn btn-primary btn-sm" onclick={handleTransferOwnership}>Transfer</button>
@@ -306,12 +306,12 @@
 
 {#if deletingOrg}
 	<div
-		class="modal-overlay"
+		class="modal-backdrop-luma"
 		onclick={() => (deletingOrg = null)}
 		onkeydown={(e) => e.key === 'Escape' && (deletingOrg = null)}
 	>
 		<div
-			class="modal-content modal-danger"
+			class="modal-panel modal-narrow modal-danger"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
 			role="dialog"
@@ -321,12 +321,12 @@
 			<p style="font-size: 13px;">
 				This will permanently delete <strong>{deletingOrg.name}</strong> and all associated data:
 			</p>
-			<ul style="font-size: 13px; color: #ef4444;">
+			<ul class="danger-list">
 				<li>{deletingOrg.member_count || 0} members</li>
 				<li>{deletingOrg.applicant_count || 0} applicants</li>
 			</ul>
-			<div class="form-row">
-				<label>Type "<strong>{deletingOrg.name}</strong>" to confirm</label>
+			<div class="field">
+				<label class="field-label">Type "<strong>{deletingOrg.name}</strong>" to confirm</label>
 				<input class="form-control" bind:value={deleteConfirmName} placeholder={deletingOrg.name} />
 			</div>
 			<div class="btn-group">
@@ -347,9 +347,9 @@
 	@use '../../../styles/col.scss' as *;
 
 	.settings-drawer {
-		background-color: white;
-		border: 1px solid #e5e7eb;
-		border-radius: 8px;
+		background-color: $surface;
+		border: 1px solid $border;
+		border-radius: $radius;
 		padding: 18px;
 		margin: -4px 0 14px;
 	}
@@ -364,49 +364,16 @@
 		font-weight: 700;
 	}
 
-	.form-card {
-		background: white;
-		border-radius: 8px;
-		padding: 20px;
-		box-shadow: 0 0 12px rgba(0, 0, 0, 0.05);
-		margin-bottom: 20px;
-	}
-	.form-row {
-		margin-bottom: 12px;
-		label {
-			display: block;
-			font-size: 12px;
-			font-weight: 600;
-			color: $light-tertiary;
-			margin-bottom: 4px;
-		}
-	}
 	.color-row {
 		display: flex;
 		gap: 20px;
 	}
-	.list-row {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 12px 16px;
-		background: white;
-		border-radius: 8px;
-		margin-bottom: 8px;
-		box-shadow: 0 0 8px rgba(0, 0, 0, 0.04);
+
+	// Extends the shared .list-row: an org row carries a wrapping action strip.
+	.org-expandable {
 		flex-wrap: wrap;
-		gap: 8px;
-	}
-	.row-left {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-	}
-	.row-stats {
-		display: flex;
-		gap: 12px;
-		font-size: 12px;
-		color: $light-tertiary;
+		padding: 12px 16px;
+		margin-bottom: 8px;
 	}
 	.row-actions {
 		display: flex;
@@ -419,17 +386,6 @@
 		border-radius: 50%;
 		flex-shrink: 0;
 	}
-	.row-name {
-		display: block;
-		font-size: 13px;
-		font-weight: 600;
-		color: $dark-primary;
-	}
-	.row-sub {
-		display: block;
-		font-size: 11px;
-		color: $light-tertiary;
-	}
 	.edit-form {
 		width: 100%;
 		padding: 8px 0;
@@ -439,52 +395,27 @@
 		gap: 8px;
 		margin-top: 8px;
 	}
-	.modal-overlay {
-		position: fixed;
-		inset: 0;
-		background: rgba(0, 0, 0, 0.4);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		z-index: 1000;
-	}
-	.modal-content {
-		background: white;
-		border-radius: 10px;
-		padding: 24px;
-		width: min(480px, 90vw);
-		box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+
+	// Extends the shared .modal-panel — these dialogs are narrower than the default.
+	.modal-narrow {
+		max-width: min(480px, 90vw);
 	}
 	.modal-danger {
-		border: 2px solid #fca5a5;
+		border: 2px solid $danger-border;
 	}
-	.muted {
-		color: $light-tertiary;
+
+	.danger-list {
 		font-size: 13px;
+		color: $danger;
 	}
-	.error-text {
-		color: #ef4444;
-		font-size: 12px;
-		margin: 4px 0;
-	}
-	.alert-success {
-		background: #ecfdf5;
-		color: #065f46;
-		padding: 8px 12px;
-		border-radius: 6px;
-		font-size: 12px;
-		margin-bottom: 12px;
-	}
-	.btn-sm {
-		font-size: 11px !important;
-		padding: 4px 12px !important;
-	}
+
 	.btn-danger {
-		background-color: #fef2f2;
-		color: #991b1b;
-		border: 1px solid #fca5a5;
+		background-color: $danger-bg;
+		color: $danger-fg;
+		border: 1px solid $danger-border;
 		&:hover {
-			background-color: #fee2e2;
+			// One step darker than $danger-bg; no token exists for this hover tint.
+			background-color: $danger-bg-strong;
 		}
 	}
 </style>

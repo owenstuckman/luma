@@ -304,28 +304,29 @@
 <div class="layout">
 	<div class="content-left">
 		{#if loading}
-			<div class="skeleton-block" style="height: 28px; width: 240px; margin-bottom: 10px;"></div>
-			<div class="skeleton-block" style="height: 14px; width: 300px; margin-bottom: 20px;"></div>
+			<div class="skeleton" style="height: 28px; width: 240px; margin-bottom: 10px;"></div>
+			<div class="skeleton" style="height: 14px; width: 300px; margin-bottom: 20px;"></div>
 			<div class="job-grid">
 				{#each [1, 2, 3] as _}
 					<div class="skeleton-card">
-						<div
-							class="skeleton-block"
-							style="height: 18px; width: 60%; margin-bottom: 10px;"
-						></div>
-						<div class="skeleton-block" style="height: 14px; width: 40%;"></div>
+						<div class="skeleton" style="height: 18px; width: 60%; margin-bottom: 10px;"></div>
+						<div class="skeleton" style="height: 14px; width: 40%;"></div>
 					</div>
 				{/each}
 			</div>
 		{:else if !$selectedJob}
 			<!-- Job Picker -->
-			<h4 style="text-align: left;">Review Applications</h4>
-			<p class="subtitle">Select a job posting to review its applicants.</p>
+			<div class="page-head">
+				<div>
+					<h4 class="page-title">Review Applications</h4>
+					<p class="page-subtitle">Select a job posting to review its applicants.</p>
+				</div>
+			</div>
 
 			{#if jobs.length === 0}
 				<div class="empty-state">
-					<i class="fi fi-br-briefcase empty-icon"></i>
-					<p>No active job postings.</p>
+					<i class="fi fi-br-briefcase"></i>
+					<div class="empty-title">No active job postings.</div>
 					<a href="/private/{slug}/settings/jobs" class="btn btn-tertiary">Manage Job Postings</a>
 				</div>
 			{:else}
@@ -350,7 +351,11 @@
 				</div>
 			{/if}
 		{:else}
-			<h4 style="text-align: left;">Review Applications — {$selectedJob.name}</h4>
+			<div class="page-head">
+				<div>
+					<h4 class="page-title">Review Applications — {$selectedJob.name}</h4>
+				</div>
+			</div>
 
 			<CandidateList
 				bind:this={list}
@@ -394,10 +399,9 @@
 						{bulkUpdating ? 'Updating...' : 'Apply'}
 					</button>
 					<button
-						class="btn btn-sm btn-danger"
+						class="btn btn-sm btn-danger btn-bulk-delete"
 						on:click={bulkDelete}
 						disabled={selectedIds.size === 0 || bulkUpdating}
-						style="background-color: #ef4444; color: white; border: none; font-size: 11px; padding: 4px 10px;"
 					>
 						Delete ({selectedIds.size})
 					</button>
@@ -422,7 +426,7 @@
 
 				<svelte:fragment slot="bulk-panels">
 					{#if showBulkComment && selectMode}
-						<div class="bulk-panel">
+						<div class="panel bulk-panel">
 							<h6 style="margin: 0 0 8px; font-size: 13px;">
 								Add Note to {selectedIds.size} Applicant(s)
 							</h6>
@@ -459,11 +463,11 @@
 					{/if}
 
 					{#if showBulkEmail && selectMode}
-						<div class="bulk-panel">
+						<div class="panel bulk-panel">
 							<h6 style="margin: 0 0 8px; font-size: 13px;">
 								Email {selectedIds.size} Applicant(s)
 							</h6>
-							<p style="font-size: 11px; color: #878fa1; margin: 0 0 8px;">
+							<p class="bulk-hint" style="margin: 0 0 8px;">
 								Use {'{name}'} and {'{email}'} as placeholders.
 							</p>
 							<input
@@ -495,7 +499,7 @@
 									}}>Cancel</button
 								>
 								{#if bulkEmailResult}
-									<span style="font-size: 11px; color: #878fa1;">{bulkEmailResult}</span>
+									<span class="bulk-hint">{bulkEmailResult}</span>
 								{/if}
 							</div>
 						</div>
@@ -516,31 +520,12 @@
 <style lang="scss">
 	@use '../../../../styles/col.scss' as *;
 
-	.skeleton-block {
-		background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
-		background-size: 200% 100%;
-		animation: shimmer 1.5s infinite;
-		border-radius: 6px;
-	}
 	.skeleton-card {
-		background: white;
-		border-radius: 8px;
+		background: $surface;
+		border-radius: $radius;
 		padding: 20px;
-		box-shadow: 0 0px 12px rgba(0, 0, 0, 0.08);
-		border-left: 4px solid #e5e7eb;
-	}
-	@keyframes shimmer {
-		0% {
-			background-position: 200% 0;
-		}
-		100% {
-			background-position: -200% 0;
-		}
-	}
-	.subtitle {
-		font-size: 13px;
-		color: $light-tertiary;
-		margin-bottom: 10px;
+		box-shadow: $shadow;
+		border-left: 4px solid $border;
 	}
 
 	/* Job picker */
@@ -551,10 +536,10 @@
 		margin-top: 15px;
 	}
 	.job-card {
-		background-color: white;
-		border-radius: 8px;
+		background-color: $surface;
+		border-radius: $radius;
 		padding: 20px;
-		box-shadow: 0 0px 12px rgba(0, 0, 0, 0.08);
+		box-shadow: $shadow;
 		cursor: pointer;
 		transition:
 			box-shadow 0.2s ease,
@@ -562,17 +547,17 @@
 		border-left: 4px solid $yellow-primary;
 	}
 	.job-card:hover {
-		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+		box-shadow: $shadow-lg;
 		transform: translateY(-2px);
 	}
 	.job-name {
 		font-weight: 800;
 		font-size: 16px;
-		color: $dark-primary;
+		color: $text;
 	}
 	.job-desc {
 		font-size: 13px;
-		color: $light-tertiary;
+		color: $text-muted;
 		margin: 6px 0 12px;
 		display: -webkit-box;
 		-webkit-line-clamp: 2;
@@ -582,34 +567,20 @@
 	.job-count {
 		font-size: 13px;
 		font-weight: 700;
-		color: $dark-primary;
-	}
-	.empty-state {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		padding: 60px 20px;
-		color: $light-tertiary;
-		text-align: center;
-	}
-	.empty-icon {
-		font-size: 40px;
-		margin-bottom: 12px;
-		opacity: 0.4;
+		color: $text;
 	}
 
 	/* Filter bar, list, and pagination styles live in CandidateList.svelte.
 	   These remain for the bulk panels this page slots into it. */
-	.btn-sm {
-		font-size: 11px !important;
-		padding: 4px 10px !important;
+	.btn-bulk-delete {
+		background-color: $danger;
+		color: $surface;
+		border: none;
+		font-size: 11px;
+		padding: 4px 10px;
 	}
-	.bulk-panel {
-		background-color: white;
-		border-radius: 8px;
-		padding: 16px;
-		box-shadow: 0 0px 12px rgba(0, 0, 0, 0.08);
-		margin-bottom: 15px;
+	.bulk-hint {
+		font-size: 11px;
+		color: $text-muted;
 	}
 </style>

@@ -12,7 +12,7 @@
 	<form method="POST" action="/auth?/updatePassword" class="login">
 		<div class="login-top">
 			<h2>Set New Password</h2>
-			<p class="auth-desc">Enter your new password below.</p>
+			<p class="muted">Enter your new password below.</p>
 			<label>
 				New Password
 				<input
@@ -25,7 +25,7 @@
 				/>
 			</label>
 			{#if errorMsg}
-				<p class="status-error">{errorMsg}</p>
+				<p class="alert-soft alert-error">{errorMsg}</p>
 			{/if}
 			<div style="display: flex; gap: 10px; margin-top: 8px;">
 				<button type="submit" class="btn btn-primary">Update Password</button>
@@ -74,13 +74,5 @@
 		box-shadow: none;
 		border-color: $yellow-primary;
 		color: white;
-	}
-	.auth-desc {
-		color: $light-tertiary;
-		font-size: 13px;
-	}
-	.status-error {
-		color: #ef4444;
-		font-size: 13px;
 	}
 </style>

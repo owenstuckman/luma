@@ -8,7 +8,7 @@
 
 <div class="card">
 	<h5>{title}</h5>
-	{#if subtitle}<p class="p2">{subtitle}</p>{/if}
+	{#if subtitle}<p class="field-hint">{subtitle}</p>{/if}
 	<div class="mb-3">
 		<textarea
 			class="form-control"

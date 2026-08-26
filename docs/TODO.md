@@ -26,6 +26,9 @@ dependency order:
 Invite links shipped, so "how do I add someone to my org?" is answered — what's left in
 3.5 is the `roles[]` and `review_weight` editors, not the invite path itself.
 
+Phase 6.5 (design system) is done: the whole app now renders one visual language, defined
+in [DESIGN-SYSTEM.md](DESIGN-SYSTEM.md). Read that before adding any UI.
+
 Cross-cutting, not tied to one phase:
 
 - **No unit test runner.** `formSchema.ts` and `review.ts` are pure logic verified only by
@@ -476,6 +479,49 @@ Remaining, and blocked on the features themselves rather than on analytics:
 - [ ] `decision_made` — needs Phase 5.
 - [ ] `application_draft_saved` — needs Phase 2 save-and-resume.
 - [ ] Build the apply funnel in the PostHog UI once real events are flowing.
+
+## Phase 6.5 — Design system ✅ (complete)
+
+The app had grown four visual dialects — recruiter, applicant, admin, and public — that
+shared a color file and nothing else. The platform admin panel was the best of them, so it
+became the reference and everything else was moved onto it.
+
+**What shipped:**
+
+- `src/styles/col.scss` expanded from 7 brand colors to a full token set: surfaces, borders,
+  four status tones (each a bg/fg/accent trio), a radius scale, a shadow scale, chrome
+  constants. The status palette was not invented — it was already in use as ~350
+  copy-pasted hex literals, `#878fa1` alone appearing 46 times as a retyped
+  `$light-tertiary`.
+- `src/styles/ui.scss` (new, ~730 lines) holds the shared classes, loaded exactly once by
+  `luma.scss`. `col.scss` stays variables-only because ~30 components `@use` it with
+  `as *`, so a rule there would be emitted once per component.
+- Every surface migrated: 41 components and route pages. **1,213 lines of duplicated local
+  SCSS removed**, 129 inline `style=` attributes replaced with classes, and **zero raw hex
+  left** in any component style block.
+- Chrome unified: both shells now use `$sidebar-width` and mark the current page the same
+  way (yellow label + 3px yellow left rule).
+- `h4` is left-aligned globally. It had been centered, which every recruiter page undid
+  with an inline `style="text-align: left"`; the applicant flow opts back in with
+  `.text-center`.
+
+**Two bugs the migration surfaced**, both from local rules silently shadowing shared ones:
+`CandidateList` and `AvailabilityGrid` each defined a local `.pill`, and the landing page
+a local `.divider`. Svelte's scoping makes the local copy win, so the shared rule was
+quietly restyling unrelated elements. See the naming-collisions table in
+[DESIGN-SYSTEM.md](DESIGN-SYSTEM.md) — that table exists because of these.
+
+**Follow-ups, none blocking:**
+
+- `Footer.svelte` and `NextButton.svelte` carry identical `.footer-buttons` rules. That is a
+  component-consolidation question, not a design-system one.
+- The applicant `Navbar` has a duplicated `id="dropdownYear"` and a stray `data-bs-toggle`.
+  Pre-existing markup bugs, spotted during the pass and deliberately not touched.
+- `review/candidate` still uses Bootstrap `.card` (capped at 500px) as its container rather
+  than `.panel`. Moving it would change that page's width — a layout decision, not a
+  cleanup.
+
+---
 
 ## Phase 7 — Pre-launch QA (half day)
 

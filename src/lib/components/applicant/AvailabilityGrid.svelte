@@ -246,12 +246,14 @@
 
 <div class="controls">
 	{#if showDayNames}
-		<div class="pill">Weekly Schedule</div>
+		<div class="grid-pill">Weekly Schedule</div>
 	{:else}
-		<div class="pill">{dates[0]} → {dates[dates.length - 1]}</div>
+		<div class="grid-pill">{dates[0]} → {dates[dates.length - 1]}</div>
 	{/if}
-	<div class="pill">{dayStart}–{dayEnd} / {stepMinutes}m</div>
-	<button class="btn ghost" onclick={clearAll} aria-label="Clear selection">Clear</button>
+	<div class="grid-pill">{dayStart}–{dayEnd} / {stepMinutes}m</div>
+	<button class="btn btn-quaternary btn-sm" onclick={clearAll} aria-label="Clear selection">
+		Clear
+	</button>
 	<div class="legend"><span class="swatch"></span> Selected (available)</div>
 </div>
 
@@ -286,24 +288,23 @@
 	{/each}
 </div>
 
-<style>
-	:root {
-		--cell: 36px;
-		--border: #e5e7eb;
-		--muted: #6b7280;
-		--sel: #a7f3d0;
-		--selEdge: #10b981;
-	}
+<style lang="scss">
+	@use '../../../styles/col.scss' as *;
+
+	// The grid layout below is genuinely bespoke — nothing in ui.scss paints a
+	// drag-to-select availability matrix. Only the colours come from tokens.
+	$slot-fill: rgba($success, 0.35);
+
 	.grid {
 		overflow: auto;
-		border: 1px solid var(--border);
-		border-radius: 14px;
+		border: 1px solid $border;
+		border-radius: $radius-lg;
 		user-select: none;
 	}
 	.hdr {
 		position: sticky;
 		top: 0;
-		background: white;
+		background: $surface;
 		z-index: 2;
 	}
 	.row {
@@ -311,8 +312,8 @@
 		grid-template-columns: 100px repeat(var(--cols), 1fr);
 	}
 	.time {
-		color: var(--muted);
-		border-right: 1px solid var(--border);
+		color: $text-body;
+		border-right: 1px solid $border;
 		font-size: 12px;
 		display: flex;
 		align-items: center;
@@ -320,9 +321,9 @@
 		padding-right: 8px;
 	}
 	.cell {
-		height: var(--cell);
-		border-right: 1px solid var(--border);
-		border-bottom: 1px dotted var(--border);
+		height: 36px;
+		border-right: 1px solid $border;
+		border-bottom: 1px dotted $border;
 		cursor: pointer;
 		position: relative;
 		touch-action: none;
@@ -331,17 +332,17 @@
 		height: 24px;
 	}
 	.cell.sel {
-		background: var(--sel);
+		background: $slot-fill;
 	}
 	.cell:focus {
-		outline: 2px solid var(--selEdge);
+		outline: 2px solid $success;
 		outline-offset: -2px;
 	}
 	.datehdr {
 		padding: 10px;
 		text-align: center;
 		font-weight: 600;
-		border-right: 1px solid var(--border);
+		border-right: 1px solid $border;
 	}
 	.controls {
 		display: flex;
@@ -350,36 +351,26 @@
 		margin-bottom: 8px;
 		flex-wrap: wrap;
 	}
-	.pill {
-		border: 1px solid var(--border);
+	// Named `grid-pill`, not `pill`: `.pill` is a shared uppercase badge in
+	// ui.scss and would otherwise restyle these range labels.
+	.grid-pill {
+		border: 1px solid $border;
 		padding: 6px 10px;
-		border-radius: 999px;
+		border-radius: $radius-pill;
 		font-size: 12px;
-	}
-	.btn {
-		padding: 8px 12px;
-		border: 1px solid var(--border);
-		border-radius: 10px;
-		background: #111827;
-		color: white;
-		font-weight: 600;
-	}
-	.btn.ghost {
-		background: white;
-		color: #111827;
 	}
 	.legend {
 		display: flex;
 		gap: 10px;
 		align-items: center;
 		font-size: 12px;
-		color: var(--muted);
+		color: $text-body;
 	}
 	.swatch {
 		width: 14px;
 		height: 14px;
-		border-radius: 4px;
-		background: var(--sel);
-		border: 1px solid var(--selEdge);
+		border-radius: $radius-sm;
+		background: $slot-fill;
+		border: 1px solid $success;
 	}
 </style>

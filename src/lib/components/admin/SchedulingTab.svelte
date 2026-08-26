@@ -400,11 +400,11 @@
 	}
 </script>
 
-<div class="form-card">
+<div class="panel">
 	<h6>Scheduling Configuration</h6>
 
-	<div class="form-row">
-		<label>Organization</label>
+	<div class="field">
+		<label class="field-label">Organization</label>
 		<select class="form-select" bind:value={schedOrgId} onchange={onSchedOrgChange}>
 			<option value={null}>Select organization...</option>
 			{#each organizations as org}
@@ -414,8 +414,8 @@
 	</div>
 
 	{#if schedOrgId}
-		<div class="form-row">
-			<label>Job Posting (optional — leave blank for all)</label>
+		<div class="field">
+			<label class="field-label">Job Posting (optional — leave blank for all)</label>
 			<select class="form-select" bind:value={schedJobId}>
 				<option value={null}>All jobs</option>
 				{#each schedJobs as job}
@@ -424,8 +424,8 @@
 			</select>
 		</div>
 
-		<div class="form-row">
-			<label>Algorithm</label>
+		<div class="field">
+			<label class="field-label">Algorithm</label>
 			<div class="algo-cards">
 				{#each algorithms as algo}
 					<button
@@ -441,8 +441,8 @@
 		</div>
 
 		{#if schedAlgorithmId === 'batch-scheduler'}
-			<div class="form-row">
-				<label>Rooms (one per line)</label>
+			<div class="field">
+				<label class="field-label">Rooms (one per line)</label>
 				<textarea
 					class="form-control"
 					bind:value={batchRoomsText}
@@ -453,8 +453,8 @@
 				>
 			</div>
 
-			<div class="form-row">
-				<label>Session Windows</label>
+			<div class="field">
+				<label class="field-label">Session Windows</label>
 				{#each batchSessions as session, i}
 					<div class="session-row">
 						<span class="row-name">{session.date}</span>
@@ -489,8 +489,8 @@
 				</div>
 			</div>
 
-			<div class="form-row">
-				<label>Rounds</label>
+			<div class="field">
+				<label class="field-label">Rounds</label>
 				{#each batchRounds as round, i}
 					<div class="round-card">
 						<div class="round-header">
@@ -560,16 +560,16 @@
 			</div>
 
 			<div class="config-grid">
-				<div class="form-row">
-					<label>Slot step (minutes)</label>
+				<div class="field">
+					<label class="field-label">Slot step (minutes)</label>
 					<input type="number" class="form-control" bind:value={batchSlotStep} min="5" max="60" />
 				</div>
-				<div class="form-row">
-					<label>Break between slots (minutes)</label>
+				<div class="field">
+					<label class="field-label">Break between slots (minutes)</label>
 					<input type="number" class="form-control" bind:value={batchBlockBreak} min="0" />
 				</div>
-				<div class="form-row" style="grid-column: span 2;">
-					<label class="toggle-label" style="font-size: 12px; font-weight: 600; color: #9ca3af;">
+				<div class="field" style="grid-column: span 2;">
+					<label class="toggle-label toggle-label-strong">
 						<input
 							type="checkbox"
 							bind:checked={batchRequireAll}
@@ -578,8 +578,8 @@
 						Require all rounds
 					</label>
 				</div>
-				<div class="form-row" style="grid-column: span 2;">
-					<label class="toggle-label" style="font-size: 12px; font-weight: 600; color: #9ca3af;">
+				<div class="field" style="grid-column: span 2;">
+					<label class="toggle-label toggle-label-strong">
 						<input
 							type="checkbox"
 							bind:checked={batchRelaxedFallback}
@@ -593,8 +593,8 @@
 					</p>
 				</div>
 				{#if batchRelaxedFallback}
-					<div class="form-row">
-						<label>Availability penalty weight</label>
+					<div class="field">
+						<label class="field-label">Availability penalty weight</label>
 						<input
 							type="number"
 							class="form-control"
@@ -607,8 +607,8 @@
 				{/if}
 			</div>
 
-			<div class="form-row" style="margin-top: 8px;">
-				<label class="toggle-label" style="font-size: 12px; font-weight: 600; color: #9ca3af;">
+			<div class="field" style="margin-top: 8px;">
+				<label class="toggle-label toggle-label-strong">
 					<input
 						type="checkbox"
 						bind:checked={batchAttrEnabled}
@@ -619,17 +619,13 @@
 			</div>
 
 			{#if batchAttrEnabled}
-				<div class="form-row">
-					<label>Matching Rules</label>
+				<div class="field">
+					<label class="field-label">Matching Rules</label>
 					{#each batchAttrRules as rule, i}
 						<div class="attr-rule-row">
 							<span class="rule-pill">
 								<span class="rule-qid">{rule.applicantQuestionId}</span>
-								<i
-									class="fi fi-br-arrow-right"
-									style="font-size: 10px; color: #9ca3af;"
-									aria-hidden="true"
-								></i>
+								<i class="fi fi-br-arrow-right rule-arrow" aria-hidden="true"></i>
 								<span class="rule-attr">{rule.interviewerAttributeKey}</span>
 								<span class="rule-weight">+{rule.weight}</span>
 								{#if rule.hard}<span class="rule-hard">hard</span>{/if}
@@ -651,11 +647,7 @@
 							placeholder="Applicant question ID"
 							style="flex: 1;"
 						/>
-						<i
-							class="fi fi-br-arrow-right"
-							style="font-size: 11px; color: #9ca3af; flex-shrink: 0;"
-							aria-hidden="true"
-						></i>
+						<i class="fi fi-br-arrow-right rule-arrow rule-arrow-lg" aria-hidden="true"></i>
 						<input
 							class="form-control"
 							bind:value={newRuleAttrKey}
@@ -684,8 +676,8 @@
 			{/if}
 		{:else}
 			<div class="config-grid">
-				<div class="form-row">
-					<label>Slot Duration (minutes)</label>
+				<div class="field">
+					<label class="field-label">Slot Duration (minutes)</label>
 					<input
 						type="number"
 						class="form-control"
@@ -694,8 +686,8 @@
 						max="180"
 					/>
 				</div>
-				<div class="form-row">
-					<label>Break Between (minutes)</label>
+				<div class="field">
+					<label class="field-label">Break Between (minutes)</label>
 					<input
 						type="number"
 						class="form-control"
@@ -704,8 +696,8 @@
 						max="60"
 					/>
 				</div>
-				<div class="form-row">
-					<label>Max Interviews per Interviewer (0 = unlimited)</label>
+				<div class="field">
+					<label class="field-label">Max Interviews per Interviewer (0 = unlimited)</label>
 					<input
 						type="number"
 						class="form-control"
@@ -713,15 +705,15 @@
 						min="0"
 					/>
 				</div>
-				<div class="form-row">
-					<label>Interview Type</label>
+				<div class="field">
+					<label class="field-label">Interview Type</label>
 					<select class="form-select" bind:value={schedConfig.interviewType}>
 						<option value="individual">Individual</option>
 						<option value="group">Group</option>
 					</select>
 				</div>
-				<div class="form-row">
-					<label>Location</label>
+				<div class="field">
+					<label class="field-label">Location</label>
 					<input
 						class="form-control"
 						bind:value={schedConfig.location}
@@ -753,28 +745,28 @@
 	</div>
 {/if}
 
-{#if schedError}<p class="error-text">{schedError}</p>{/if}
-{#if schedSuccess}<div class="alert-success">{schedSuccess}</div>{/if}
+{#if schedError}<p class="field-error">{schedError}</p>{/if}
+{#if schedSuccess}<div class="alert-soft alert-success">{schedSuccess}</div>{/if}
 
 {#if schedPreview}
-	<div class="form-card" style="margin-top: 16px;">
+	<div class="panel" style="margin-top: 16px;">
 		<h6>Preview Results</h6>
 
 		{#if schedPreview.warnings.length > 0}
-			<div class="alert-error" style="margin-bottom: 12px;">
+			<div class="alert-soft alert-error" style="margin-bottom: 12px;">
 				{#each schedPreview.warnings as w}<p style="margin: 2px 0;">{w}</p>{/each}
 			</div>
 		{/if}
 
 		{#if schedPreview.relaxedCount && schedPreview.relaxedCount > 0}
-			<div class="alert-warn" style="margin-bottom: 12px;">
+			<div class="alert-soft alert-warning alert-warn" style="margin-bottom: 12px;">
 				<i class="fi fi-br-triangle-warning" aria-hidden="true"></i>
 				{schedPreview.relaxedCount} interview(s) placed via relaxed constraints — flagged for review.
 			</div>
 		{/if}
 
 		{#if schedPreview.interviews.length > 0}
-			<div class="jobs-table">
+			<div class="panel panel-flush">
 				<div class="table-header sched-table-header">
 					<span>Applicant</span><span>Interviewer</span><span>Date</span><span>Time</span><span
 						>Location</span
@@ -813,7 +805,7 @@
 
 		{#if schedPreview.stats && schedPreview.stats.length > 0}
 			<h6 style="margin-top: 16px;">Results by Round</h6>
-			<div class="round-stats-table">
+			<div class="panel panel-flush">
 				<div class="rst-header">
 					<span>Round</span><span>Scheduled</span><span>Relaxed</span><span>Missed</span><span
 						>Slots Used</span
@@ -822,11 +814,11 @@
 				{#each schedPreview.stats as stat}
 					<div class="rst-row">
 						<span class="row-name">{stat.roundLabel}</span>
-						<span style="color: #065f46; font-weight: 600;">{stat.scheduled}</span>
-						<span style="color: {stat.relaxedCount > 0 ? '#92400e' : '#6b7280'}; font-weight: 600;"
+						<span class="stat-ok">{stat.scheduled}</span>
+						<span class="stat-value" style="color: {stat.relaxedCount > 0 ? '#92400e' : '#6b7280'};"
 							>{stat.relaxedCount}</span
 						>
-						<span style="color: {stat.missed > 0 ? '#991b1b' : '#065f46'}; font-weight: 600;"
+						<span class="stat-value" style="color: {stat.missed > 0 ? '#991b1b' : '#065f46'};"
 							>{stat.missed}</span
 						>
 						<span class="row-sub">{stat.filledSlots}/{stat.totalSlots}</span>
@@ -838,16 +830,14 @@
 		{#if schedPreview.unmatchedDetails && schedPreview.unmatchedDetails.length > 0}
 			<h6 style="margin-top: 16px;">
 				Unmatched Applicants
-				<span style="font-weight: 400; font-size: 12px; color: #6b7280;"
-					>({schedPreview.unmatchedDetails.length})</span
-				>
+				<span class="count-note">({schedPreview.unmatchedDetails.length})</span>
 			</h6>
 			{#each schedPreview.unmatchedDetails as u}
 				<div class="unmatched-row">
 					<div class="unmatched-info">
 						<span class="row-name">{u.name}</span>
 						<span class="row-sub">{u.email}</span>
-						<span class="row-sub" style="color: #991b1b;">Missed: {u.missedRounds.join(', ')}</span>
+						<span class="row-sub row-sub-danger">Missed: {u.missedRounds.join(', ')}</span>
 					</div>
 					<div class="suggested-slots">
 						{#each u.suggestedSlots.slice(0, 4) as slot}
@@ -857,7 +847,7 @@
 							</span>
 						{/each}
 						{#if u.suggestedSlots.length === 0}
-							<span class="row-sub" style="color: #991b1b;">No available slots.</span>
+							<span class="row-sub row-sub-danger">No available slots.</span>
 						{:else if u.suggestedSlots.length > 4}
 							<span class="row-sub">+{u.suggestedSlots.length - 4} more options</span>
 						{/if}
@@ -866,7 +856,7 @@
 			{/each}
 		{:else if schedPreview.unmatched.length > 0}
 			<h6 style="margin-top: 16px;">Unmatched Applicants ({schedPreview.unmatched.length})</h6>
-			<div style="font-size: 13px; color: #991b1b;">
+			<div class="unmatched-emails">
 				{#each schedPreview.unmatched as email}<p style="margin: 2px 0;">{email}</p>{/each}
 			</div>
 		{/if}
@@ -876,26 +866,9 @@
 <style lang="scss">
 	@use '../../../styles/col.scss' as *;
 
-	.form-card {
-		background: white;
-		border-radius: 8px;
-		padding: 20px;
-		box-shadow: 0 0 12px rgba(0, 0, 0, 0.05);
-		margin-bottom: 20px;
-	}
-	.form-row {
-		margin-bottom: 14px;
-		label {
-			display: block;
-			font-size: 12px;
-			font-weight: 600;
-			color: $light-tertiary;
-			margin-bottom: 4px;
-		}
-	}
 	.form-hint {
 		font-size: 11px;
-		color: $light-tertiary;
+		color: $text-muted;
 		margin-top: 4px;
 		display: block;
 	}
@@ -911,6 +884,11 @@
 		gap: 8px;
 		cursor: pointer;
 	}
+	.toggle-label-strong {
+		font-size: 12px;
+		font-weight: 600;
+		color: $text-subtle;
+	}
 
 	.algo-cards {
 		display: flex;
@@ -921,9 +899,9 @@
 		display: flex;
 		flex-direction: column;
 		padding: 10px 14px;
-		border: 1px solid #e5e7eb;
-		border-radius: 8px;
-		background: white;
+		border: 1px solid $border;
+		border-radius: $radius;
+		background: $surface;
 		cursor: pointer;
 		text-align: left;
 		transition: border-color 0.15s;
@@ -939,11 +917,11 @@
 	.algo-name {
 		font-size: 12px;
 		font-weight: 700;
-		color: $dark-primary;
+		color: $text;
 	}
 	.algo-desc {
 		font-size: 10px;
-		color: $light-tertiary;
+		color: $text-muted;
 		margin-top: 2px;
 	}
 
@@ -952,7 +930,7 @@
 		align-items: center;
 		gap: 12px;
 		padding: 6px 0;
-		border-bottom: 1px solid #f1f5f9;
+		border-bottom: 1px solid $border-faint;
 	}
 	.add-session-form {
 		display: flex;
@@ -964,7 +942,7 @@
 
 	.round-card {
 		background: $light-secondary;
-		border-radius: 6px;
+		border-radius: $radius-sm;
 		padding: 12px;
 		margin-bottom: 8px;
 	}
@@ -980,28 +958,21 @@
 		gap: 16px;
 		flex-wrap: wrap;
 	}
-	.field-label {
-		font-size: 11px;
-		font-weight: 600;
-		color: $light-tertiary;
-		display: block;
-		margin-bottom: 4px;
-	}
 
 	.attr-rule-row {
 		display: flex;
 		align-items: center;
 		gap: 8px;
 		padding: 4px 0;
-		border-bottom: 1px solid #f1f5f9;
+		border-bottom: 1px solid $border-faint;
 	}
 	.rule-pill {
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		background: white;
-		border: 1px solid #e5e7eb;
-		border-radius: 6px;
+		background: $surface;
+		border: 1px solid $border;
+		border-radius: $radius-sm;
 		padding: 4px 10px;
 		font-size: 11px;
 		flex: 1;
@@ -1010,17 +981,26 @@
 	.rule-attr {
 		font-family: monospace;
 		font-size: 11px;
-		color: $dark-primary;
+		color: $text;
 	}
 	.rule-weight {
 		font-size: 10px;
 		font-weight: 700;
-		color: #6366f1;
+		// Indigo accent for rule weights; no token exists for it.
+		color: $info;
 	}
 	.rule-hard {
 		font-size: 10px;
 		font-weight: 700;
-		color: #ef4444;
+		color: $danger;
+	}
+	.rule-arrow {
+		font-size: 10px;
+		color: $text-subtle;
+	}
+	.rule-arrow-lg {
+		font-size: 11px;
+		flex-shrink: 0;
 	}
 	.attr-rule-add {
 		display: flex;
@@ -1033,8 +1013,8 @@
 		width: 22px;
 		height: 22px;
 		border: none;
-		background: #fef2f2;
-		color: #991b1b;
+		background: $danger-bg;
+		color: $danger-fg;
 		border-radius: 4px;
 		cursor: pointer;
 		font-size: 14px;
@@ -1051,12 +1031,6 @@
 		margin-bottom: 12px;
 	}
 
-	.jobs-table {
-		background: white;
-		border-radius: 8px;
-		overflow: hidden;
-		box-shadow: 0 0 12px rgba(0, 0, 0, 0.05);
-	}
 	.sched-table-header,
 	.sched-table-row {
 		display: grid;
@@ -1069,33 +1043,27 @@
 		background: $light-secondary;
 		font-size: 11px;
 		font-weight: 700;
-		color: $light-tertiary;
+		color: $text-muted;
 		text-transform: uppercase;
 	}
 	.sched-table-row {
-		border-bottom: 1px solid #f1f5f9;
+		border-bottom: 1px solid $border-faint;
 		&:last-child {
 			border-bottom: none;
 		}
 	}
 	.sched-row-flagged {
-		background-color: #fffbeb;
+		background-color: $warning-bg;
 	}
 	.violation-chip {
 		font-size: 10px;
 		font-weight: 700;
-		color: #92400e;
-		background: #fef3c7;
+		color: $warning-fg;
+		background: $warning-border;
 		padding: 1px 6px;
 		border-radius: 3px;
 	}
 
-	.round-stats-table {
-		background: white;
-		border-radius: 8px;
-		overflow: hidden;
-		box-shadow: 0 0 8px rgba(0, 0, 0, 0.04);
-	}
 	.rst-header,
 	.rst-row {
 		display: grid;
@@ -1108,14 +1076,27 @@
 		background: $light-secondary;
 		font-weight: 700;
 		font-size: 11px;
-		color: $light-tertiary;
+		color: $text-muted;
 		text-transform: uppercase;
 	}
 	.rst-row {
-		border-bottom: 1px solid #f1f5f9;
+		border-bottom: 1px solid $border-faint;
 		&:last-child {
 			border-bottom: none;
 		}
+	}
+	.stat-ok {
+		color: $success-fg;
+		font-weight: 600;
+	}
+	// Colour comes from an inline style — it depends on the counts.
+	.stat-value {
+		font-weight: 600;
+	}
+	.count-note {
+		font-weight: 400;
+		font-size: 12px;
+		color: $text-body;
 	}
 
 	.unmatched-row {
@@ -1124,13 +1105,20 @@
 		align-items: flex-start;
 		gap: 12px;
 		padding: 10px 0;
-		border-bottom: 1px solid #f1f5f9;
+		border-bottom: 1px solid $border-faint;
 		&:last-child {
 			border-bottom: none;
 		}
 	}
 	.unmatched-info {
 		flex-shrink: 0;
+	}
+	.unmatched-emails {
+		font-size: 13px;
+		color: $danger-fg;
+	}
+	.row-sub-danger {
+		color: $danger-fg;
 	}
 	.suggested-slots {
 		display: flex;
@@ -1139,72 +1127,31 @@
 	}
 	.slot-chip {
 		font-size: 10px;
-		background: #eff6ff;
-		color: #1e40af;
+		background: $info-bg;
+		color: $info-fg;
 		padding: 2px 6px;
 		border-radius: 4px;
 		font-family: monospace;
 		&.slot-full {
-			background: #fef3c7;
-			color: #92400e;
+			background: $warning-border;
+			color: $warning-fg;
 		}
 	}
 
-	.row-name {
-		display: block;
-		font-size: 13px;
-		font-weight: 600;
-		color: $dark-primary;
-	}
-	.row-sub {
-		display: block;
-		font-size: 11px;
-		color: $light-tertiary;
-	}
-	.muted {
-		color: $light-tertiary;
-		font-size: 13px;
-	}
-	.error-text {
-		color: #ef4444;
-		font-size: 12px;
-		margin: 4px 0;
-	}
-	.alert-success {
-		background: #ecfdf5;
-		color: #065f46;
-		padding: 8px 12px;
-		border-radius: 6px;
-		font-size: 12px;
-		margin-bottom: 12px;
-	}
-	.alert-error {
-		background: #fef2f2;
-		color: #991b1b;
-		padding: 10px 14px;
-		border-radius: 6px;
-		font-size: 13px;
-	}
+	// Extends the shared .alert-warning: this banner leads with an icon.
 	.alert-warn {
-		background: #fffbeb;
-		color: #92400e;
-		padding: 10px 14px;
-		border-radius: 6px;
-		font-size: 13px;
 		display: flex;
 		align-items: center;
 		gap: 8px;
 	}
-	.btn-sm {
-		font-size: 11px !important;
-		padding: 4px 12px !important;
-	}
+
 	.btn-danger {
-		background-color: #fef2f2;
-		color: #991b1b;
-		border: 1px solid #fca5a5;
+		background-color: $danger-bg;
+		color: $danger-fg;
+		border: 1px solid $danger-border;
 		&:hover {
-			background-color: #fee2e2;
+			// One step darker than $danger-bg; no token exists for this hover tint.
+			background-color: $danger-bg-strong;
 		}
 	}
 </style>

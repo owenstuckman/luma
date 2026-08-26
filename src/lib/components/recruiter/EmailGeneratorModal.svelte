@@ -248,7 +248,7 @@
 </script>
 
 <div
-	class="modal-overlay"
+	class="modal-backdrop-luma"
 	onclick={onClose}
 	onkeydown={(e) => e.key === 'Escape' && onClose()}
 	role="dialog"
@@ -256,14 +256,14 @@
 	tabindex="-1"
 >
 	<div
-		class="modal-box"
+		class="modal-panel email-modal"
 		onclick={(e) => e.stopPropagation()}
 		onkeydown={(e) => e.stopPropagation()}
 	>
 		<!-- Sticky header -->
-		<div class="modal-header">
+		<div class="modal-head email-modal-head">
 			<h5 class="modal-title">Notification Emails</h5>
-			<button class="close-btn" onclick={onClose} aria-label="Close">&times;</button>
+			<button class="btn-icon" onclick={onClose} aria-label="Close">&times;</button>
 		</div>
 
 		<!-- Tabs -->
@@ -273,21 +273,21 @@
 				class:active={activeTab === 'applicants'}
 				onclick={() => (activeTab = 'applicants')}
 			>
-				Applicants <span class="badge">{applicantEmails.length}</span>
+				Applicants <span class="tab-count">{applicantEmails.length}</span>
 			</button>
 			<button
 				class="tab-btn"
 				class:active={activeTab === 'interviewers'}
 				onclick={() => (activeTab = 'interviewers')}
 			>
-				Interviewers <span class="badge">{interviewerEmails.length}</span>
+				Interviewers <span class="tab-count">{interviewerEmails.length}</span>
 			</button>
 		</div>
 
 		{#if activeEmails.length === 0}
 			<div class="empty-state">
 				<i class="fi fi-br-inbox-in"></i>
-				<p>No interviews loaded. Schedule interviews first.</p>
+				<p class="empty-hint">No interviews loaded. Schedule interviews first.</p>
 			</div>
 		{:else}
 			<!-- Toolbar: select all + bulk actions -->
@@ -298,7 +298,7 @@
 				</label>
 
 				{#if selectedEmails.size > 0}
-					<span class="sel-count">{selectedEmails.size} selected</span>
+					<span class="subtle sel-count">{selectedEmails.size} selected</span>
 				{/if}
 
 				<div class="toolbar-spacer"></div>
@@ -416,9 +416,10 @@
 
 				{#if sendResult}
 					<div
-						class="result-banner"
-						class:warning={sendResult.dryRun}
-						class:error={!sendResult.dryRun && sendResult.failed > 0}
+						class="alert-soft result-banner"
+						class:alert-warning={sendResult.dryRun}
+						class:alert-error={!sendResult.dryRun && sendResult.failed > 0}
+						class:alert-success={!sendResult.dryRun && sendResult.failed === 0}
 					>
 						{#if sendResult.dryRun}
 							<strong>No emails were sent.</strong>
@@ -441,7 +442,7 @@
 				{/if}
 
 				{#if sendError}
-					<div class="result-banner error">{sendError}</div>
+					<div class="alert-soft alert-error result-banner">{sendError}</div>
 				{/if}
 			</div>
 		{/if}
@@ -452,102 +453,26 @@
 	@use 'sass:color';
 	@use '../../../styles/col.scss' as *;
 
-	/* Overlay */
-	.modal-overlay {
-		position: fixed;
-		inset: 0;
-		background: rgba(0, 0, 0, 0.45);
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		z-index: 1000;
-		padding: 24px;
-	}
-
-	/* Modal box — fixed layout with sticky header/footer */
-	.modal-box {
-		background: white;
-		border-radius: 12px;
-		width: min(780px, 100%);
+	/* Modal shell — the shared `.modal-panel` sized and re-laid-out for a
+	   sticky header/footer with a scrolling body between them. */
+	.email-modal {
+		max-width: 780px;
 		max-height: calc(100vh - 48px);
+		padding: 0;
+		overflow: hidden;
 		display: flex;
 		flex-direction: column;
-		box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
-		overflow: hidden;
 	}
 
 	/* Header */
-	.modal-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
+	.email-modal-head {
 		padding: 18px 24px 14px;
-		border-bottom: 1px solid #e5e7eb;
+		margin-bottom: 0;
+		border-bottom: 1px solid $border;
 		flex-shrink: 0;
-	}
-	.modal-title {
-		margin: 0;
-		font-size: 16px;
-		font-weight: 700;
-		color: $dark-primary;
-	}
-	.close-btn {
-		background: none;
-		border: none;
-		font-size: 22px;
-		color: $light-tertiary;
-		cursor: pointer;
-		line-height: 1;
-		padding: 0 4px;
-		&:hover {
-			color: $dark-primary;
-		}
 	}
 
 	/* Tabs */
-	.tab-bar {
-		display: flex;
-		gap: 0;
-		padding: 0 24px;
-		border-bottom: 1px solid #e5e7eb;
-		flex-shrink: 0;
-	}
-	.tab-btn {
-		background: none;
-		border: none;
-		padding: 10px 18px;
-		font-size: 13px;
-		font-weight: 600;
-		color: $light-tertiary;
-		cursor: pointer;
-		border-bottom: 2px solid transparent;
-		margin-bottom: -1px;
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		transition:
-			color 0.15s,
-			border-color 0.15s;
-		&:hover {
-			color: $dark-primary;
-		}
-		&.active {
-			color: $dark-primary;
-			border-bottom-color: $dark-primary;
-		}
-	}
-	.badge {
-		background: #f1f5f9;
-		color: $light-tertiary;
-		font-size: 11px;
-		font-weight: 700;
-		padding: 1px 7px;
-		border-radius: 10px;
-		.active & {
-			background: $dark-primary;
-			color: white;
-		}
-	}
 
 	/* Toolbar */
 	.toolbar {
@@ -555,9 +480,9 @@
 		align-items: center;
 		gap: 12px;
 		padding: 10px 24px;
-		border-bottom: 1px solid #f1f5f9;
+		border-bottom: 1px solid $border-faint;
 		flex-shrink: 0;
-		background: #fafbfc;
+		background: $surface-muted;
 	}
 	.select-all {
 		display: flex;
@@ -565,7 +490,7 @@
 		gap: 6px;
 		font-size: 12px;
 		font-weight: 600;
-		color: $dark-primary;
+		color: $text;
 		cursor: pointer;
 		input {
 			cursor: pointer;
@@ -576,7 +501,6 @@
 	}
 	.sel-count {
 		font-size: 11px;
-		color: $light-tertiary;
 		font-weight: 600;
 	}
 	.toolbar-spacer {
@@ -586,18 +510,17 @@
 		font-size: 12px;
 		font-weight: 600;
 		padding: 5px 12px;
-		border-radius: 6px;
-		border: 1px solid #c7d2fe;
-		background: #eef2ff;
-		color: #4f46e5;
+		border-radius: $radius-sm;
+		border: 1px solid $info;
+		background: $info-bg;
+		color: $info-fg;
 		cursor: pointer;
 		display: flex;
 		align-items: center;
 		gap: 5px;
 		white-space: nowrap;
 		&:hover {
-			background: #e0e7ff;
-			border-color: #a5b4fc;
+			background: color.adjust($info-bg, $lightness: -4%);
 		}
 		&:disabled {
 			opacity: 0.6;
@@ -618,13 +541,13 @@
 
 	/* Email cards */
 	.email-card {
-		border: 1px solid #e5e7eb;
-		border-radius: 8px;
+		border: 1px solid $border;
+		border-radius: $radius;
 		overflow: hidden;
-		background: white;
+		background: $surface;
 		transition: border-color 0.15s;
 		&:hover {
-			border-color: #d1d5db;
+			border-color: $border-strong;
 		}
 	}
 	.card-header {
@@ -635,7 +558,7 @@
 		cursor: pointer;
 		list-style: none;
 		font-size: 13px;
-		background: #fafbfc;
+		background: $surface-muted;
 		user-select: none;
 		&::-webkit-details-marker {
 			display: none;
@@ -655,7 +578,7 @@
 		&::before {
 			content: '▸';
 			font-size: 11px;
-			color: $light-tertiary;
+			color: $text-muted;
 		}
 	}
 	details[open] .card-chevron::before {
@@ -668,7 +591,7 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		color: $dark-primary;
+		color: $text;
 	}
 	.card-actions {
 		display: flex;
@@ -679,46 +602,37 @@
 		font-size: 11px;
 		font-weight: 600;
 		padding: 3px 10px;
-		border-radius: 5px;
-		border: 1px solid #e5e7eb;
-		background: white;
+		border-radius: $radius-sm;
+		border: 1px solid $border;
+		background: $surface;
 		cursor: pointer;
 		white-space: nowrap;
 		transition: all 0.15s;
 
 		&.ics {
-			color: #4f46e5;
-			border-color: #c7d2fe;
-			background: #eef2ff;
+			color: $info-fg;
+			border-color: $info;
+			background: $info-bg;
 			&:hover {
-				background: #e0e7ff;
+				background: color.adjust($info-bg, $lightness: -4%);
 			}
 		}
 		&.copy {
-			color: $dark-primary;
+			color: $text;
 			&:hover {
-				background: #f3f4f6;
+				background: $border-faint;
 			}
 			&.copied {
-				background: #ecfdf5;
-				color: #065f46;
-				border-color: #6ee7b7;
+				background: $success-bg;
+				color: $success-fg;
+				border-color: $success;
 			}
 		}
 	}
 
 	.card-body {
 		padding: 12px 14px 16px;
-		border-top: 1px solid #f1f5f9;
-	}
-	.field-label {
-		display: block;
-		font-size: 11px;
-		font-weight: 700;
-		color: $light-tertiary;
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
-		margin-bottom: 4px;
+		border-top: 1px solid $border-faint;
 	}
 	.mt-2 {
 		margin-top: 10px;
@@ -734,7 +648,7 @@
 	/* Footer */
 	.modal-footer {
 		padding: 14px 24px 18px;
-		border-top: 1px solid #e5e7eb;
+		border-top: 1px solid $border;
 		flex-shrink: 0;
 		display: flex;
 		flex-direction: column;
@@ -749,23 +663,23 @@
 		font-size: 13px;
 		font-weight: 600;
 		padding: 8px 18px;
-		border-radius: 8px;
+		border-radius: $radius;
 		border: none;
 		cursor: pointer;
 		white-space: nowrap;
 		transition: all 0.15s;
 
 		&.secondary {
-			background: #f3f4f6;
-			color: $dark-primary;
-			border: 1px solid #e5e7eb;
+			background: $border-faint;
+			color: $text;
+			border: 1px solid $border;
 			&:hover {
-				background: #e5e7eb;
+				background: $border;
 			}
 		}
 		&.primary {
 			background: $dark-primary;
-			color: white;
+			color: $surface;
 			&:hover {
 				background: color.adjust($dark-primary, $lightness: 10%);
 			}
@@ -779,21 +693,7 @@
 	.result-banner {
 		font-size: 12px;
 		padding: 8px 12px;
-		border-radius: 6px;
-		background: #ecfdf5;
-		color: #065f46;
-		&.error {
-			background: #fef2f2;
-			color: #991b1b;
-		}
-		&.warning {
-			background: #fef3c7;
-			color: #92400e;
-		}
-	}
-	.hint {
-		font-size: 11px;
-		opacity: 0.8;
+		margin-bottom: 0;
 	}
 	.error-detail {
 		display: block;
@@ -801,22 +701,5 @@
 		font-size: 11px;
 		margin-top: 2px;
 		opacity: 0.85;
-	}
-
-	.empty-state {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 8px;
-		padding: 48px 24px;
-		color: $light-tertiary;
-		font-size: 13px;
-		i {
-			font-size: 28px;
-		}
-		p {
-			margin: 0;
-		}
 	}
 </style>

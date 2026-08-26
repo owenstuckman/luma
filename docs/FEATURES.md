@@ -142,7 +142,20 @@ Authoritative feature inventory for LUMA V1. Status legend:
 | Email template editor                           | 🆕     | Per-event templates                                                                                               |
 | Member management UI                            | 🔧     | Add/remove/singular-role + invite links work; `roles[]` editor and `review_weight` still missing (Ph. 3.5)        |
 | Invite link management UI                       | ✅     | Settings → Invite Links (either surface): create, copy, revoke, status, and who redeemed each link                |
-| Org self-service configuration                  | ⏭️     | **Removed by design.** Orgs cannot configure themselves; a platform admin does it for them                        |
+| Org self-service configuration                  | ✅     | `OrgSettingsPanel.svelte` at `/private/[slug]/settings`; the same component is mounted in `/admin` → Orgs         |
+
+## Design system
+
+| Feature                      | Status | Notes                                                                                                    |
+| ---------------------------- | ------ | -------------------------------------------------------------------------------------------------------- |
+| Shared tokens                | ✅     | `src/styles/col.scss` — brand, surfaces, four status tones, radius + shadow scales. Variables only       |
+| Shared UI classes            | ✅     | `src/styles/ui.scss` — panels, pills, tables, alerts, empty states, modals, fields. Loaded once          |
+| One look across all surfaces | ✅     | Recruiter, applicant, admin, and public pages all render the admin panel's visual language               |
+| Unified chrome               | ✅     | Both sidebars share `$sidebar-width` and the same active treatment (yellow label + 3px yellow left rule) |
+| No raw hex in components     | ✅     | Was ~350 literals across component style blocks; now zero — enforced by convention, see DESIGN-SYSTEM.md |
+| Documentation                | ✅     | [DESIGN-SYSTEM.md](DESIGN-SYSTEM.md) — tokens, class catalogue, naming collisions, conventions           |
+
+---
 
 ## Observability
 

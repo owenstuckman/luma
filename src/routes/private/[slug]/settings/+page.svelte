@@ -84,29 +84,38 @@
 
 <div class="layout">
 	<div class="content-left">
-		<h4 style="text-align: left;">Settings</h4>
+		<div class="page-head">
+			<div>
+				<h4 class="page-title">Settings</h4>
+				<p class="page-subtitle">
+					Branding, email, members and invite links for this organization.
+				</p>
+			</div>
+		</div>
 
 		{#if state === 'loading'}
-			<p class="state-msg">Loading settings…</p>
+			<p class="muted">Loading settings…</p>
 		{:else if state === 'ready' && org}
 			<OrgSettingsPanel {org} {currentUserId} {viewerIsPlatformAdmin} />
 		{:else if state === 'not-admin'}
-			<p class="state-msg">
+			<div class="alert-soft alert-warning state-msg">
 				Your role in this organization is <strong>{role || 'none'}</strong>. Only admins and owners
 				can change settings — ask an admin to make the change, or to raise your role.
-			</p>
+			</div>
 		{:else if state === 'no-session'}
-			<p class="state-msg">
+			<div class="alert-soft alert-info state-msg">
 				We couldn't read your sign-in session. This isn't a permissions problem —
 				<a href="/auth?redirect={encodeURIComponent(`/private/${slug}/settings`)}">sign in again</a>
 				and it should resolve.
-			</p>
+			</div>
 		{:else if state === 'no-org'}
-			<p class="state-msg">No organization exists at <code>/{slug}</code>. Check the URL.</p>
+			<div class="alert-soft state-msg">
+				No organization exists at <code>/{slug}</code>. Check the URL.
+			</div>
 		{:else}
-			<p class="state-msg">
+			<div class="alert-soft alert-error state-msg">
 				Couldn't load settings.{failureDetail ? ` ${failureDetail}` : ''}
-			</p>
+			</div>
 		{/if}
 	</div>
 
@@ -118,9 +127,9 @@
 	@use '../../../../styles/col.scss' as *;
 
 	// `.layout` and `.content-left` are global (src/styles/luma.scss) — don't redefine.
+	// `.alert-soft` and its tones are global too (src/styles/ui.scss); this only
+	// caps the measure so the four distinct load states stay readable.
 	.state-msg {
-		color: $light-tertiary;
-		font-size: 14px;
 		max-width: 520px;
 	}
 	.state-msg a {

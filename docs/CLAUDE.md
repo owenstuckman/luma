@@ -189,6 +189,15 @@ Resend and no EmailJS package was ever installed. Keeping Resend meant zero rewr
   anon's. Migration `00022` is the worked example. RLS still has to be the real gate; these
   revokes are the second layer, not the first.
 - Queries against tables added in `00015`–`00020` should degrade gracefully if the migration hasn't been applied yet (see the failure-tolerant pattern in `candidates.ts`).
+- **UI goes through the design system — see [DESIGN-SYSTEM.md](DESIGN-SYSTEM.md).** One
+  visual language across recruiter, applicant, admin, and public surfaces, lifted from the
+  platform admin panel. Tokens in `col.scss` (variables only), shared classes in `ui.scss`
+  (loaded once by `luma.scss`, never `@use`d from a component). Never write a raw hex in a
+  component; never redefine a shared class locally. If two pages need the same furniture it
+  belongs in `ui.scss`, if one page needs it keep it local.
+- `h4` is **left-aligned** globally. It used to be centred, which every recruiter page
+  undid with an inline `style="text-align: left"`. The applicant flow opts back in with
+  `class="text-center"`.
 
 ---
 

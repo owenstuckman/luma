@@ -45,8 +45,8 @@
 {:else if error}
 	<div class="loading-screen">
 		<div class="error-card">
-			<h2 style="color: white;">Organization not found</h2>
-			<p style="color: #878fa1;">The organization you're looking for doesn't exist.</p>
+			<h2>Organization not found</h2>
+			<p class="muted">The organization you're looking for doesn't exist.</p>
 			<a href="/">
 				<button class="btn btn-primary">Back to Home</button>
 			</a>
@@ -65,15 +65,13 @@
 		<div class="apply-content">
 			{#if jobs.length === 0}
 				<div class="empty-state">
-					<i class="fi fi-br-file-circle-xmark" style="font-size: 48px; color: #878fa1;"></i>
-					<p style="color: #878fa1; margin-top: 10px;">
-						No open positions right now. Check back later!
-					</p>
+					<i class="fi fi-br-file-circle-xmark"></i>
+					<p class="empty-hint">No open positions right now. Check back later!</p>
 				</div>
 			{:else}
 				<div class="job-list">
 					{#each jobs as job}
-						<a href="/apply/{org.slug}/{job.id}" class="job-card">
+						<a href="/apply/{org.slug}/{job.id}" class="list-row list-row-clickable job-card">
 							<div class="job-card-left">
 								<h5 class="job-title">{job.name}</h5>
 								{#if job.description}
@@ -81,7 +79,8 @@
 								{/if}
 							</div>
 							<div class="job-card-right">
-								<span class="apply-badge" style="background-color: {org.primary_color};">Apply</span
+								<span class="pill apply-badge" style="background-color: {org.primary_color};"
+									>Apply</span
 								>
 							</div>
 						</a>
@@ -137,7 +136,7 @@
 		margin-bottom: 10px;
 	}
 	.apply-subtitle {
-		color: $light-tertiary;
+		color: $text-muted;
 		font-weight: 500;
 		font-size: 14px;
 	}
@@ -148,36 +147,21 @@
 		padding: 0 20px;
 	}
 
-	.empty-state {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		padding: 60px 20px;
-	}
-
 	.job-list {
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
 	}
 
+	// Layout, shadow and hover come from `.list-row` / `.list-row-clickable`;
+	// only the roomier padding is particular to a job posting.
 	.job-card {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
 		padding: 20px;
-		background-color: white;
-		border-radius: 8px;
-		box-shadow: 0 0px 12px rgba(0, 0, 0, 0.08);
+		margin-bottom: 0;
 		text-decoration: none;
 		color: $default;
-		transition:
-			box-shadow 0.2s ease,
-			transform 0.2s ease;
 	}
 	.job-card:hover {
-		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
-		transform: translateY(-1px);
 		color: $default;
 	}
 	.job-card-left {
@@ -187,7 +171,7 @@
 		margin-bottom: 4px;
 	}
 	.job-desc {
-		color: $light-tertiary;
+		color: $text-muted;
 		font-size: 13px;
 		margin: 0;
 		line-height: 1.4;
@@ -196,27 +180,14 @@
 		margin-left: 20px;
 		flex-shrink: 0;
 	}
+	// Background is the org's own colour, so it has to stay inline.
 	.apply-badge {
-		display: inline-block;
 		padding: 6px 16px;
-		border-radius: 999px;
 		font-size: 12px;
-		font-weight: 700;
 		color: $dark-primary;
 	}
 
 	.apply-footer {
 		padding: 30px;
-	}
-	.back-link {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		color: $light-tertiary;
-		font-size: 13px;
-		font-weight: 500;
-	}
-	.back-link:hover {
-		color: $default;
 	}
 </style>

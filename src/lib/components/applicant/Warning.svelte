@@ -2,21 +2,16 @@
 	let { message = 'This is a warning!' } = $props();
 </script>
 
-<div class="warning-box">
+<div class="alert-soft alert-warning warning-box">
 	<span class="warning-icon">⚠️</span>
 	<span>{message}</span>
 </div>
 
 <style>
+	/* Tone and shape come from the shared `.alert-soft` / `.alert-warning`. */
 	.warning-box {
 		display: flex;
 		align-items: center;
-		background-color: #fff3cd;
-		color: #856404;
-		padding: 10px;
-		border-radius: 5px;
-		border: 1px solid #ffeeba;
-		margin: 10px 0;
 	}
 	.warning-icon {
 		margin-right: 10px;

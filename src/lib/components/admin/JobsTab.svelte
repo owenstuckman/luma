@@ -93,7 +93,7 @@
 <div
 	style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;"
 >
-	<div class="filter-bar">
+	<div class="filter-bar filter-bar-inline">
 		<input
 			class="form-control"
 			bind:value={jobOrgFilter}
@@ -113,14 +113,14 @@
 </div>
 
 {#if jobCreateSuccess}
-	<div class="alert-success">{jobCreateSuccess}</div>
+	<div class="alert-soft alert-success">{jobCreateSuccess}</div>
 {/if}
 
 {#if showCreateJob}
-	<div class="form-card">
+	<div class="panel">
 		<h6>Create Job Posting</h6>
-		<div class="form-row">
-			<label>Organization</label>
+		<div class="field">
+			<label class="field-label">Organization</label>
 			<select class="form-select" bind:value={newJobOrgId}>
 				<option value="">Select organization...</option>
 				{#each organizations as org}
@@ -128,12 +128,12 @@
 				{/each}
 			</select>
 		</div>
-		<div class="form-row">
-			<label>Position Name</label>
+		<div class="field">
+			<label class="field-label">Position Name</label>
 			<input class="form-control" bind:value={newJobName} placeholder="e.g. Software Engineer" />
 		</div>
-		<div class="form-row">
-			<label>Description</label>
+		<div class="field">
+			<label class="field-label">Description</label>
 			<textarea
 				class="form-control"
 				bind:value={newJobDescription}
@@ -141,7 +141,7 @@
 				placeholder="Brief description of the role"></textarea>
 		</div>
 		{#if jobCreateError}
-			<p class="error-text">{jobCreateError}</p>
+			<p class="field-error">{jobCreateError}</p>
 		{/if}
 		<button class="btn btn-primary" onclick={createJob} disabled={jobCreating}>
 			{jobCreating ? 'Creating...' : 'Create Job Posting'}
@@ -149,7 +149,7 @@
 	</div>
 {/if}
 
-<div class="jobs-table">
+<div class="panel panel-flush jobs-table">
 	<div class="table-header">
 		<span class="col-name">Job Name</span>
 		<span class="col-org">Organization</span>
@@ -172,12 +172,7 @@
 				{/if}
 			</span>
 			<span class="col-status">
-				<span
-					class="badge"
-					style="background-color: {job.active_flg ? '#ecfdf5' : '#fef2f2'}; color: {job.active_flg
-						? '#065f46'
-						: '#991b1b'};"
-				>
+				<span class="pill {job.active_flg ? 'pill-success' : 'pill-danger'}">
 					{job.active_flg ? 'Active' : 'Inactive'}
 				</span>
 			</span>
@@ -203,34 +198,9 @@
 <style lang="scss">
 	@use '../../../styles/col.scss' as *;
 
-	.filter-bar {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		flex-wrap: wrap;
-	}
-	.form-card {
-		background: white;
-		border-radius: 8px;
-		padding: 20px;
-		box-shadow: 0 0 12px rgba(0, 0, 0, 0.05);
-		margin-bottom: 20px;
-	}
-	.form-row {
-		margin-bottom: 12px;
-		label {
-			display: block;
-			font-size: 12px;
-			font-weight: 600;
-			color: $light-tertiary;
-			margin-bottom: 4px;
-		}
-	}
-	.jobs-table {
-		background: white;
-		border-radius: 8px;
-		overflow: hidden;
-		box-shadow: 0 0 12px rgba(0, 0, 0, 0.05);
+	// Extends the shared .filter-bar: this one sits inline with the New Job button.
+	.filter-bar-inline {
+		margin-bottom: 0;
 	}
 	.table-header {
 		display: grid;
@@ -239,14 +209,14 @@
 		background: $light-secondary;
 		font-size: 11px;
 		font-weight: 700;
-		color: $light-tertiary;
+		color: $text-muted;
 		text-transform: uppercase;
 	}
 	.table-row {
 		display: grid;
 		grid-template-columns: 2fr 1.5fr 100px 80px 1fr;
 		padding: 12px 16px;
-		border-bottom: 1px solid #f1f5f9;
+		border-bottom: 1px solid $border-faint;
 		align-items: center;
 		&:last-child {
 			border-bottom: none;
@@ -257,51 +227,13 @@
 		gap: 4px;
 		flex-wrap: wrap;
 	}
-	.row-name {
-		display: block;
-		font-size: 13px;
-		font-weight: 600;
-		color: $dark-primary;
-	}
-	.row-sub {
-		display: block;
-		font-size: 11px;
-		color: $light-tertiary;
-	}
-	.badge {
-		display: inline-block;
-		padding: 2px 7px;
-		border-radius: 999px;
-		font-size: 10px;
-		font-weight: 700;
-	}
-	.muted {
-		color: $light-tertiary;
-		font-size: 13px;
-	}
-	.error-text {
-		color: #ef4444;
-		font-size: 12px;
-		margin: 4px 0;
-	}
-	.alert-success {
-		background: #ecfdf5;
-		color: #065f46;
-		padding: 8px 12px;
-		border-radius: 6px;
-		font-size: 12px;
-		margin-bottom: 12px;
-	}
-	.btn-sm {
-		font-size: 11px !important;
-		padding: 4px 12px !important;
-	}
 	.btn-danger {
-		background-color: #fef2f2;
-		color: #991b1b;
-		border: 1px solid #fca5a5;
+		background-color: $danger-bg;
+		color: $danger-fg;
+		border: 1px solid $danger-border;
 		&:hover {
-			background-color: #fee2e2;
+			// One step darker than $danger-bg; no token exists for this hover tint.
+			background-color: $danger-bg-strong;
 		}
 	}
 </style>

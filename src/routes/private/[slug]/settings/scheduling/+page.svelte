@@ -427,26 +427,39 @@
 <div class="layout">
 	<div class="content-left">
 		{#if loading}
-			<h4>Loading...</h4>
+			<div class="page-head">
+				<div>
+					<h4 class="page-title">Auto-Scheduling</h4>
+					<p class="page-subtitle">Loading…</p>
+				</div>
+			</div>
 		{:else if !isAdmin}
-			<h4>Auto-Scheduling</h4>
-			<p class="muted">You need admin or owner access to use auto-scheduling.</p>
+			<div class="page-head">
+				<div>
+					<h4 class="page-title">Auto-Scheduling</h4>
+					<p class="page-subtitle">Build an interview schedule from interviewer availability.</p>
+				</div>
+			</div>
+			<div class="alert-soft alert-warning">
+				You need admin or owner access to use auto-scheduling.
+			</div>
 		{:else}
-			<div class="page-header">
-				<h4>Auto-Scheduling</h4>
-				<a
-					href="/private/{slug}/settings"
-					class="btn btn-quaternary"
-					style="font-size: 11px; padding: 4px 12px;"
-				>
-					<i class="fi fi-br-arrow-left" style="font-size: 10px; margin-right: 4px;"></i> Back to Settings
-				</a>
+			<div class="page-head">
+				<div>
+					<h4 class="page-title">Auto-Scheduling</h4>
+					<p class="page-subtitle">Build an interview schedule from interviewer availability.</p>
+				</div>
+				<div class="page-actions">
+					<a href="/private/{slug}/settings" class="btn btn-quaternary btn-sm">
+						<i class="fi fi-br-arrow-left back-icon"></i> Back to Settings
+					</a>
+				</div>
 			</div>
 
 			<!-- Job filter -->
-			<div class="form-card">
-				<div class="form-row">
-					<label>Job Posting (optional — leave blank for all)</label>
+			<div class="panel">
+				<div class="field">
+					<label class="field-label">Job Posting (optional — leave blank for all)</label>
 					<select class="form-select" bind:value={schedJobId}>
 						<option value={null}>All jobs</option>
 						{#each schedJobs as job}
@@ -456,8 +469,8 @@
 				</div>
 
 				<!-- Algorithm picker -->
-				<div class="form-row">
-					<label>Algorithm</label>
+				<div class="field">
+					<label class="field-label">Algorithm</label>
 					<div class="algo-cards">
 						{#each algorithms as algo}
 							<button
@@ -475,25 +488,25 @@
 
 			<!-- Config form — batch scheduler -->
 			{#if schedAlgorithmId === 'batch-scheduler'}
-				<div class="form-card">
-					<h6>Batch Scheduler Configuration</h6>
+				<div class="panel">
+					<div class="panel-head"><h6 class="panel-title">Batch Scheduler Configuration</h6></div>
 
 					<!-- Rooms -->
-					<div class="form-row">
-						<label>Rooms (one per line)</label>
+					<div class="field">
+						<label class="field-label">Rooms (one per line)</label>
 						<textarea
 							class="form-control"
 							bind:value={batchRoomsText}
 							rows="4"
 							placeholder="MCB230&#10;MCB231&#10;MCB232"></textarea>
-						<span class="form-hint"
+						<span class="field-hint hint-block"
 							>{batchRoomsText.split('\n').filter((r) => r.trim()).length} room(s) configured</span
 						>
 					</div>
 
 					<!-- Session windows -->
-					<div class="form-row">
-						<label>Session Windows</label>
+					<div class="field">
+						<label class="field-label">Session Windows</label>
 						{#each batchSessions as session, i}
 							<div class="session-row">
 								<span class="row-name">{session.date}</span>
@@ -502,9 +515,7 @@
 							</div>
 						{/each}
 						{#if batchSessions.length === 0}
-							<p class="muted" style="font-size: 12px; margin: 4px 0 8px;">
-								No sessions added yet.
-							</p>
+							<p class="muted note">No sessions added yet.</p>
 						{/if}
 						<div class="add-session-form">
 							<input
@@ -531,8 +542,8 @@
 					</div>
 
 					<!-- Rounds -->
-					<div class="form-row">
-						<label>Rounds</label>
+					<div class="field">
+						<label class="field-label">Rounds</label>
 						{#each batchRounds as round, i}
 							<div class="round-card">
 								<div class="round-header">
@@ -605,8 +616,8 @@
 
 					<!-- Batch options -->
 					<div class="config-grid">
-						<div class="form-row">
-							<label>Slot step (minutes)</label>
+						<div class="field">
+							<label class="field-label">Slot step (minutes)</label>
 							<input
 								type="number"
 								class="form-control"
@@ -615,43 +626,29 @@
 								max="60"
 							/>
 						</div>
-						<div class="form-row">
-							<label>Break between slots (minutes)</label>
+						<div class="field">
+							<label class="field-label">Break between slots (minutes)</label>
 							<input type="number" class="form-control" bind:value={batchBlockBreak} min="0" />
 						</div>
-						<div class="form-row" style="grid-column: span 2;">
-							<label
-								class="toggle-label"
-								style="font-size: 12px; font-weight: 600; color: var(--light-tertiary, #9ca3af);"
-							>
-								<input
-									type="checkbox"
-									bind:checked={batchRequireAll}
-									style="width: 16px; height: 16px; margin-right: 6px;"
-								/>
+						<div class="field field-span2">
+							<label class="toggle-label">
+								<input type="checkbox" bind:checked={batchRequireAll} />
 								Require all rounds (remove assignments for applicants missing any round)
 							</label>
 						</div>
-						<div class="form-row" style="grid-column: span 2;">
-							<label
-								class="toggle-label"
-								style="font-size: 12px; font-weight: 600; color: var(--light-tertiary, #9ca3af);"
-							>
-								<input
-									type="checkbox"
-									bind:checked={batchRelaxedFallback}
-									style="width: 16px; height: 16px; margin-right: 6px;"
-								/>
+						<div class="field field-span2">
+							<label class="toggle-label">
+								<input type="checkbox" bind:checked={batchRelaxedFallback} />
 								Relaxed fallback — schedule unmatched applicants with flagged violations
 							</label>
-							<p class="form-hint" style="margin-top: 4px;">
+							<p class="field-hint">
 								A second pass places applicants who couldn't be strictly scheduled, even outside
 								their stated availability. These are saved with a violation flag for human review.
 							</p>
 						</div>
 						{#if batchRelaxedFallback}
-							<div class="form-row">
-								<label>Availability penalty weight</label>
+							<div class="field">
+								<label class="field-label">Availability penalty weight</label>
 								<input
 									type="number"
 									class="form-control"
@@ -660,7 +657,7 @@
 									max="100"
 									style="max-width: 90px;"
 								/>
-								<span class="form-hint"
+								<span class="field-hint hint-block"
 									>Higher = stronger preference for slots within stated availability</span
 								>
 							</div>
@@ -668,45 +665,38 @@
 					</div>
 
 					<!-- Attribute matching -->
-					<div class="form-row" style="margin-top: 8px;">
-						<label
-							class="toggle-label"
-							style="font-size: 12px; font-weight: 600; color: var(--light-tertiary, #9ca3af);"
-						>
-							<input
-								type="checkbox"
-								bind:checked={batchAttrEnabled}
-								style="width: 16px; height: 16px; margin-right: 6px;"
-							/>
+					<div class="field field-spaced">
+						<label class="toggle-label">
+							<input type="checkbox" bind:checked={batchAttrEnabled} />
 							Attribute-based matching — pair applicants with interviewers by shared attributes
 						</label>
-						<p class="form-hint" style="margin-top: 4px;">
+						<p class="field-hint">
 							Maps applicant answers (by question ID in recruitInfo) to interviewer attributes (by
 							key in member metadata). Set member attributes in Settings &rarr; Team Members.
 						</p>
 					</div>
 
 					{#if batchAttrEnabled}
-						<div class="form-row">
-							<label>Matching Rules</label>
+						<div class="field">
+							<label class="field-label">Matching Rules</label>
 							{#each batchAttrRules as rule, i}
 								<div class="attr-rule-row">
 									<span class="rule-pill">
 										<span class="rule-qid">{rule.applicantQuestionId}</span>
-										<i class="fi fi-br-arrow-right" style="font-size: 10px; color: #9ca3af;"></i>
+										<i class="fi fi-br-arrow-right arrow-icon"></i>
 										<span class="rule-attr">{rule.interviewerAttributeKey}</span>
 										<span class="rule-weight">+{rule.weight}</span>
 										{#if rule.hard}<span class="rule-hard">hard</span>{/if}
 									</span>
-									<button class="btn-icon-sm" on:click={() => removeAttrRule(i)} title="Remove rule"
-										>×</button
+									<button
+										class="btn-icon btn-icon-danger"
+										on:click={() => removeAttrRule(i)}
+										title="Remove rule">×</button
 									>
 								</div>
 							{/each}
 							{#if batchAttrRules.length === 0}
-								<p class="muted" style="font-size: 12px; margin: 4px 0 8px;">
-									No rules. Add one below.
-								</p>
+								<p class="muted note">No rules. Add one below.</p>
 							{/if}
 							<div class="attr-rule-add">
 								<input
@@ -715,10 +705,7 @@
 									placeholder="Applicant question ID (e.g. team_interest)"
 									style="flex: 1;"
 								/>
-								<i
-									class="fi fi-br-arrow-right"
-									style="font-size: 11px; color: #9ca3af; flex-shrink: 0;"
-								></i>
+								<i class="fi fi-br-arrow-right arrow-icon"></i>
 								<input
 									class="form-control"
 									bind:value={newRuleAttrKey}
@@ -735,16 +722,12 @@
 									style="max-width: 60px;"
 									title="Score bonus for a match"
 								/>
-								<label class="toggle-label" style="font-size: 11px; white-space: nowrap; gap: 4px;">
-									<input
-										type="checkbox"
-										bind:checked={newRuleHard}
-										style="width: 14px; height: 14px;"
-									/> Hard
+								<label class="toggle-label toggle-inline">
+									<input type="checkbox" bind:checked={newRuleHard} /> Hard
 								</label>
 								<button class="btn btn-quaternary btn-sm" on:click={addAttrRule}>Add</button>
 							</div>
-							<p class="form-hint">
+							<p class="field-hint">
 								Hard rules restrict to matching interviewers only (fallback if none). Soft rules add
 								score bonus.
 							</p>
@@ -754,11 +737,11 @@
 
 				<!-- Config form — simple algorithms -->
 			{:else}
-				<div class="form-card">
-					<h6>Algorithm Configuration</h6>
+				<div class="panel">
+					<div class="panel-head"><h6 class="panel-title">Algorithm Configuration</h6></div>
 					<div class="config-grid">
-						<div class="form-row">
-							<label>Slot Duration (minutes)</label>
+						<div class="field">
+							<label class="field-label">Slot Duration (minutes)</label>
 							<input
 								type="number"
 								class="form-control"
@@ -767,8 +750,8 @@
 								max="180"
 							/>
 						</div>
-						<div class="form-row">
-							<label>Break Between (minutes)</label>
+						<div class="field">
+							<label class="field-label">Break Between (minutes)</label>
 							<input
 								type="number"
 								class="form-control"
@@ -777,8 +760,8 @@
 								max="60"
 							/>
 						</div>
-						<div class="form-row">
-							<label>Max Interviews per Interviewer (0 = unlimited)</label>
+						<div class="field">
+							<label class="field-label">Max Interviews per Interviewer (0 = unlimited)</label>
 							<input
 								type="number"
 								class="form-control"
@@ -786,15 +769,15 @@
 								min="0"
 							/>
 						</div>
-						<div class="form-row">
-							<label>Interview Type</label>
+						<div class="field">
+							<label class="field-label">Interview Type</label>
 							<select class="form-select" bind:value={schedConfig.interviewType}>
 								<option value="individual">Individual</option>
 								<option value="group">Group</option>
 							</select>
 						</div>
-						<div class="form-row">
-							<label>Location</label>
+						<div class="field">
+							<label class="field-label">Location</label>
 							<input
 								class="form-control"
 								bind:value={schedConfig.location}
@@ -828,24 +811,24 @@
 				</button>
 			</div>
 
-			{#if schedError}<p class="error-text">{schedError}</p>{/if}
-			{#if schedSuccess}<div class="alert-success">{schedSuccess}</div>{/if}
+			{#if schedError}<p class="alert-soft alert-error">{schedError}</p>{/if}
+			{#if schedSuccess}<div class="alert-soft alert-success">{schedSuccess}</div>{/if}
 
 			<!-- Preview Results -->
 			{#if schedPreview}
-				<div class="form-card" style="margin-top: 16px;">
-					<h6>Preview Results</h6>
+				<div class="panel results-panel">
+					<div class="panel-head"><h6 class="panel-title">Preview Results</h6></div>
 
 					{#if schedPreview.warnings.length > 0}
-						<div class="alert-error" style="margin-bottom: 12px;">
+						<div class="alert-soft alert-error">
 							{#each schedPreview.warnings as w}
-								<p style="margin: 2px 0;">{w}</p>
+								<p class="alert-line">{w}</p>
 							{/each}
 						</div>
 					{/if}
 
 					{#if schedPreview.relaxedCount && schedPreview.relaxedCount > 0}
-						<div class="alert-warn" style="margin-bottom: 12px;">
+						<div class="alert-soft alert-warning alert-warn">
 							<i class="fi fi-br-triangle-warning"></i>
 							{schedPreview.relaxedCount} interview(s) placed via relaxed constraints — flagged for review.
 							Confirm or adjust before applying.
@@ -853,81 +836,82 @@
 					{/if}
 
 					{#if schedPreview.interviews.length > 0}
-						<div class="preview-table">
-							<div class="table-header sched-table-header">
-								<span>Applicant</span>
-								<span>Interviewer</span>
-								<span>Date</span>
-								<span>Time</span>
-								<span>Location</span>
-								<span>Flags</span>
-							</div>
-							{#each schedPreview.interviews as iv}
-								<div
-									class="sched-table-row table-row"
-									class:sched-row-flagged={iv.violations && iv.violations.length > 0}
-								>
-									<span class="row-name">{iv.applicant}</span>
-									<span class="row-name">{iv.interviewer}</span>
-									<span class="row-sub">{iv.startTime.substring(0, 10)}</span>
-									<span class="row-sub"
-										>{iv.startTime.substring(11, 16)} - {iv.endTime.substring(11, 16)}</span
-									>
-									<span class="row-sub">{iv.location || '-'}</span>
-									<span>
-										{#if iv.violations && iv.violations.length > 0}
-											<span
-												class="violation-chip"
-												title={iv.violations.map((v) => v.detail).join('; ')}
-											>
-												{iv.violations
-													.map((v) => (v.type === 'availability' ? 'avail' : 'attr'))
-													.join(', ')}
-											</span>
-										{/if}
-									</span>
+						<div class="table-scroll">
+							<div class="preview-table">
+								<div class="table-header sched-table-header">
+									<span>Applicant</span>
+									<span>Interviewer</span>
+									<span>Date</span>
+									<span>Time</span>
+									<span>Location</span>
+									<span>Flags</span>
 								</div>
-							{/each}
+								{#each schedPreview.interviews as iv}
+									<div
+										class="sched-table-row table-row"
+										class:sched-row-flagged={iv.violations && iv.violations.length > 0}
+									>
+										<span class="row-name">{iv.applicant}</span>
+										<span class="row-name">{iv.interviewer}</span>
+										<span class="row-sub">{iv.startTime.substring(0, 10)}</span>
+										<span class="row-sub"
+											>{iv.startTime.substring(11, 16)} - {iv.endTime.substring(11, 16)}</span
+										>
+										<span class="row-sub">{iv.location || '-'}</span>
+										<span>
+											{#if iv.violations && iv.violations.length > 0}
+												<span
+													class="pill violation-chip"
+													title={iv.violations.map((v) => v.detail).join('; ')}
+												>
+													{iv.violations
+														.map((v) => (v.type === 'availability' ? 'avail' : 'attr'))
+														.join(', ')}
+												</span>
+											{/if}
+										</span>
+									</div>
+								{/each}
+							</div>
 						</div>
-						<p class="muted" style="margin-top: 8px; font-size: 12px;">
-							{schedPreview.interviews.length} interviews proposed
-						</p>
+						<p class="muted note">{schedPreview.interviews.length} interviews proposed</p>
 					{:else}
 						<p class="muted">No interviews could be scheduled.</p>
 					{/if}
 
 					<!-- Per-round stats (batch scheduler) -->
 					{#if schedPreview.stats && schedPreview.stats.length > 0}
-						<h6 style="margin-top: 16px;">Results by Round</h6>
-						<div class="round-stats-table">
-							<div class="rst-header">
-								<span>Round</span><span>Scheduled</span><span>Relaxed</span><span>Missed</span><span
-									>Slots Used</span
-								>
-							</div>
-							{#each schedPreview.stats as stat}
-								<div class="rst-row">
-									<span class="row-name">{stat.roundLabel}</span>
-									<span style="color: #065f46; font-weight: 600;">{stat.scheduled}</span>
-									<span
-										style="color: {stat.relaxedCount > 0
-											? '#92400e'
-											: '#6b7280'}; font-weight: 600;">{stat.relaxedCount}</span
-									>
-									<span style="color: {stat.missed > 0 ? '#991b1b' : '#065f46'}; font-weight: 600;"
-										>{stat.missed}</span
-									>
-									<span class="row-sub">{stat.filledSlots}/{stat.totalSlots}</span>
+						<h6 class="subhead">Results by Round</h6>
+						<div class="table-scroll">
+							<div class="round-stats-table">
+								<div class="rst-header">
+									<span>Round</span><span>Scheduled</span><span>Relaxed</span><span>Missed</span
+									><span>Slots Used</span>
 								</div>
-							{/each}
+								{#each schedPreview.stats as stat}
+									<div class="rst-row">
+										<span class="row-name">{stat.roundLabel}</span>
+										<span class="stat-num stat-ok">{stat.scheduled}</span>
+										<span class="stat-num" class:stat-warn={stat.relaxedCount > 0}
+											>{stat.relaxedCount}</span
+										>
+										<span
+											class="stat-num"
+											class:stat-bad={stat.missed > 0}
+											class:stat-ok={stat.missed === 0}>{stat.missed}</span
+										>
+										<span class="row-sub">{stat.filledSlots}/{stat.totalSlots}</span>
+									</div>
+								{/each}
+							</div>
 						</div>
 					{/if}
 
 					<!-- Unmatched applicants with suggestions (batch) -->
 					{#if schedPreview.unmatchedDetails && schedPreview.unmatchedDetails.length > 0}
-						<h6 style="margin-top: 16px;">
+						<h6 class="subhead">
 							Unmatched Applicants
-							<span style="font-weight: 400; font-size: 12px; color: #6b7280;"
+							<span class="count-note"
 								>({schedPreview.unmatchedDetails.length}) — suggested slots shown for manual
 								placement</span
 							>
@@ -937,9 +921,7 @@
 								<div class="unmatched-info">
 									<span class="row-name">{u.name}</span>
 									<span class="row-sub">{u.email}</span>
-									<span class="row-sub" style="color: #991b1b;"
-										>Missed: {u.missedRounds.join(', ')}</span
-									>
+									<span class="row-sub missed-text">Missed: {u.missedRounds.join(', ')}</span>
 								</div>
 								<div class="suggested-slots">
 									{#each u.suggestedSlots.slice(0, 4) as slot}
@@ -949,7 +931,7 @@
 										</span>
 									{/each}
 									{#if u.suggestedSlots.length === 0}
-										<span class="row-sub" style="color: #991b1b;"
+										<span class="row-sub missed-text"
 											>No available slots match their availability.</span
 										>
 									{:else if u.suggestedSlots.length > 4}
@@ -961,12 +943,10 @@
 
 						<!-- Unmatched fallback for simple algorithms -->
 					{:else if schedPreview.unmatched.length > 0}
-						<h6 style="margin-top: 16px;">
-							Unmatched Applicants ({schedPreview.unmatched.length})
-						</h6>
-						<div style="font-size: 13px; color: #991b1b;">
+						<h6 class="subhead">Unmatched Applicants ({schedPreview.unmatched.length})</h6>
+						<div class="unmatched-emails">
 							{#each schedPreview.unmatched as email}
-								<p style="margin: 2px 0;">{email}</p>
+								<p class="alert-line">{email}</p>
 							{/each}
 						</div>
 					{/if}
@@ -993,86 +973,58 @@
 {/if}
 
 <style lang="scss">
+	@use 'sass:color';
 	@use '../../../../../styles/col.scss' as *;
 
-	.page-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 20px;
-	}
+	// Shared furniture (.page-head, .panel, .field/.field-label/.field-hint,
+	// .alert-soft, .pill, .btn-icon, .muted, .row-name/.row-sub, .table-scroll)
+	// is global — src/styles/ui.scss. Only the scheduler-specific pieces are here.
 
-	.muted {
-		color: $light-tertiary;
-	}
-	.error-text {
-		color: #ef4444;
-		font-size: 13px;
-		margin: 4px 0;
-	}
-
-	.alert-success {
-		background-color: #ecfdf5;
-		color: #065f46;
-		padding: 8px 14px;
-		border-radius: 6px;
-		font-size: 13px;
-		margin: 8px 0;
-	}
-	.alert-error {
-		background-color: #fef2f2;
-		color: #991b1b;
-		padding: 14px 18px;
-		border-radius: 8px;
-		font-size: 13px;
-		margin: 8px 0;
-		border: 1px solid #fecaca;
-	}
+	// `.alert-soft.alert-warning` supplies the colours; this only lays out the
+	// warning icon beside its text.
 	.alert-warn {
-		background-color: #fffbeb;
-		color: #92400e;
-		border: 1px solid #fde68a;
-		padding: 10px 14px;
-		border-radius: 6px;
-		font-size: 13px;
 		display: flex;
 		align-items: center;
 		gap: 8px;
 	}
+	.alert-line {
+		margin: 2px 0;
+	}
+	.results-panel {
+		margin-top: 16px;
+	}
+	.subhead {
+		margin-top: 16px;
+	}
+	.count-note {
+		font-weight: 400;
+		font-size: 12px;
+		color: $text-body;
+	}
+	.note {
+		font-size: 12px;
+		margin: 4px 0 8px;
+	}
+	.back-icon {
+		font-size: 10px;
+		margin-right: 4px;
+	}
+	.arrow-icon {
+		font-size: 11px;
+		color: $text-subtle;
+		flex-shrink: 0;
+	}
 
-	.form-card {
-		background-color: white;
-		border-radius: 8px;
-		padding: 20px;
-		box-shadow: 0 0 12px rgba(0, 0, 0, 0.06);
-		margin-bottom: 16px;
-		h6 {
-			margin-bottom: 14px;
-		}
+	.field-span2 {
+		grid-column: span 2;
 	}
-	.form-row {
-		margin-bottom: 12px;
-		label {
-			display: block;
-			font-size: 12px;
-			font-weight: 600;
-			color: $light-tertiary;
-			margin-bottom: 4px;
-		}
+	.field-spaced {
+		margin-top: 8px;
 	}
-	.form-hint {
-		font-size: 11px;
-		color: $light-tertiary;
-		margin-top: 4px;
+	// The shared `.field-hint` is a paragraph rule; these hints are inline spans
+	// that need to sit on their own line.
+	.hint-block {
 		display: block;
-	}
-	.field-label {
-		display: block;
-		font-size: 11px;
-		font-weight: 600;
-		color: $light-tertiary;
-		margin-bottom: 3px;
-		white-space: nowrap;
 	}
 
 	.algo-cards {
@@ -1085,18 +1037,18 @@
 		display: flex;
 		flex-direction: column;
 		padding: 14px;
-		border: 2px solid #e5e7eb;
-		border-radius: 8px;
-		background: white;
+		border: 2px solid $border;
+		border-radius: $radius;
+		background: $surface;
 		cursor: pointer;
 		text-align: left;
 		transition: border-color 0.15s;
 		&:hover {
-			border-color: #ffc800;
+			border-color: $yellow-primary;
 		}
 	}
 	.algo-selected {
-		border-color: #ffc800 !important;
+		border-color: $yellow-primary !important;
 		background-color: rgba(255, 200, 0, 0.05);
 	}
 	.algo-name {
@@ -1106,7 +1058,7 @@
 	}
 	.algo-desc {
 		font-size: 11px;
-		color: $light-tertiary;
+		color: $text-muted;
 		line-height: 1.4;
 	}
 
@@ -1125,19 +1077,15 @@
 		flex-wrap: wrap;
 	}
 
-	.btn-sm {
-		font-size: 11px !important;
-		padding: 4px 10px !important;
-	}
 	.btn-danger {
-		background-color: #ef4444;
-		color: white;
+		background-color: $danger;
+		color: $surface;
 		border: none;
-		border-radius: 6px;
+		border-radius: $radius-sm;
 		cursor: pointer;
 		font-weight: 600;
 		&:hover {
-			background-color: #dc2626;
+			background-color: color.adjust($danger, $lightness: -8%);
 		}
 		&:disabled {
 			opacity: 0.5;
@@ -1150,10 +1098,22 @@
 		align-items: center;
 		gap: 10px;
 		cursor: pointer;
+		font-size: 12px;
+		font-weight: 600;
+		color: $text-muted;
 		input[type='checkbox'] {
 			width: 18px;
 			height: 18px;
 			accent-color: $yellow-primary;
+		}
+	}
+	.toggle-inline {
+		font-size: 11px;
+		white-space: nowrap;
+		gap: 4px;
+		input[type='checkbox'] {
+			width: 14px;
+			height: 14px;
 		}
 	}
 
@@ -1163,7 +1123,7 @@
 		gap: 10px;
 		padding: 6px 10px;
 		background-color: $light-secondary;
-		border-radius: 6px;
+		border-radius: $radius-sm;
 		margin-bottom: 4px;
 		font-size: 13px;
 	}
@@ -1176,11 +1136,11 @@
 	}
 
 	.round-card {
-		border: 1px solid #e5e7eb;
-		border-radius: 8px;
+		border: 1px solid $border;
+		border-radius: $radius;
 		padding: 14px;
 		margin-bottom: 10px;
-		background-color: #fafbfc;
+		background-color: $surface-muted;
 	}
 	.round-header {
 		display: flex;
@@ -1195,23 +1155,14 @@
 		flex-wrap: wrap;
 	}
 
-	.row-name {
-		font-weight: 700;
-		font-size: 13px;
-		display: block;
-	}
-	.row-sub {
-		font-size: 11px;
-		color: $light-tertiary;
-		font-family: monospace;
-		display: block;
-	}
-
+	// Preview results — a CSS-grid pseudo-table, not a <table>, because each row
+	// carries flag state. Wrapped in the shared `.table-scroll`.
 	.preview-table {
-		background-color: white;
-		border-radius: 8px;
-		box-shadow: 0 0 12px rgba(0, 0, 0, 0.05);
+		background-color: $surface;
+		border-radius: $radius;
+		box-shadow: $shadow-sm;
 		overflow: hidden;
+		min-width: 720px;
 	}
 	.table-header,
 	.table-row {
@@ -1223,14 +1174,14 @@
 	.table-header {
 		font-size: 11px;
 		font-weight: 700;
-		color: $light-tertiary;
+		color: $text-muted;
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
-		border-bottom: 1px solid #e5e7eb;
-		background-color: #fafbfc;
+		border-bottom: 1px solid $border;
+		background-color: $surface-muted;
 	}
 	.table-row {
-		border-bottom: 1px solid #f0f0f0;
+		border-bottom: 1px solid $border-faint;
 		font-size: 13px;
 		&:last-child {
 			border-bottom: none;
@@ -1241,25 +1192,24 @@
 		grid-template-columns: 2fr 2fr 1fr 1fr 1fr 1fr !important;
 	}
 	.sched-row-flagged {
-		background-color: #fffbeb !important;
+		background-color: $warning-bg !important;
 	}
+	// Extends the shared `.pill`: warmer fill than `.pill-warning` so a flagged
+	// row's chip still reads against the flagged row background.
 	.violation-chip {
-		display: inline-block;
-		padding: 2px 7px;
-		background-color: #fef3c7;
-		color: #92400e;
-		border-radius: 10px;
-		font-size: 10px;
-		font-weight: 700;
+		background-color: $warning-border;
+		color: $warning-fg;
 		cursor: help;
+		text-transform: none;
 	}
 
 	.round-stats-table {
-		background: white;
-		border-radius: 8px;
+		background: $surface;
+		border-radius: $radius;
 		overflow: hidden;
-		border: 1px solid #e5e7eb;
+		border: 1px solid $border;
 		margin-bottom: 12px;
+		min-width: 520px;
 	}
 	.rst-header,
 	.rst-row {
@@ -1273,32 +1223,52 @@
 	.rst-header {
 		font-size: 11px;
 		font-weight: 700;
-		color: $light-tertiary;
+		color: $text-muted;
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
-		background-color: #fafbfc;
-		border-bottom: 1px solid #e5e7eb;
+		background-color: $surface-muted;
+		border-bottom: 1px solid $border;
 	}
 	.rst-row {
-		border-bottom: 1px solid #f0f0f0;
+		border-bottom: 1px solid $border-faint;
 		&:last-child {
 			border-bottom: none;
 		}
+	}
+	.stat-num {
+		font-weight: 600;
+		color: $text-body;
+	}
+	.stat-ok {
+		color: $success-fg;
+	}
+	.stat-warn {
+		color: $warning-fg;
+	}
+	.stat-bad {
+		color: $danger-fg;
 	}
 
 	.unmatched-row {
 		display: flex;
 		gap: 16px;
 		padding: 10px 14px;
-		background-color: #fef2f2;
-		border: 1px solid #fecaca;
-		border-radius: 8px;
+		background-color: $danger-bg;
+		border: 1px solid $danger-border;
+		border-radius: $radius;
 		margin-bottom: 6px;
 		flex-wrap: wrap;
 		align-items: flex-start;
 	}
 	.unmatched-info {
 		min-width: 180px;
+	}
+	.unmatched-emails {
+		font-size: 13px;
+		color: $danger-fg;
+	}
+	.missed-text {
+		color: $danger-fg;
 	}
 	.suggested-slots {
 		display: flex;
@@ -1309,17 +1279,17 @@
 	.slot-chip {
 		display: inline-block;
 		padding: 3px 8px;
-		background-color: #ecfdf5;
-		color: #065f46;
-		border-radius: 12px;
+		background-color: $success-bg;
+		color: $success-fg;
+		border-radius: $radius-pill;
 		font-size: 11px;
 		font-weight: 600;
 		font-family: monospace;
 		white-space: nowrap;
 	}
 	.slot-full {
-		background-color: #fef3c7 !important;
-		color: #92400e !important;
+		background-color: $warning-border !important;
+		color: $warning-fg !important;
 	}
 
 	.attr-rule-row {
@@ -1333,31 +1303,31 @@
 		align-items: center;
 		gap: 6px;
 		background-color: $light-secondary;
-		border-radius: 6px;
+		border-radius: $radius-sm;
 		padding: 4px 10px;
 		font-size: 12px;
 		flex: 1;
 	}
 	.rule-qid {
-		color: #1e40af;
+		color: $info-fg;
 		font-weight: 600;
 	}
 	.rule-attr {
-		color: #065f46;
+		color: $success-fg;
 		font-weight: 600;
 	}
 	.rule-weight {
-		color: $light-tertiary;
+		color: $text-muted;
 		font-size: 11px;
 	}
 	.rule-hard {
-		background-color: #fef3c7;
-		color: #92400e;
+		background-color: $warning-border;
+		color: $warning-fg;
 		font-size: 9px;
 		font-weight: 700;
 		text-transform: uppercase;
 		padding: 1px 5px;
-		border-radius: 8px;
+		border-radius: $radius-pill;
 	}
 	.attr-rule-add {
 		display: flex;
@@ -1365,19 +1335,5 @@
 		gap: 8px;
 		flex-wrap: wrap;
 		margin-top: 6px;
-	}
-	.btn-icon-sm {
-		background: none;
-		border: none;
-		font-size: 16px;
-		color: $light-tertiary;
-		cursor: pointer;
-		line-height: 1;
-		padding: 2px 4px;
-		border-radius: 4px;
-		&:hover {
-			color: #ef4444;
-			background-color: #fef2f2;
-		}
 	}
 </style>

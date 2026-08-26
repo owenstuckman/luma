@@ -53,7 +53,13 @@
 					/>
 				</label>
 				{#if statusMessage}
-					<p class="status-msg" class:status-error={statusError}>{statusMessage}</p>
+					<p
+						class="status-msg alert-soft"
+						class:alert-success={!statusError}
+						class:alert-error={statusError}
+					>
+						{statusMessage}
+					</p>
 				{/if}
 				<div style="display: flex; gap: 10px; margin-top: 8px;">
 					<a href="/">
@@ -72,7 +78,7 @@
 				</div>
 			{:else if mode === 'forgot'}
 				<h2>Reset Password</h2>
-				<p class="auth-desc">Enter your email and we'll send you a password reset link.</p>
+				<p class="muted auth-desc">Enter your email and we'll send you a password reset link.</p>
 				<label>
 					Email
 					<input
@@ -84,7 +90,13 @@
 					/>
 				</label>
 				{#if statusMessage}
-					<p class="status-msg" class:status-error={statusError}>{statusMessage}</p>
+					<p
+						class="status-msg alert-soft"
+						class:alert-success={!statusError}
+						class:alert-error={statusError}
+					>
+						{statusMessage}
+					</p>
 				{/if}
 				<div style="display: flex; gap: 10px; margin-top: 8px;">
 					<button
@@ -99,7 +111,7 @@
 				</div>
 			{:else if mode === 'magic'}
 				<h2>Magic Link</h2>
-				<p class="auth-desc">Enter your email and we'll send you a one-time sign-in link.</p>
+				<p class="muted auth-desc">Enter your email and we'll send you a one-time sign-in link.</p>
 				<label>
 					Email
 					<input
@@ -111,7 +123,13 @@
 					/>
 				</label>
 				{#if statusMessage}
-					<p class="status-msg" class:status-error={statusError}>{statusMessage}</p>
+					<p
+						class="status-msg alert-soft"
+						class:alert-success={!statusError}
+						class:alert-error={statusError}
+					>
+						{statusMessage}
+					</p>
 				{/if}
 				<div style="display: flex; gap: 10px; margin-top: 8px;">
 					<button
@@ -207,19 +225,14 @@
 			color: white;
 		}
 	}
+	// Colour and size come from the shared `.muted` / `.alert-soft` classes;
+	// only the measure and centring are local to this dark card.
 	.auth-desc {
-		color: $light-tertiary;
-		font-size: 13px;
 		max-width: 300px;
 		text-align: center;
 	}
 	.status-msg {
-		color: #22c55e;
-		font-size: 13px;
-		text-align: center;
 		max-width: 300px;
-	}
-	.status-error {
-		color: #ef4444;
+		text-align: center;
 	}
 </style>

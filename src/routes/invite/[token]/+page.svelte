@@ -57,7 +57,7 @@
 				<p class="invite-as">Signed in as {data.userEmail}</p>
 
 				{#if form?.error}
-					<p class="invite-error">{form.error}</p>
+					<p class="alert-soft alert-error">{form.error}</p>
 				{/if}
 
 				<form
@@ -140,7 +140,7 @@
 		color: $yellow-primary;
 	}
 	.invite-icon-bad {
-		color: #ef4444;
+		color: $danger;
 	}
 	.invite-logo {
 		max-height: 64px;
@@ -151,7 +151,7 @@
 		margin: 0;
 	}
 	.invite-desc {
-		color: $light-tertiary;
+		color: $text-muted;
 		font-size: 14px;
 		margin: 0;
 	}
@@ -163,18 +163,13 @@
 		font-size: 13px;
 		margin: 0;
 	}
-	.invite-error {
-		color: #ef4444;
-		font-size: 13px;
-		margin: 0;
-	}
 	.invite-expiry {
-		color: $light-tertiary;
+		color: $text-muted;
 		font-size: 11px;
 		margin: 6px 0 0;
 	}
 	.invite-link {
-		color: $light-tertiary;
+		color: $text-muted;
 		font-size: 12px;
 		text-decoration: underline;
 		&:hover {

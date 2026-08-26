@@ -102,13 +102,17 @@
 
 <div class="layout">
 	<div class="content-left">
-		<h4 style="text-align: left;">My Schedule</h4>
-		<p class="subtitle">Your interviews: <strong>{interviews.length}</strong> total</p>
+		<div class="page-head">
+			<div>
+				<h4 class="page-title">My Schedule</h4>
+				<p class="page-subtitle">Your interviews: <strong>{interviews.length}</strong> total</p>
+			</div>
+		</div>
 
 		{#if loading}
-			<p class="placeholder">Loading schedule...</p>
+			<p class="muted placeholder">Loading schedule...</p>
 		{:else if errorMsg}
-			<p class="placeholder">{errorMsg}</p>
+			<p class="muted placeholder">{errorMsg}</p>
 		{:else if calendarApp}
 			<div class="calendar-wrap">
 				<ScheduleXCalendar {calendarApp} />
@@ -123,13 +127,7 @@
 <style lang="scss">
 	@use '../../../../../styles/col.scss' as *;
 
-	.subtitle {
-		font-size: 13px;
-		color: $light-tertiary;
-		margin-bottom: 15px;
-	}
 	.placeholder {
-		color: $light-tertiary;
 		padding: 20px;
 	}
 	.calendar-wrap {

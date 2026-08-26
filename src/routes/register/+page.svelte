@@ -118,12 +118,10 @@
 	<div class="register-screen">
 		<div class="register-card">
 			<h2 style="color: white;">Create Organization</h2>
-			<p style="color: #878fa1; font-size: 13px; margin-bottom: 15px;">
-				Set up your organization to start receiving applications.
-			</p>
+			<p class="muted register-desc">Set up your organization to start receiving applications.</p>
 
 			<div class="field">
-				<label>Organization Name</label>
+				<label class="field-label">Organization Name</label>
 				<input
 					type="text"
 					class="form-control input-dark"
@@ -133,31 +131,26 @@
 			</div>
 
 			<div class="field">
-				<label>URL Slug</label>
+				<label class="field-label">URL Slug</label>
 				<div class="slug-preview">
 					<span class="slug-prefix">/apply/</span>
-					<input
-						type="text"
-						class="form-control input-dark"
-						bind:value={orgSlug}
-						style="font-family: monospace;"
-					/>
+					<input type="text" class="form-control input-dark slug-input" bind:value={orgSlug} />
 				</div>
 				{#if orgSlug.length >= 2}
 					<div class="slug-status">
 						{#if checkingSlug}
-							<span style="color: #878fa1; font-size: 11px;">Checking availability...</span>
+							<span class="field-hint">Checking availability...</span>
 						{:else if slugAvailable === true}
-							<span style="color: #22c55e; font-size: 11px;">&#10003; Slug is available</span>
+							<span class="slug-ok">&#10003; Slug is available</span>
 						{:else if slugAvailable === false}
-							<span style="color: #ef4444; font-size: 11px;">&#10007; Slug is already taken</span>
+							<span class="field-error">&#10007; Slug is already taken</span>
 						{/if}
 					</div>
 				{/if}
 			</div>
 
 			{#if error}
-				<p style="color: #ef4444; font-size: 13px; margin-top: 5px;">{error}</p>
+				<p class="alert-soft alert-error">{error}</p>
 			{/if}
 
 			<div style="display: flex; gap: 10px; margin-top: 20px;">
@@ -195,16 +188,9 @@
 		padding: 40px;
 		width: 400px;
 	}
-	.field {
-		width: 100%;
-		margin-bottom: 12px;
-	}
-	.field label {
-		display: block;
-		font-size: 12px;
-		font-weight: 600;
-		color: $light-tertiary;
-		margin-bottom: 4px;
+	// `.field` / `.field-label` / `.field-hint` / `.field-error` come from ui.scss.
+	.register-desc {
+		margin-bottom: 15px;
 	}
 	.slug-preview {
 		display: flex;
@@ -219,6 +205,14 @@
 	}
 	.slug-status {
 		margin-top: 4px;
+	}
+	.slug-input {
+		font-family: monospace;
+	}
+	// ui.scss has `.field-error` but no positive counterpart.
+	.slug-ok {
+		font-size: 11px;
+		color: $success;
 	}
 	.input-dark {
 		background-color: $dark-primary;

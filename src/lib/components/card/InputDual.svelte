@@ -17,7 +17,7 @@
 
 <div class="card p-3">
 	<h5>{title}</h5>
-	{#if subtitle}<p class="p2">{subtitle}</p>{/if}
+	{#if subtitle}<p class="field-hint">{subtitle}</p>{/if}
 	<div class="dual">
 		<input
 			type="text"

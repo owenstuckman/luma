@@ -5,10 +5,10 @@
 </script>
 
 <div class="success-screen">
-	<div class="success-card">
-		<i class="fi fi-br-check-circle" style="font-size: 48px; color: #22c55e;"></i>
-		<h2 style="color: white; margin-top: 15px;">Application Submitted!</h2>
-		<p style="color: #878fa1;">Your application has been received. We'll be in touch soon.</p>
+	<div class="success-card text-center">
+		<i class="fi fi-br-check-circle success-icon"></i>
+		<h2 class="success-title">Application Submitted!</h2>
+		<p class="muted">Your application has been received. We'll be in touch soon.</p>
 		<div style="display: flex; gap: 10px; margin-top: 15px;">
 			<a href="/apply/{slug}">
 				<button class="btn btn-primary">Back to Positions</button>
@@ -38,5 +38,12 @@
 		border-radius: 10px;
 		padding: 50px;
 		text-align: center;
+	}
+	.success-icon {
+		font-size: 48px;
+		color: $success;
+	}
+	.success-title {
+		margin-top: 15px;
 	}
 </style>

@@ -176,10 +176,10 @@
 	</div>
 {/if}
 
-{#if appActionError}<p class="error-text">{appActionError}</p>{/if}
-{#if appActionSuccess}<div class="alert-success">{appActionSuccess}</div>{/if}
+{#if appActionError}<p class="field-error">{appActionError}</p>{/if}
+{#if appActionSuccess}<div class="alert-soft alert-success">{appActionSuccess}</div>{/if}
 
-<div class="jobs-table">
+<div class="panel panel-flush">
 	<div class="table-header app-table-header">
 		<span class="col-check"
 			><input type="checkbox" checked={allSelected} onchange={toggleAllApplicants} /></span
@@ -215,7 +215,7 @@
 			<span class="col-job"><span class="row-sub">{app.job_name || '-'}</span></span>
 			<span class="col-status">
 				<span
-					class="badge"
+					class="pill"
 					style="background-color: {statusBg(app.status)}; color: {statusColor(app.status)};"
 					>{app.status}</span
 				>
@@ -266,29 +266,17 @@
 <style lang="scss">
 	@use '../../../styles/col.scss' as *;
 
-	.filter-bar {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		flex-wrap: wrap;
-		margin-bottom: 12px;
-	}
 	.bulk-bar {
 		display: flex;
 		align-items: center;
 		gap: 8px;
 		flex-wrap: wrap;
 		padding: 10px 14px;
-		background: #fffbeb;
-		border-radius: 6px;
-		border: 1px solid #fcd34d;
+		background: $warning-bg;
+		border-radius: $radius-sm;
+		// A stronger amber rule than $warning-border; no token exists for it.
+		border: 1px solid $warning-strong;
 		margin-bottom: 12px;
-	}
-	.jobs-table {
-		background: white;
-		border-radius: 8px;
-		overflow: hidden;
-		box-shadow: 0 0 12px rgba(0, 0, 0, 0.05);
 	}
 	.app-table-header,
 	.app-table-row {
@@ -301,17 +289,18 @@
 		background: $light-secondary;
 		font-size: 11px;
 		font-weight: 700;
-		color: $light-tertiary;
+		color: $text-muted;
 		text-transform: uppercase;
 	}
 	.table-row {
 		padding: 10px 16px;
-		border-bottom: 1px solid #f1f5f9;
+		border-bottom: 1px solid $border-faint;
 		&:last-child {
 			border-bottom: none;
 		}
 		&.row-selected {
-			background-color: #fefce8;
+			// Faint yellow selection tint; no token exists for it.
+			background-color: $warning-tint;
 		}
 	}
 	.app-name-btn {
@@ -323,8 +312,8 @@
 	}
 	.app-detail-panel {
 		padding: 12px 16px 16px 52px;
-		background: #fafbfc;
-		border-bottom: 1px solid #f1f5f9;
+		background: $surface-muted;
+		border-bottom: 1px solid $border-faint;
 	}
 	.app-detail-grid {
 		display: grid;
@@ -339,59 +328,21 @@
 	.app-detail-label {
 		font-size: 10px;
 		font-weight: 700;
-		color: $light-tertiary;
+		color: $text-muted;
 		text-transform: uppercase;
 	}
 	.app-detail-value {
 		font-size: 12px;
-		color: $dark-primary;
+		color: $text;
 		word-break: break-word;
 	}
-	.row-name {
-		display: block;
-		font-size: 13px;
-		font-weight: 600;
-		color: $dark-primary;
-	}
-	.row-sub {
-		display: block;
-		font-size: 11px;
-		color: $light-tertiary;
-	}
-	.badge {
-		display: inline-block;
-		padding: 2px 7px;
-		border-radius: 999px;
-		font-size: 10px;
-		font-weight: 700;
-	}
-	.muted {
-		color: $light-tertiary;
-		font-size: 13px;
-	}
-	.error-text {
-		color: #ef4444;
-		font-size: 12px;
-		margin: 4px 0;
-	}
-	.alert-success {
-		background: #ecfdf5;
-		color: #065f46;
-		padding: 8px 12px;
-		border-radius: 6px;
-		font-size: 12px;
-		margin-bottom: 12px;
-	}
-	.btn-sm {
-		font-size: 11px !important;
-		padding: 4px 12px !important;
-	}
 	.btn-danger {
-		background-color: #fef2f2;
-		color: #991b1b;
-		border: 1px solid #fca5a5;
+		background-color: $danger-bg;
+		color: $danger-fg;
+		border: 1px solid $danger-border;
 		&:hover {
-			background-color: #fee2e2;
+			// One step darker than $danger-bg; no token exists for this hover tint.
+			background-color: $danger-bg-strong;
 		}
 	}
 </style>

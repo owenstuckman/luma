@@ -140,9 +140,25 @@ Auth guard in `src/hooks.server.ts` redirects unauthenticated users from `/priva
 
 Two style systems coexist — **Bootstrap 5 + SCSS is dominant**; Tailwind CSS v4 is minimally used.
 
-- Color tokens: `src/styles/col.scss` — import per-component with `@use` and adjust relative path depth
-- Global Bootstrap theme: `src/styles/luma.scss` (imported in root `+layout.svelte`)
+**Read `docs/DESIGN-SYSTEM.md` before writing any UI.** The whole app shares one visual
+language, lifted from the platform admin panel. Three files, with distinct jobs:
+
+- `src/styles/col.scss` — **tokens only** (colors, radii, shadows, chrome constants).
+  `@use` it per component with `as *`, adjusting relative path depth. It must stay
+  variables-only: ~30 components import it, so a rule here is emitted once per component.
+- `src/styles/ui.scss` — **shared classes** (`.panel`, `.pill`, `.data-table`,
+  `.empty-state`, `.page-head`, `.stat-card`, `.modal-panel`, …). Loaded once by
+  `luma.scss`; never `@use` it from a component, just use the class names.
+- `src/styles/luma.scss` — Bootstrap theme + global element styles. Imported in the root
+  `+layout.svelte`.
+
+Rules that matter: never write a raw hex in a component (add a token instead); never
+redefine a shared class locally (extend it with a second class); wide tables go in
+`.table-scroll`. `@use` must be the FIRST thing in a component `<style lang="scss">` block.
+
 - Layout uses CSS Grid with named areas: `navbar`, `sidebar`, `content`
+- Both the recruiter and admin sidebars mark the current page the same way: yellow label
+  plus a 3px yellow left rule
 - Icons: Flaticon Uicons (`fi fi-br-*` classes)
 - Font: Inter
 

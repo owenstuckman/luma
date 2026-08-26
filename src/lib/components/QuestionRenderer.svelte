@@ -127,7 +127,7 @@
 {:else if question.type === 'availability'}
 	<div class="card p-3">
 		<h5>{question.title}</h5>
-		{#if question.subtitle}<p class="text-muted">{question.subtitle}</p>{/if}
+		{#if question.subtitle}<p class="field-hint">{question.subtitle}</p>{/if}
 		<AvailabilityGrid
 			startDate={question.startDate || new Date().toISOString().split('T')[0]}
 			endDate={question.endDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]}

@@ -20,16 +20,11 @@
 <div class="img-card">
 	<img src={imageSrc} alt={imageAlt} />
 	<div class="img-card-content">
-		<h5 style="font-size: 24px;">{title}</h5>
-		{#if subtitle}<p class="p2">{subtitle}</p>{/if}
+		<h5 class="img-card-title">{title}</h5>
+		{#if subtitle}<p class="field-hint">{subtitle}</p>{/if}
 		<p>{description}</p>
 		{#if linkURL}
-			<a
-				class="underline"
-				href={linkURL}
-				target="_blank"
-				style="position: relative; top: -15px; color: #e8aa00;"
-			>
+			<a class="underline card-link" href={linkURL} target="_blank">
 				{linkName}
 			</a>
 		{/if}
@@ -56,31 +51,39 @@
 	.img-card {
 		display: flex;
 		margin: 10px 0;
-		box-shadow: 0 0px 12px rgba(0, 0, 0, 0.1);
+		box-shadow: $shadow;
 		border: none;
-		border-radius: 5px;
+		border-radius: $radius-sm;
+	}
+	.img-card-title {
+		font-size: 24px;
+	}
+	.card-link {
+		position: relative;
+		top: -15px;
+		color: $yellow-secondary;
 	}
 	.img-card img {
 		height: auto;
 		width: 200px;
 		object-fit: cover;
 		border: none;
-		border-radius: 5px 0 0 5px;
+		border-radius: $radius-sm 0 0 $radius-sm;
 	}
 	.img-card-content {
 		width: 100%;
 		max-width: 400px;
 		padding: 20px;
-		background-color: white;
+		background-color: $surface;
 		border: none;
-		border-radius: 0 5px 5px 0;
+		border-radius: 0 $radius-sm $radius-sm 0;
 	}
 	@media (max-width: 799px) {
 		.img-card img {
 			display: none;
 		}
 		.img-card-content {
-			border-radius: 5px;
+			border-radius: $radius-sm;
 		}
 	}
 </style>

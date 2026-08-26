@@ -88,7 +88,7 @@
 
 	<div class="user-detail">
 		{#if selectedUser}
-			<div class="detail-card">
+			<div class="panel">
 				<h6>{selectedUser.email}</h6>
 				<div class="detail-meta">
 					<span>User ID: <code>{selectedUser.id}</code></span>
@@ -143,11 +143,11 @@
 					</select>
 					<button class="btn btn-primary btn-sm" onclick={addUserToOrg}>Add</button>
 				</div>
-				{#if userActionError}<p class="error-text">{userActionError}</p>{/if}
-				{#if userActionSuccess}<div class="alert-success">{userActionSuccess}</div>{/if}
+				{#if userActionError}<p class="field-error">{userActionError}</p>{/if}
+				{#if userActionSuccess}<div class="alert-soft alert-success">{userActionSuccess}</div>{/if}
 			</div>
 		{:else}
-			<div class="detail-card empty">
+			<div class="panel detail-empty">
 				<p class="muted">Select a user to view details and manage memberships.</p>
 			</div>
 		{/if}
@@ -175,39 +175,34 @@
 		flex-direction: column;
 		align-items: flex-start;
 		padding: 10px 14px;
-		background: white;
-		border-radius: 6px;
+		background: $surface;
+		border-radius: $radius-sm;
 		border: none;
 		cursor: pointer;
 		text-align: left;
 		width: 100%;
-		box-shadow: 0 0 6px rgba(0, 0, 0, 0.04);
+		box-shadow: $shadow-sm;
 		transition: box-shadow 0.15s;
 		&:hover {
-			box-shadow: 0 0 12px rgba(0, 0, 0, 0.1);
+			box-shadow: $shadow;
 		}
 		&.selected {
 			box-shadow: 0 0 0 2px $yellow-primary;
 		}
 	}
-	.detail-card {
-		background: white;
-		border-radius: 8px;
-		padding: 20px;
-		box-shadow: 0 0 12px rgba(0, 0, 0, 0.06);
-		&.empty {
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			min-height: 200px;
-		}
+	// Extends the shared .panel: the placeholder state centres its message.
+	.detail-empty {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 200px;
 	}
 	.detail-meta {
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
 		font-size: 12px;
-		color: $light-tertiary;
+		color: $text-muted;
 		margin-top: 8px;
 	}
 	.membership-row {
@@ -215,7 +210,7 @@
 		align-items: center;
 		justify-content: space-between;
 		padding: 8px 0;
-		border-bottom: 1px solid #f1f5f9;
+		border-bottom: 1px solid $border-faint;
 		gap: 8px;
 		&:last-child {
 			border-bottom: none;
@@ -227,44 +222,13 @@
 		margin-top: 8px;
 		flex-wrap: wrap;
 	}
-	.row-name {
-		display: block;
-		font-size: 13px;
-		font-weight: 600;
-		color: $dark-primary;
-	}
-	.row-sub {
-		display: block;
-		font-size: 11px;
-		color: $light-tertiary;
-	}
-	.muted {
-		color: $light-tertiary;
-		font-size: 13px;
-	}
-	.error-text {
-		color: #ef4444;
-		font-size: 12px;
-		margin: 4px 0;
-	}
-	.alert-success {
-		background: #ecfdf5;
-		color: #065f46;
-		padding: 8px 12px;
-		border-radius: 6px;
-		font-size: 12px;
-		margin-top: 8px;
-	}
-	.btn-sm {
-		font-size: 11px !important;
-		padding: 4px 12px !important;
-	}
 	.btn-danger {
-		background-color: #fef2f2;
-		color: #991b1b;
-		border: 1px solid #fca5a5;
+		background-color: $danger-bg;
+		color: $danger-fg;
+		border: 1px solid $danger-border;
 		&:hover {
-			background-color: #fee2e2;
+			// One step darker than $danger-bg; no token exists for this hover tint.
+			background-color: $danger-bg-strong;
 		}
 	}
 </style>

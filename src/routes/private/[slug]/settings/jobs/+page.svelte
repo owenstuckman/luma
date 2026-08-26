@@ -95,23 +95,30 @@
 
 <div class="layout">
 	<div class="content-left">
-		<div class="page-header">
+		<div class="page-head">
 			<div>
 				<a href="/private/{slug}/settings" class="back-link">
 					<i class="fi fi-br-arrow-left"></i> Settings
 				</a>
-				<h4 style="text-align: left; margin-top: 10px;">Job Postings</h4>
+				<h4 class="page-title">Job Postings</h4>
+				<p class="page-subtitle">
+					Every posting for this organization, and the form each one asks.
+				</p>
 			</div>
-			<button class="btn btn-tertiary" on:click={() => (showCreate = !showCreate)}>
-				<i class="fi fi-br-plus"></i> New Posting
-			</button>
+			<div class="page-actions">
+				<button class="btn btn-tertiary" on:click={() => (showCreate = !showCreate)}>
+					<i class="fi fi-br-plus"></i> New Posting
+				</button>
+			</div>
 		</div>
 
 		{#if showCreate}
-			<div class="card create-card">
-				<h5>Create New Job Posting</h5>
+			<div class="panel create-panel">
+				<div class="panel-head">
+					<h5 class="panel-title">Create New Job Posting</h5>
+				</div>
 				<div class="field">
-					<label>Position Name</label>
+					<label class="field-label">Position Name</label>
 					<input
 						type="text"
 						class="form-control"
@@ -120,7 +127,7 @@
 					/>
 				</div>
 				<div class="field">
-					<label>Description</label>
+					<label class="field-label">Description</label>
 					<textarea
 						class="form-control"
 						bind:value={newDescription}
@@ -128,9 +135,9 @@
 						placeholder="Brief description of the role"></textarea>
 				</div>
 				{#if createError}
-					<p class="error-text">{createError}</p>
+					<p class="field-error">{createError}</p>
 				{/if}
-				<div style="display: flex; gap: 8px; margin-top: 8px;">
+				<div class="create-actions">
 					<button class="btn btn-tertiary" on:click={handleCreate} disabled={creating}>
 						{creating ? 'Creating...' : 'Create'}
 					</button>
@@ -140,49 +147,46 @@
 		{/if}
 
 		{#if loading}
-			<p style="color: #878fa1;">Loading...</p>
+			<p class="muted">Loading...</p>
 		{:else if jobs.length === 0}
 			<div class="empty-state">
-				<i class="fi fi-br-document" style="font-size: 36px; color: #878fa1;"></i>
-				<p style="color: #878fa1; margin-top: 10px;">
-					No job postings yet. Create one to get started.
-				</p>
+				<i class="fi fi-br-document"></i>
+				<div class="empty-title">No job postings yet</div>
+				<p class="empty-hint">Create one to get started.</p>
 			</div>
 		{:else}
 			<div class="job-list">
 				{#each jobs as job}
-					<div class="job-row">
-						<div class="job-row-main">
-							<div class="job-row-info">
-								<div class="job-row-title-line">
-									<span class="job-row-name">{job.name}</span>
-									<span
-										class="status-pill"
-										class:active={job.active_flg}
-										class:inactive={!job.active_flg}
-									>
-										{job.active_flg ? 'Active' : 'Inactive'}
-									</span>
-								</div>
-								{#if job.description}
-									<p class="job-row-desc">{job.description}</p>
-								{/if}
-								<div class="job-row-meta">
-									<span>Created {new Date(job.created_at).toLocaleDateString()}</span>
-									<span>{job.questions?.steps?.length || 0} form steps</span>
-								</div>
+					<div class="list-row job-row">
+						<div class="job-row-info">
+							<div class="job-row-title-line">
+								<span class="job-row-name">{job.name}</span>
+								<span
+									class="pill"
+									class:pill-success={job.active_flg}
+									class:pill-neutral={!job.active_flg}
+								>
+									{job.active_flg ? 'Active' : 'Inactive'}
+								</span>
 							</div>
-							<div class="job-row-actions">
-								<a href="/private/{slug}/settings/jobs/{job.id}" class="btn btn-tertiary btn-sm">
-									Edit Form
-								</a>
-								<button class="btn btn-quaternary btn-sm" on:click={() => handleToggle(job)}>
-									{job.active_flg ? 'Deactivate' : 'Activate'}
-								</button>
-								<button class="btn btn-danger-outline btn-sm" on:click={() => handleDelete(job)}>
-									Delete
-								</button>
+							{#if job.description}
+								<p class="job-row-desc">{job.description}</p>
+							{/if}
+							<div class="row-stats job-row-meta">
+								<span>Created {new Date(job.created_at).toLocaleDateString()}</span>
+								<span>{job.questions?.steps?.length || 0} form steps</span>
 							</div>
+						</div>
+						<div class="job-row-actions">
+							<a href="/private/{slug}/settings/jobs/{job.id}" class="btn btn-tertiary btn-sm">
+								Edit Form
+							</a>
+							<button class="btn btn-quaternary btn-sm" on:click={() => handleToggle(job)}>
+								{job.active_flg ? 'Deactivate' : 'Activate'}
+							</button>
+							<button class="btn btn-danger-outline btn-sm" on:click={() => handleDelete(job)}>
+								Delete
+							</button>
 						</div>
 					</div>
 				{/each}
@@ -197,48 +201,17 @@
 <style lang="scss">
 	@use '../../../../../styles/col.scss' as *;
 
-	.page-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: flex-start;
-		margin-bottom: 15px;
-	}
-	.back-link {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		color: $light-tertiary;
-		font-size: 13px;
-		font-weight: 600;
-	}
-	.back-link:hover {
-		color: $dark-primary;
-	}
+	// Page furniture (.page-head, .panel, .field, .pill, .list-row, .empty-state,
+	// .row-stats, .muted) is global — see src/styles/ui.scss. Only the bits unique
+	// to this page live here.
 
-	.create-card {
+	.create-panel {
 		max-width: 500px;
-		margin-bottom: 20px;
 	}
-	.field {
-		margin-bottom: 10px;
-	}
-	.field label {
-		display: block;
-		font-size: 12px;
-		font-weight: 600;
-		color: $light-tertiary;
-		margin-bottom: 4px;
-	}
-	.error-text {
-		color: #ef4444;
-		font-size: 13px;
-	}
-
-	.empty-state {
+	.create-actions {
 		display: flex;
-		flex-direction: column;
-		align-items: center;
-		padding: 60px 20px;
+		gap: 8px;
+		margin-top: 8px;
 	}
 
 	.job-list {
@@ -246,20 +219,16 @@
 		flex-direction: column;
 		gap: 10px;
 	}
+	// Extends the shared `.list-row`: taller, top-aligned, multi-line content.
 	.job-row {
-		background-color: white;
-		border-radius: 8px;
-		padding: 16px 20px;
-		box-shadow: 0 0px 12px rgba(0, 0, 0, 0.06);
-	}
-	.job-row-main {
-		display: flex;
-		justify-content: space-between;
 		align-items: flex-start;
+		padding: 16px 20px;
+		margin-bottom: 0;
 		gap: 20px;
 	}
 	.job-row-info {
 		flex: 1;
+		min-width: 0;
 	}
 	.job-row-title-line {
 		display: flex;
@@ -273,52 +242,17 @@
 	}
 	.job-row-desc {
 		font-size: 13px;
-		color: $light-tertiary;
+		color: $text-muted;
 		margin: 0 0 6px;
 	}
 	.job-row-meta {
-		display: flex;
 		gap: 16px;
 		font-size: 11px;
-		color: $light-tertiary;
 	}
 	.job-row-actions {
 		display: flex;
 		gap: 6px;
 		flex-shrink: 0;
 		align-items: flex-start;
-	}
-
-	.status-pill {
-		font-size: 10px;
-		font-weight: 700;
-		padding: 2px 8px;
-		border-radius: 999px;
-		text-transform: uppercase;
-	}
-	.status-pill.active {
-		background-color: #22c55e;
-		color: white;
-	}
-	.status-pill.inactive {
-		background-color: #878fa1;
-		color: white;
-	}
-
-	.btn-sm {
-		font-size: 11px !important;
-		padding: 4px 12px !important;
-	}
-	.btn-danger-outline {
-		background-color: transparent;
-		border: 1px solid #ef4444;
-		color: #ef4444;
-		border-radius: 5px;
-		font-weight: 600;
-		font-size: 12px;
-	}
-	.btn-danger-outline:hover {
-		background-color: #ef4444;
-		color: white;
 	}
 </style>

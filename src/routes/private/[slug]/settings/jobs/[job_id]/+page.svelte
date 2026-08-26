@@ -286,14 +286,15 @@
 
 <div class="layout">
 	<div class="content-left">
-		<div class="page-header">
+		<div class="page-head">
 			<div>
 				<a href="/private/{slug}/settings/jobs" class="back-link">
 					<i class="fi fi-br-arrow-left"></i> Job Postings
 				</a>
-				<h4 style="text-align: left; margin-top: 10px;">Edit: {jobName || 'Loading...'}</h4>
+				<h4 class="page-title">Edit: {jobName || 'Loading...'}</h4>
+				<p class="page-subtitle">Job details and the steps of the application form.</p>
 			</div>
-			<div style="display: flex; gap: 8px; align-items: center;">
+			<div class="page-actions">
 				{#if saveMessage}
 					<span class="save-msg" class:error={saveMessage.startsWith('Error')}>{saveMessage}</span>
 				{/if}
@@ -314,38 +315,40 @@
 		</div>
 
 		{#if loading}
-			<p style="color: #878fa1;">Loading...</p>
+			<p class="muted">Loading...</p>
 		{:else}
 			<!-- Job Details -->
-			<div class="card section-card">
-				<h5>Job Details</h5>
+			<div class="panel section-card">
+				<div class="panel-head">
+					<h5 class="panel-title">Job Details</h5>
+				</div>
 				<div class="field">
-					<label>Position Name</label>
+					<label class="field-label">Position Name</label>
 					<input type="text" class="form-control" bind:value={jobName} />
 				</div>
 				<div class="field">
-					<label>Description</label>
+					<label class="field-label">Description</label>
 					<textarea class="form-control" bind:value={jobDescription} rows="2"></textarea>
 				</div>
 			</div>
 
 			<!-- Form Steps -->
 			<div class="section-header">
-				<h5 style="margin: 0;">Application Form Steps</h5>
+				<h5 class="panel-title">Application Form Steps</h5>
 				<button class="btn btn-tertiary btn-sm" on:click={() => (showAddStep = !showAddStep)}>
 					<i class="fi fi-br-plus"></i> Add Step
 				</button>
 			</div>
 
-			<p class="hint">
+			<p class="field-hint section-hint">
 				Each step becomes a page in the applicant's form. Personal info (name/email) and
 				review/submit are added automatically.
 			</p>
 
 			{#if showAddStep}
-				<div class="card add-step-card">
+				<div class="panel add-step-card">
 					<div class="field">
-						<label>Step Title</label>
+						<label class="field-label">Step Title</label>
 						<input
 							type="text"
 							class="form-control"
@@ -354,7 +357,7 @@
 						/>
 					</div>
 					<div class="field">
-						<label>Icon</label>
+						<label class="field-label">Icon</label>
 						<div class="icon-grid">
 							{#each iconOptions as icon}
 								<button
@@ -368,7 +371,7 @@
 							{/each}
 						</div>
 					</div>
-					<div style="display: flex; gap: 8px;">
+					<div class="btn-row">
 						<button class="btn btn-tertiary btn-sm" on:click={addStep}>Add Step</button>
 						<button class="btn btn-quaternary btn-sm" on:click={() => (showAddStep = false)}
 							>Cancel</button
@@ -378,10 +381,10 @@
 			{/if}
 
 			{#if steps.length === 0}
-				<div class="empty-steps">
-					<p style="color: #878fa1;">
-						No form steps yet. Add a step to start building the application form.
-					</p>
+				<div class="empty-state">
+					<i class="fi fi-br-layers"></i>
+					<div class="empty-title">No form steps yet</div>
+					<p class="empty-hint">Add a step to start building the application form.</p>
 				</div>
 			{/if}
 
@@ -389,7 +392,7 @@
 				<div class="step-card">
 					<div class="step-header">
 						<div class="step-title-line">
-							<i class="fi {step.icon}" style="font-size: 16px; color: #878fa1;"></i>
+							<i class="fi {step.icon} step-icon"></i>
 							<span class="step-title">Step {stepIndex + 1}: {step.title}</span>
 							<span class="question-count"
 								>{step.questions.length} question{step.questions.length !== 1 ? 's' : ''}</span
@@ -397,7 +400,7 @@
 						</div>
 						<div class="step-actions">
 							<button
-								class="icon-action"
+								class="btn-icon"
 								on:click={() => moveStep(stepIndex, -1)}
 								disabled={stepIndex === 0}
 								title="Move up"
@@ -406,7 +409,7 @@
 								<i class="fi fi-br-angle-up" aria-hidden="true"></i>
 							</button>
 							<button
-								class="icon-action"
+								class="btn-icon"
 								on:click={() => moveStep(stepIndex, 1)}
 								disabled={stepIndex === steps.length - 1}
 								title="Move down"
@@ -415,7 +418,7 @@
 								<i class="fi fi-br-angle-down" aria-hidden="true"></i>
 							</button>
 							<button
-								class="icon-action danger"
+								class="btn-icon btn-icon-danger"
 								on:click={() => removeStep(stepIndex)}
 								title="Remove step"
 								aria-label="Remove step"
@@ -431,22 +434,22 @@
 							<div class="question-info">
 								<span class="question-title">{question.title}</span>
 								<div class="question-meta">
-									<span class="type-badge">{getTypeLabel(question.type)}</span>
+									<span class="pill type-badge">{getTypeLabel(question.type)}</span>
 									<span class="question-id">id: {question.id}</span>
 									{#if question.required}
-										<span class="required-badge">Required</span>
+										<span class="pill pill-danger">Required</span>
 									{/if}
 									{#if question.options && question.options.length > 0}
 										<span class="options-count">{question.options.length} options</span>
 									{/if}
 									{#if question.reject_if}
-										<span class="reject-badge">Auto-reject</span>
+										<span class="pill pill-danger">Auto-reject</span>
 									{/if}
 									{#if question.team_scope && question.team_scope !== 'shared'}
-										<span class="scope-badge">Team-scoped</span>
+										<span class="pill pill-warning">Team-scoped</span>
 									{/if}
 									{#if question.blinded}
-										<span class="blind-badge">Blinded</span>
+										<span class="pill pill-info">Blinded</span>
 									{/if}
 								</div>
 								{#if metaSummary(question)}
@@ -455,7 +458,7 @@
 							</div>
 							<div class="question-actions">
 								<button
-									class="icon-action"
+									class="btn-icon"
 									on:click={() => moveQuestion(stepIndex, qIndex, -1)}
 									disabled={qIndex === 0}
 									aria-label="Move question up"
@@ -463,7 +466,7 @@
 									<i class="fi fi-br-angle-up" aria-hidden="true"></i>
 								</button>
 								<button
-									class="icon-action"
+									class="btn-icon"
 									on:click={() => moveQuestion(stepIndex, qIndex, 1)}
 									disabled={qIndex === step.questions.length - 1}
 									aria-label="Move question down"
@@ -471,7 +474,7 @@
 									<i class="fi fi-br-angle-down" aria-hidden="true"></i>
 								</button>
 								<button
-									class="icon-action danger"
+									class="btn-icon btn-icon-danger"
 									on:click={() => removeQuestion(stepIndex, qIndex)}
 									aria-label="Remove question"
 								>
@@ -485,8 +488,8 @@
 					{#if addingQuestionToStep === stepIndex}
 						<div class="add-question-form">
 							<div class="field-row">
-								<div class="field" style="flex: 1;">
-									<label>Question ID</label>
+								<div class="field field-grow">
+									<label class="field-label">Question ID</label>
 									<input
 										type="text"
 										class="form-control"
@@ -494,8 +497,8 @@
 										placeholder="unique_id (no spaces)"
 									/>
 								</div>
-								<div class="field" style="flex: 1;">
-									<label>Type</label>
+								<div class="field field-grow">
+									<label class="field-label">Type</label>
 									<select class="form-control" bind:value={newQ.type}>
 										{#each questionTypes as qt}
 											<option value={qt.value}>{qt.label}</option>
@@ -504,7 +507,7 @@
 								</div>
 							</div>
 							<div class="field">
-								<label>Title</label>
+								<label class="field-label">Title</label>
 								<input
 									type="text"
 									class="form-control"
@@ -513,7 +516,7 @@
 								/>
 							</div>
 							<div class="field">
-								<label>Subtitle (optional)</label>
+								<label class="field-label">Subtitle (optional)</label>
 								<input
 									type="text"
 									class="form-control"
@@ -524,7 +527,7 @@
 
 							{#if ['radio', 'checkbox', 'checkbox_image', 'dropdown'].includes(newQ.type)}
 								<div class="field">
-									<label>Options (one per line)</label>
+									<label class="field-label">Options (one per line)</label>
 									<textarea
 										class="form-control"
 										bind:value={optionsText}
@@ -535,8 +538,8 @@
 
 							{#if newQ.type === 'input_dual'}
 								<div class="field-row">
-									<div class="field" style="flex: 1;">
-										<label>Label 1</label>
+									<div class="field field-grow">
+										<label class="field-label">Label 1</label>
 										<input
 											type="text"
 											class="form-control"
@@ -544,8 +547,8 @@
 											placeholder="First"
 										/>
 									</div>
-									<div class="field" style="flex: 1;">
-										<label>Label 2</label>
+									<div class="field field-grow">
+										<label class="field-label">Label 2</label>
 										<input
 											type="text"
 											class="form-control"
@@ -558,7 +561,7 @@
 
 							{#if newQ.type === 'checkbox_image'}
 								<div class="field">
-									<label>Description</label>
+									<label class="field-label">Description</label>
 									<textarea
 										class="form-control"
 										bind:value={newQ.description}
@@ -566,8 +569,8 @@
 										placeholder="Longer description text"></textarea>
 								</div>
 								<div class="field-row">
-									<div class="field" style="flex: 1;">
-										<label>Image URL</label>
+									<div class="field field-grow">
+										<label class="field-label">Image URL</label>
 										<input
 											type="text"
 											class="form-control"
@@ -575,8 +578,8 @@
 											placeholder="/images/..."
 										/>
 									</div>
-									<div class="field" style="flex: 1;">
-										<label>Image Alt Text</label>
+									<div class="field field-grow">
+										<label class="field-label">Image Alt Text</label>
 										<input
 											type="text"
 											class="form-control"
@@ -586,8 +589,8 @@
 									</div>
 								</div>
 								<div class="field-row">
-									<div class="field" style="flex: 1;">
-										<label>Link Name</label>
+									<div class="field field-grow">
+										<label class="field-label">Link Name</label>
 										<input
 											type="text"
 											class="form-control"
@@ -595,8 +598,8 @@
 											placeholder="Read more"
 										/>
 									</div>
-									<div class="field" style="flex: 1;">
-										<label>Link URL</label>
+									<div class="field field-grow">
+										<label class="field-label">Link URL</label>
 										<input
 											type="text"
 											class="form-control"
@@ -618,7 +621,7 @@
 							<div class="meta-section">
 								{#if teams.length > 0}
 									<div class="field">
-										<label>Show this question to</label>
+										<label class="field-label">Show this question to</label>
 										<div class="scope-row">
 											{#each teams as team (team.id)}
 												<label
@@ -634,7 +637,7 @@
 												</label>
 											{/each}
 										</div>
-										<p class="hint">
+										<p class="field-hint">
 											{newQTeamSlugs.length === 0
 												? 'No teams selected — shown to everyone.'
 												: `Only applicants who pick ${newQTeamSlugs.length} selected team(s) will see this.`}
@@ -643,7 +646,9 @@
 								{/if}
 
 								<div class="field">
-									<label for="reject-op">Auto-reject the applicant if this answer…</label>
+									<label class="field-label" for="reject-op"
+										>Auto-reject the applicant if this answer…</label
+									>
 									<div class="reject-row">
 										<select id="reject-op" class="form-control" bind:value={newQRejectOp}>
 											<option value="">Never auto-reject</option>
@@ -669,7 +674,7 @@
 												: 'Enter a value to compare against.'}
 										</p>
 									{:else if newQRejectOp !== ''}
-										<p class="hint">
+										<p class="field-hint">
 											Applied automatically on submit. A blank answer never triggers auto-reject
 											except with "is left blank".
 										</p>
@@ -684,7 +689,7 @@
 								</div>
 							</div>
 
-							<div style="display: flex; gap: 8px;">
+							<div class="btn-row">
 								<button
 									class="btn btn-tertiary btn-sm"
 									disabled={rejectValueInvalid}
@@ -717,7 +722,7 @@
 			{/each}
 
 			<!-- Save button at bottom too -->
-			<div style="margin-top: 20px; display: flex; gap: 8px; align-items: center;">
+			<div class="save-row">
 				<button class="btn btn-tertiary" on:click={saveAll} disabled={saving}>
 					{saving ? 'Saving...' : 'Save All Changes'}
 				</button>
@@ -734,14 +739,14 @@
 
 {#if showPreview}
 	<div
-		class="preview-overlay"
+		class="modal-backdrop-luma"
 		on:click={() => (showPreview = false)}
 		on:keydown={(e) => e.key === 'Escape' && (showPreview = false)}
 		role="dialog"
 		aria-modal="true"
 		tabindex="-1"
 	>
-		<div class="preview-modal" on:click|stopPropagation on:keydown|stopPropagation>
+		<div class="modal-panel preview-modal" on:click|stopPropagation on:keydown|stopPropagation>
 			<!-- Header -->
 			<div class="preview-header">
 				<div class="preview-header-left">
@@ -773,50 +778,46 @@
 				<!-- Step content -->
 				<div class="preview-content">
 					{#if currentPreviewStep}
-						<h4 style="margin-bottom: 16px;">{currentPreviewStep.title}</h4>
+						<h4 class="preview-step-title">{currentPreviewStep.title}</h4>
 
 						{#if previewStep === 0}
 							<!-- Personal info step mock -->
 							<div class="card">
-								<h5>First Name <span style="color:#ef4444">*</span></h5>
+								<h5>First Name <span class="req-star">*</span></h5>
 								<input type="text" class="form-control" placeholder="First name" disabled />
 							</div>
 							<div class="card">
-								<h5>Last Name <span style="color:#ef4444">*</span></h5>
+								<h5>Last Name <span class="req-star">*</span></h5>
 								<input type="text" class="form-control" placeholder="Last name" disabled />
 							</div>
 							<div class="card">
-								<h5>Email Address <span style="color:#ef4444">*</span></h5>
+								<h5>Email Address <span class="req-star">*</span></h5>
 								<input type="email" class="form-control" placeholder="you@example.com" disabled />
 							</div>
 						{:else if previewStep === previewSteps.length - 1}
 							<!-- Review step mock -->
-							<p style="font-size: 13px; color: #878fa1;">
-								Applicants review all answers here before submitting.
-							</p>
-							<div class="card" style="opacity: 0.6;">
+							<p class="muted">Applicants review all answers here before submitting.</p>
+							<div class="card preview-dim">
 								<h5>Personal Information</h5>
-								<p style="font-size: 13px; color: #878fa1;">Name and email will appear here.</p>
+								<p class="muted">Name and email will appear here.</p>
 							</div>
 							{#each steps as step}
-								<div class="card" style="opacity: 0.6;">
+								<div class="card preview-dim">
 									<h5>{step.title}</h5>
 									{#each step.questions as q}
-										<p style="font-size: 12px; color: #878fa1;">{q.title}</p>
+										<p class="subtle">{q.title}</p>
 									{/each}
 								</div>
 							{/each}
 						{:else if currentPreviewStep.questions.length === 0}
-							<p style="color: #878fa1; font-size: 13px;">No questions in this step yet.</p>
+							<p class="muted">No questions in this step yet.</p>
 						{:else}
 							{#each currentPreviewStep.questions as question (question.id)}
 								<QuestionRenderer {question} storagePrefix="__preview__" />
 							{/each}
 						{/if}
 
-						<div
-							style="display: flex; justify-content: space-between; margin-top: 20px; max-width: 500px;"
-						>
+						<div class="preview-nav">
 							<button
 								class="btn btn-quaternary"
 								disabled={previewStep === 0}
@@ -842,31 +843,18 @@
 <style lang="scss">
 	@use '../../../../../../styles/col.scss' as *;
 
-	.page-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: flex-start;
-		margin-bottom: 15px;
-	}
-	.back-link {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		color: $light-tertiary;
-		font-size: 13px;
-		font-weight: 600;
-	}
-	.back-link:hover {
-		color: $dark-primary;
-	}
+	// Shared furniture (.page-head, .panel, .field/.field-label/.field-hint/
+	// .field-error, .pill, .btn-icon, .empty-state, .muted/.subtle, .modal-*)
+	// is global — src/styles/ui.scss. Only what's unique to the form builder
+	// lives here.
 
 	.save-msg {
 		font-size: 13px;
-		color: #22c55e;
+		color: $success;
 		font-weight: 600;
 	}
 	.save-msg.error {
-		color: #ef4444;
+		color: $danger;
 	}
 
 	.section-card {
@@ -879,25 +867,17 @@
 		align-items: center;
 		margin-bottom: 8px;
 	}
-	.hint {
-		font-size: 12px;
-		color: $light-tertiary;
+	// The one hint that introduces a whole section rather than a single field.
+	.section-hint {
 		margin-bottom: 15px;
 	}
 
-	.field {
-		margin-bottom: 10px;
-	}
-	.field label {
-		display: block;
-		font-size: 12px;
-		font-weight: 600;
-		color: $light-tertiary;
-		margin-bottom: 4px;
-	}
 	.field-row {
 		display: flex;
 		gap: 12px;
+	}
+	.field-grow {
+		flex: 1;
 	}
 	.check-label {
 		display: flex !important;
@@ -906,10 +886,15 @@
 		font-size: 13px;
 		cursor: pointer;
 	}
-
-	.btn-sm {
-		font-size: 11px !important;
-		padding: 4px 12px !important;
+	.btn-row {
+		display: flex;
+		gap: 8px;
+	}
+	.save-row {
+		display: flex;
+		gap: 8px;
+		align-items: center;
+		margin-top: 20px;
 	}
 
 	// Icon grid
@@ -924,12 +909,12 @@
 		justify-content: center;
 		width: 34px;
 		height: 34px;
-		border: 1px solid #e5e7eb;
-		border-radius: 6px;
-		background: white;
+		border: 1px solid $border;
+		border-radius: $radius-sm;
+		background: $surface;
 		cursor: pointer;
 		font-size: 14px;
-		color: $light-tertiary;
+		color: $text-muted;
 		transition: all 0.15s;
 	}
 	.icon-btn:hover {
@@ -944,11 +929,11 @@
 
 	// Step cards
 	.step-card {
-		background-color: white;
-		border-radius: 8px;
+		background-color: $surface;
+		border-radius: $radius;
 		padding: 16px 20px;
 		margin-bottom: 12px;
-		box-shadow: 0 0px 12px rgba(0, 0, 0, 0.06);
+		box-shadow: $shadow;
 	}
 	.step-header {
 		display: flex;
@@ -961,42 +946,21 @@
 		align-items: center;
 		gap: 10px;
 	}
+	.step-icon {
+		font-size: 16px;
+		color: $text-muted;
+	}
 	.step-title {
 		font-weight: 700;
 		font-size: 14px;
 	}
 	.question-count {
 		font-size: 11px;
-		color: $light-tertiary;
+		color: $text-muted;
 	}
 	.step-actions {
 		display: flex;
 		gap: 4px;
-	}
-	.icon-action {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 28px;
-		height: 28px;
-		border: none;
-		border-radius: 4px;
-		background: transparent;
-		color: $light-tertiary;
-		cursor: pointer;
-		font-size: 12px;
-	}
-	.icon-action:hover {
-		background-color: $light-secondary;
-		color: $dark-primary;
-	}
-	.icon-action:disabled {
-		opacity: 0.3;
-		cursor: default;
-	}
-	.icon-action.danger:hover {
-		background-color: #fef2f2;
-		color: #ef4444;
 	}
 
 	// Question rows
@@ -1007,7 +971,7 @@
 		padding: 8px 12px;
 		margin-bottom: 4px;
 		background-color: $light-secondary;
-		border-radius: 6px;
+		border-radius: $radius-sm;
 	}
 	.question-info {
 		flex: 1;
@@ -1022,55 +986,31 @@
 		margin-top: 3px;
 		align-items: center;
 	}
+	// Extends the shared `.pill`: the question TYPE reads as a solid dark chip so
+	// it doesn't compete with the status-toned pills beside it.
 	.type-badge {
-		font-size: 10px;
-		font-weight: 600;
 		background-color: $dark-primary;
-		color: white;
-		padding: 1px 6px;
-		border-radius: 3px;
+		color: $surface;
+		text-transform: none;
 	}
 	.question-id {
 		font-size: 10px;
-		color: $light-tertiary;
+		color: $text-muted;
 		font-family: monospace;
-	}
-	.required-badge {
-		font-size: 10px;
-		font-weight: 600;
-		color: #ef4444;
 	}
 	.options-count {
 		font-size: 10px;
-		color: $light-tertiary;
+		color: $text-muted;
 	}
 
 	/* V1 question metadata */
-	.reject-badge,
-	.scope-badge,
-	.blind-badge {
-		font-size: 10px;
-		font-weight: 700;
-		padding: 1px 6px;
-		border-radius: 999px;
-		color: white;
-	}
-	.reject-badge {
-		background-color: #ef4444;
-	}
-	.scope-badge {
-		background-color: #8b5cf6;
-	}
-	.blind-badge {
-		background-color: #0ea5e9;
-	}
 	.meta-summary {
 		font-size: 11px;
-		color: $light-tertiary;
+		color: $text-muted;
 		margin: 4px 0 0;
 	}
 	.meta-section {
-		border-top: 1px solid #e5e7eb;
+		border-top: 1px solid $border;
 		margin-top: 12px;
 		padding-top: 12px;
 	}
@@ -1086,13 +1026,13 @@
 		font-size: 12px;
 		font-weight: 600;
 		padding: 4px 10px;
-		border: 1px solid #e5e7eb;
-		border-radius: 999px;
+		border: 1px solid $border;
+		border-radius: $radius-pill;
 		cursor: pointer;
 	}
 	.scope-on {
 		border-color: $yellow-primary;
-		background-color: rgba(250, 204, 21, 0.12);
+		background-color: rgba(255, 200, 0, 0.12);
 	}
 	.reject-row {
 		display: flex;
@@ -1103,11 +1043,6 @@
 		input {
 			max-width: 240px;
 		}
-	}
-	.field-error {
-		font-size: 11px;
-		color: #ef4444;
-		margin: 4px 0 0;
 	}
 	.question-actions {
 		display: flex;
@@ -1123,10 +1058,10 @@
 		margin-top: 8px;
 		font-size: 12px;
 		font-weight: 600;
-		color: $light-tertiary;
+		color: $text-muted;
 		background: none;
-		border: 1px dashed #d1d5db;
-		border-radius: 6px;
+		border: 1px dashed $border-strong;
+		border-radius: $radius-sm;
 		cursor: pointer;
 		width: 100%;
 		justify-content: center;
@@ -1141,38 +1076,24 @@
 		margin-top: 10px;
 		padding: 15px;
 		background-color: $light-secondary;
-		border-radius: 6px;
+		border-radius: $radius-sm;
 	}
 	.add-step-card {
 		max-width: 400px;
 		margin-bottom: 15px;
 	}
 
-	.empty-steps {
-		text-align: center;
-		padding: 40px;
-	}
-
-	/* Preview modal */
-	.preview-overlay {
-		position: fixed;
-		inset: 0;
-		background: rgba(0, 0, 0, 0.5);
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		z-index: 1000;
-		padding: 24px;
-	}
+	/* Preview modal — sits on the shared `.modal-backdrop-luma` / `.modal-panel`
+	   shell, but it is a full-bleed two-pane preview rather than a form dialog,
+	   so it widens the panel and drops its padding. */
 	.preview-modal {
-		background: $light-secondary;
-		border-radius: 12px;
-		width: min(900px, 100%);
+		max-width: min(900px, 100%);
 		max-height: calc(100vh - 48px);
+		padding: 0;
+		overflow: hidden;
+		background: $light-secondary;
 		display: flex;
 		flex-direction: column;
-		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
-		overflow: hidden;
 	}
 	.preview-header {
 		display: flex;
@@ -1197,18 +1118,18 @@
 	.preview-job {
 		font-size: 14px;
 		font-weight: 600;
-		color: white;
+		color: $surface;
 	}
 	.preview-close {
 		background: none;
 		border: none;
-		color: $light-tertiary;
+		color: $text-muted;
 		font-size: 24px;
 		cursor: pointer;
 		line-height: 1;
 		padding: 0 4px;
 		&:hover {
-			color: white;
+			color: $surface;
 		}
 	}
 	.preview-layout {
@@ -1233,20 +1154,20 @@
 		padding: 8px 10px;
 		font-size: 12px;
 		font-weight: 600;
-		color: $light-tertiary;
+		color: $text-muted;
 		background: none;
 		border: none;
-		border-radius: 5px;
+		border-radius: $radius-sm;
 		cursor: pointer;
 		text-align: left;
 		width: 100%;
 		&:hover {
 			background: $dark-secondary;
-			color: white;
+			color: $surface;
 		}
 		&.active {
 			background: $dark-secondary;
-			color: white;
+			color: $surface;
 		}
 		i {
 			font-size: 14px;
@@ -1258,5 +1179,20 @@
 		overflow-y: auto;
 		padding: 24px;
 		background: $light-secondary;
+	}
+	.preview-step-title {
+		margin-bottom: 16px;
+	}
+	.preview-dim {
+		opacity: 0.6;
+	}
+	.preview-nav {
+		display: flex;
+		justify-content: space-between;
+		margin-top: 20px;
+		max-width: 500px;
+	}
+	.req-star {
+		color: $danger;
 	}
 </style>

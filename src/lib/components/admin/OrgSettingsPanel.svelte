@@ -442,20 +442,20 @@
 	<!-- Org Profile -->
 	<div class="card">
 		<h5>Organization Profile</h5>
-		<div class="setting-field">
-			<label for="os-name">Name</label>
+		<div class="field">
+			<label class="field-label" for="os-name">Name</label>
 			<input id="os-name" type="text" class="form-control" bind:value={orgName} />
 		</div>
-		<div class="setting-field">
-			<label for="os-slug">Slug (URL path)</label>
+		<div class="field">
+			<label class="field-label" for="os-slug">Slug (URL path)</label>
 			<input id="os-slug" type="text" class="form-control" bind:value={orgSlug} />
 			<p class="field-hint">
 				Changing this changes every link for this org, including live application and invite URLs.
 			</p>
 		</div>
 		<div style="display: flex; gap: 15px;">
-			<div class="setting-field" style="flex: 1;">
-				<label for="os-primary">Primary Color</label>
+			<div class="field" style="flex: 1;">
+				<label class="field-label" for="os-primary">Primary Color</label>
 				<div style="display: flex; gap: 8px; align-items: center;">
 					<input
 						id="os-primary"
@@ -471,8 +471,8 @@
 					/>
 				</div>
 			</div>
-			<div class="setting-field" style="flex: 1;">
-				<label for="os-secondary">Secondary Color</label>
+			<div class="field" style="flex: 1;">
+				<label class="field-label" for="os-secondary">Secondary Color</label>
 				<div style="display: flex; gap: 8px; align-items: center;">
 					<input
 						id="os-secondary"
@@ -508,8 +508,8 @@
 				<button class="btn btn-quaternary btn-sm" onclick={removeLogo}>Remove</button>
 			</div>
 		{/if}
-		<div class="setting-field">
-			<label for="os-logo">Upload Logo (max 2MB)</label>
+		<div class="field">
+			<label class="field-label" for="os-logo">Upload Logo (max 2MB)</label>
 			<input
 				id="os-logo"
 				type="file"
@@ -547,8 +547,8 @@
 		<p class="card-hint">
 			Sender details for automated notifications (requires <code>RESEND_API_KEY</code> in Supabase secrets).
 		</p>
-		<div class="setting-field">
-			<label for="os-from">From Email</label>
+		<div class="field">
+			<label class="field-label" for="os-from">From Email</label>
 			<input
 				id="os-from"
 				type="text"
@@ -558,8 +558,8 @@
 			/>
 			<p class="field-hint">Shown as the sender. Must be a verified Resend domain.</p>
 		</div>
-		<div class="setting-field">
-			<label for="os-replyto">Reply-To Email</label>
+		<div class="field">
+			<label class="field-label" for="os-replyto">Reply-To Email</label>
 			<input
 				id="os-replyto"
 				type="email"
@@ -683,7 +683,7 @@
 						<div class="member-actions">
 							{#if viewerIsPlatformAdmin}
 								<button
-									class="btn-attr"
+									class="btn-icon btn-attr"
 									class:btn-attr-on={platformAdminIds.has(member.user_id)}
 									onclick={() => togglePlatformAdmin(member)}
 									title={platformAdminIds.has(member.user_id)
@@ -694,7 +694,7 @@
 								</button>
 							{/if}
 							<button
-								class="btn-attr"
+								class="btn-icon btn-attr"
 								onclick={() => startEditAttr(member)}
 								title="Edit scheduling attributes"
 							>
@@ -712,7 +712,7 @@
 								</select>
 								{#if member.user_id !== currentUserId}
 									<button
-										class="btn-remove"
+										class="btn-icon btn-icon-danger btn-remove"
 										onclick={() => handleRemove(member)}
 										title="Remove member"
 									>
@@ -836,14 +836,14 @@
 							<div class="member-actions">
 								{#if status.tone === 'active'}
 									<button
-										class="btn-attr"
+										class="btn-icon btn-attr"
 										onclick={() => copyLink(invite.token)}
 										title="Copy invite link"
 									>
 										<i class="fi {copiedToken === invite.token ? 'fi-br-check' : 'fi-br-link'}"></i>
 									</button>
 									<button
-										class="btn-attr"
+										class="btn-icon btn-attr"
 										onclick={() => handleRevokeLink(invite)}
 										title="Revoke invite"
 									>
@@ -896,22 +896,6 @@
 <style lang="scss">
 	@use '../../../styles/col.scss' as *;
 
-	.setting-field {
-		margin-bottom: 12px;
-	}
-	.setting-field label {
-		display: block;
-		font-size: 12px;
-		font-weight: 600;
-		color: $light-tertiary;
-		margin-bottom: 4px;
-	}
-	.field-hint {
-		font-size: 11px;
-		color: $light-tertiary;
-		margin: 4px 0 0;
-	}
-
 	.invite-form {
 		display: flex;
 		gap: 8px;
@@ -920,16 +904,16 @@
 	}
 	.invite-msg {
 		font-size: 12px;
-		color: #22c55e;
+		color: $success;
 		margin-bottom: 10px;
 	}
 	.invite-error {
-		color: #ef4444 !important;
+		color: $danger !important;
 	}
 
 	.card-hint {
 		font-size: 12px;
-		color: #878fa1;
+		color: $text-muted;
 		margin-bottom: 10px;
 	}
 	.link-mode {
@@ -950,26 +934,30 @@
 		flex-direction: column;
 		gap: 2px;
 		font-size: 11px;
-		color: #878fa1;
+		color: $text-muted;
 		margin: 0;
 	}
+
+	// Solid-fill status chips. Deliberately not the shared soft-tone .pill —
+	// these read as state on a tinted member card.
 	.status-badge {
 		font-size: 9px;
 		font-weight: 700;
 		padding: 2px 6px;
-		border-radius: 999px;
+		border-radius: $radius-pill;
 		text-transform: uppercase;
 	}
 	.status-active {
-		background-color: #22c55e;
+		background-color: $success;
 		color: white;
 	}
 	.status-spent {
-		background-color: #64748b;
+		// Slate grey for a spent invite; no token exists for it.
+		background-color: $text-dim;
 		color: white;
 	}
 	.status-dead {
-		background-color: #ef4444;
+		background-color: $danger;
 		color: white;
 	}
 
@@ -980,7 +968,7 @@
 	}
 	.member-card {
 		background-color: $light-secondary;
-		border-radius: 6px;
+		border-radius: $radius-sm;
 		overflow: hidden;
 	}
 	.member-row {
@@ -998,12 +986,13 @@
 		font-size: 13px;
 		font-weight: 600;
 	}
+	// Colour is computed per role, so it stays an inline style.
 	.role-badge {
 		font-size: 9px;
 		font-weight: 700;
 		color: white;
 		padding: 2px 6px;
-		border-radius: 999px;
+		border-radius: $radius-pill;
 		text-transform: uppercase;
 	}
 	.member-actions {
@@ -1017,27 +1006,27 @@
 		width: auto;
 		height: auto;
 	}
+
+	// Both extend the shared .btn-icon: these row actions are a size smaller.
+	.btn-attr,
 	.btn-remove {
-		display: flex;
-		align-items: center;
-		justify-content: center;
 		width: 24px;
 		height: 24px;
-		border: none;
 		border-radius: 4px;
-		background: transparent;
-		color: $light-tertiary;
-		cursor: pointer;
 		font-size: 10px;
+
+		i {
+			font-size: 10px;
+		}
 	}
-	.btn-remove:hover {
-		background-color: #fef2f2;
-		color: #ef4444;
+	.btn-attr:hover {
+		background-color: $info-bg;
+		color: $info-fg;
 	}
 	.teams-badge {
 		font-size: 10px;
-		color: #065f46;
-		background-color: #ecfdf5;
+		color: $success-fg;
+		background-color: $success-bg;
 		padding: 2px 8px;
 		border-radius: 10px;
 		font-weight: 600;
@@ -1046,52 +1035,35 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
-	.btn-attr {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 24px;
-		height: 24px;
-		border: none;
-		border-radius: 4px;
-		background: transparent;
-		color: $light-tertiary;
-		cursor: pointer;
-		font-size: 10px;
-		&:hover {
-			background-color: #eff6ff;
-			color: #1e40af;
-		}
-	}
 	.attr-editor {
 		padding: 10px 12px 12px;
-		border-top: 1px solid #e5e7eb;
-		background-color: white;
+		border-top: 1px solid $border;
+		background-color: $surface;
 	}
 	.pa-badge {
 		font-size: 9px;
 		font-weight: 700;
-		color: #0f1112;
-		background-color: #ffc800;
+		color: $dark-primary;
+		background-color: $yellow-primary;
 		padding: 2px 6px;
-		border-radius: 999px;
+		border-radius: $radius-pill;
 		text-transform: uppercase;
 	}
 	.btn-attr-on {
-		color: #ffc800;
+		color: $yellow-primary;
 	}
 	.attr-label {
 		display: block;
-		font-size: 11px;
-		font-weight: 700;
-		color: $light-tertiary;
+		font-size: 12px;
+		font-weight: 600;
+		color: $text-muted;
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
-		margin-bottom: 3px;
+		margin-bottom: 2px;
 	}
 	.attr-hint {
 		font-size: 11px;
-		color: $light-tertiary;
+		color: $text-muted;
 		margin: 0 0 8px;
 	}
 	.attr-row {
@@ -1111,7 +1083,7 @@
 	}
 	.log-row {
 		background-color: $light-secondary;
-		border-radius: 6px;
+		border-radius: $radius-sm;
 		padding: 8px 12px;
 		font-size: 12px;
 	}
@@ -1129,8 +1101,9 @@
 	.log-type {
 		font-size: 10px;
 		font-weight: 700;
-		color: #4f46e5;
-		background-color: #eef2ff;
+		// Indigo chip for the email type; no token exists for this pair.
+		color: $info-fg;
+		background-color: $info-bg;
 		padding: 1px 6px;
 		border-radius: 10px;
 		text-transform: capitalize;
@@ -1143,24 +1116,24 @@
 	.log-status {
 		font-size: 10px;
 		font-weight: 700;
-		color: #065f46;
-		background-color: #ecfdf5;
+		color: $success-fg;
+		background-color: $success-bg;
 		padding: 1px 6px;
 		border-radius: 10px;
 		text-transform: uppercase;
 	}
 	.log-failed {
-		color: #991b1b;
-		background-color: #fef2f2;
+		color: $danger-fg;
+		background-color: $danger-bg;
 	}
 	.log-date {
 		font-size: 11px;
-		color: $light-tertiary;
+		color: $text-muted;
 	}
 	.log-error {
 		display: block;
 		font-size: 11px;
-		color: #ef4444;
+		color: $danger;
 		margin-top: 4px;
 		font-family: monospace;
 	}
@@ -1176,26 +1149,15 @@
 		justify-content: space-between;
 		align-items: center;
 	}
-	.btn-sm {
-		font-size: 11px;
-		padding: 4px 12px;
-		white-space: nowrap;
-	}
 	.ok-msg {
 		font-size: 13px;
-		color: #22c55e;
+		color: $success;
 	}
 	.logo-preview {
 		max-height: 48px;
 		max-width: 120px;
-		border-radius: 6px;
+		border-radius: $radius-sm;
 		object-fit: contain;
-	}
-	.attr-label {
-		display: block;
-		font-size: 12px;
-		font-weight: 600;
-		margin-bottom: 2px;
 	}
 
 	.uses-toggle {
@@ -1208,7 +1170,7 @@
 		border: none;
 		font-size: 12px;
 		font-weight: 600;
-		color: $light-tertiary;
+		color: $text-muted;
 		cursor: pointer;
 
 		&:hover {
@@ -1225,7 +1187,7 @@
 		list-style: none;
 		margin: 6px 0 0;
 		padding: 8px 10px;
-		border-radius: 6px;
+		border-radius: $radius-sm;
 		background: rgba(255, 255, 255, 0.03);
 	}
 
@@ -1250,20 +1212,20 @@
 		padding: 1px 6px;
 		border-radius: 10px;
 		background: rgba(255, 255, 255, 0.08);
-		color: $light-tertiary;
+		color: $text-muted;
 		white-space: nowrap;
 	}
 
 	.use-when {
 		margin-left: auto;
 		font-size: 11px;
-		color: $light-tertiary;
+		color: $text-muted;
 		white-space: nowrap;
 	}
 
 	.uses-untracked {
 		margin: 8px 0 0;
 		font-size: 11px;
-		color: $light-tertiary;
+		color: $text-muted;
 	}
 </style>

@@ -232,23 +232,28 @@
 	.sidebar-submenu li:has(.submenu-selected) {
 		border-left: 2px white solid !important;
 	}
+	// Matches the platform admin panel's nav treatment: muted until hovered,
+	// yellow with a left rule when it's the page you're on.
 	.btn-sidebar {
 		display: flex;
-		margin-top: 5px;
-		margin-bottom: 5px;
-		padding-left: 10px;
-		height: 35px;
+		margin-top: 2px;
+		margin-bottom: 2px;
+		padding-left: 13px;
+		height: 36px;
 		width: 195px;
-		font-weight: 600;
+		font-size: 13px;
+		font-weight: 500;
 		align-items: center;
 		justify-content: start;
 		background: transparent;
 		border: none;
-		color: white;
+		border-left: 3px solid transparent;
+		color: $light-tertiary;
 		text-decoration: none;
-		border-radius: 6px;
+		border-radius: 0 6px 6px 0;
+		transition: all 0.15s;
 		&:hover {
-			background-color: rgba(255, 255, 255, 0.08);
+			background-color: rgba(255, 255, 255, 0.05);
 			color: white;
 		}
 	}
@@ -264,7 +269,10 @@
 		font-size: 12px;
 	}
 	.sidebar-selected {
-		background-color: $dark-secondary !important;
+		color: $yellow-primary !important;
+		background-color: rgba(255, 200, 0, 0.08) !important;
+		border-left-color: $yellow-primary !important;
+		font-weight: 600;
 		cursor: default;
 	}
 

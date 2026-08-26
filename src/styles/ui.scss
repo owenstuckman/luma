@@ -1,0 +1,734 @@
+// Shared UI primitives.
+//
+// These are the patterns the platform admin panel established, promoted to
+// global classes so every surface — recruiter, applicant, admin, public —
+// renders the same furniture instead of redefining it per page.
+//
+// Loaded ONCE, from `luma.scss`. Never `@use` this from a component; import
+// `col.scss` there for tokens and reach for these classes in the markup.
+//
+// Rule of thumb: if two pages need the same thing, it belongs here. If one page
+// needs something nobody else does, keep it local.
+
+@use 'col.scss' as *;
+
+// ---------------------------------------------------------------------------
+// Page header — the white bar at the top of a content area.
+// ---------------------------------------------------------------------------
+.page-head {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 16px;
+	width: 100%;
+	margin-bottom: 20px;
+}
+
+.page-title {
+	font-weight: 900;
+	font-size: 26px;
+	color: $text;
+	margin: 0;
+	text-align: left;
+}
+
+.page-subtitle {
+	font-size: 13px;
+	color: $text-muted;
+	margin: 4px 0 0;
+}
+
+.page-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-shrink: 0;
+}
+
+// Uppercase label that separates groups of content within a page.
+.section-title {
+	font-size: 13px;
+	font-weight: 700;
+	color: $text-muted;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	margin: 20px 0 10px;
+}
+
+// ---------------------------------------------------------------------------
+// Panel — the default white container. Deliberately NOT `.card`: Bootstrap
+// owns that, and `luma.scss` caps it at 500px for the applicant flow.
+// ---------------------------------------------------------------------------
+.panel {
+	background-color: $surface;
+	border-radius: $radius;
+	box-shadow: $shadow;
+	padding: 16px 20px;
+	margin-bottom: 16px;
+	width: 100%;
+}
+
+.panel-flush {
+	padding: 0;
+	overflow: hidden;
+}
+
+.panel-head {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 12px;
+	margin-bottom: 12px;
+}
+
+.panel-title {
+	font-size: 15px;
+	font-weight: 700;
+	color: $text;
+	margin: 0;
+}
+
+// ---------------------------------------------------------------------------
+// Stats
+// ---------------------------------------------------------------------------
+.stat-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+	gap: 12px;
+	width: 100%;
+	margin-bottom: 20px;
+}
+
+.stat-card {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 18px;
+	background-color: $surface;
+	border-radius: $radius;
+	box-shadow: $shadow;
+}
+
+.stat-number {
+	font-size: 28px;
+	font-weight: 900;
+	color: $text;
+	line-height: 1.1;
+}
+
+.stat-label {
+	font-size: 11px;
+	font-weight: 600;
+	color: $text-muted;
+	margin-top: 4px;
+	text-align: center;
+}
+
+// ---------------------------------------------------------------------------
+// List rows — the white strip used for orgs, members, jobs, candidates.
+// ---------------------------------------------------------------------------
+.list-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 10px 16px;
+	background: $surface;
+	border-radius: $radius;
+	margin-bottom: 6px;
+	box-shadow: $shadow-sm;
+	width: 100%;
+}
+
+.list-row-clickable {
+	cursor: pointer;
+	transition:
+		box-shadow 0.2s ease,
+		transform 0.2s ease;
+
+	&:hover {
+		box-shadow: $shadow-lg;
+		transform: translateY(-1px);
+	}
+}
+
+.row-left {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-width: 0;
+}
+
+.row-name {
+	display: block;
+	font-size: 13px;
+	font-weight: 600;
+	color: $text;
+}
+
+.row-sub {
+	display: block;
+	font-size: 11px;
+	color: $text-muted;
+}
+
+.row-stats {
+	display: flex;
+	gap: 12px;
+	font-size: 12px;
+	color: $text-muted;
+	flex-shrink: 0;
+}
+
+// ---------------------------------------------------------------------------
+// Tables
+// ---------------------------------------------------------------------------
+.data-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 13px;
+
+	th {
+		text-align: left;
+		font-size: 11px;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: $text-muted;
+		background-color: $surface-muted;
+		padding: 10px 14px;
+		border-bottom: 1px solid $border;
+		white-space: nowrap;
+	}
+
+	td {
+		padding: 10px 14px;
+		border-bottom: 1px solid $border-faint;
+		color: $text;
+		vertical-align: middle;
+	}
+
+	tbody tr:last-child td {
+		border-bottom: none;
+	}
+
+	tbody tr:hover td {
+		background-color: $surface-muted;
+	}
+}
+
+// Wrap any wide table in this so the page itself never scrolls sideways.
+.table-scroll {
+	width: 100%;
+	overflow-x: auto;
+}
+
+// ---------------------------------------------------------------------------
+// Pills. Not `.badge` — Bootstrap owns that name.
+// ---------------------------------------------------------------------------
+.pill {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: $radius-pill;
+	font-size: 10px;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+	white-space: nowrap;
+	background-color: $border-faint;
+	color: $text-body;
+}
+
+.pill-success {
+	background-color: $success-bg;
+	color: $success-fg;
+}
+.pill-danger {
+	background-color: $danger-bg;
+	color: $danger-fg;
+}
+.pill-warning {
+	background-color: $warning-bg;
+	color: $warning-fg;
+}
+.pill-info {
+	background-color: $info-bg;
+	color: $info-fg;
+}
+.pill-neutral {
+	background-color: $border-faint;
+	color: $text-body;
+}
+
+// A pill whose colour comes from DATA, not from a tone class — pipeline stages,
+// interview outcomes, per-org colours. The background is supplied inline
+// (`style="background-color: {STAGE_COLORS[stage]}"`); this only fixes the
+// shape and the white label so those badges still match the tonal ones.
+.pill-solid {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: $radius-pill;
+	font-size: 10px;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+	white-space: nowrap;
+	color: white;
+}
+
+// ---------------------------------------------------------------------------
+// Alerts / banners
+// ---------------------------------------------------------------------------
+.alert-soft {
+	padding: 12px 16px;
+	border-radius: $radius;
+	font-size: 13px;
+	margin-bottom: 16px;
+	width: 100%;
+	background-color: $border-faint;
+	color: $text-body;
+}
+
+.alert-error {
+	background-color: $danger-bg;
+	color: $danger-fg;
+}
+.alert-success {
+	background-color: $success-bg;
+	color: $success-fg;
+}
+.alert-warning {
+	background-color: $warning-bg;
+	color: $warning-fg;
+}
+.alert-info {
+	background-color: $info-bg;
+	color: $info-fg;
+}
+
+// ---------------------------------------------------------------------------
+// Empty & loading states
+// ---------------------------------------------------------------------------
+.empty-state {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	text-align: center;
+	padding: 40px 20px;
+	color: $text-muted;
+	background-color: $surface;
+	border-radius: $radius;
+	box-shadow: $shadow-sm;
+	width: 100%;
+
+	i {
+		font-size: 28px;
+		margin-bottom: 10px;
+		color: $text-subtle;
+	}
+}
+
+.empty-title {
+	font-size: 15px;
+	font-weight: 700;
+	color: $text;
+	margin-bottom: 4px;
+}
+
+.empty-hint {
+	font-size: 13px;
+	color: $text-muted;
+	max-width: 420px;
+}
+
+.skeleton {
+	background: linear-gradient(90deg, $border 25%, #f3f4f6 50%, $border 75%);
+	background-size: 200% 100%;
+	animation: luma-shimmer 1.5s infinite;
+	border-radius: $radius-sm;
+}
+
+@keyframes luma-shimmer {
+	0% {
+		background-position: 200% 0;
+	}
+	100% {
+		background-position: -200% 0;
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Toolbars & filters
+// ---------------------------------------------------------------------------
+.filter-bar {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
+	margin-bottom: 16px;
+	width: 100%;
+}
+
+.filter-label {
+	font-size: 12px;
+	font-weight: 600;
+	color: $text-muted;
+	white-space: nowrap;
+}
+
+// ---------------------------------------------------------------------------
+// Form furniture
+// ---------------------------------------------------------------------------
+.field {
+	margin-bottom: 12px;
+	width: 100%;
+}
+
+.field-label {
+	display: block;
+	font-size: 12px;
+	font-weight: 600;
+	color: $text-muted;
+	margin-bottom: 4px;
+}
+
+.field-hint {
+	font-size: 11px;
+	color: $text-muted;
+	margin: 4px 0 0;
+}
+
+.field-error {
+	font-size: 11px;
+	color: $danger;
+	margin: 4px 0 0;
+}
+
+.field-success {
+	font-size: 11px;
+	color: $success-fg;
+	margin: 4px 0 0;
+}
+
+// ---------------------------------------------------------------------------
+// Icon-only button, used for row actions everywhere.
+// ---------------------------------------------------------------------------
+.btn-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	background: none;
+	border: none;
+	border-radius: $radius-sm;
+	color: $text-muted;
+	cursor: pointer;
+	transition:
+		background-color 0.15s,
+		color 0.15s;
+
+	&:hover {
+		background-color: $border-faint;
+		color: $text;
+	}
+
+	&:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+	}
+
+	i {
+		font-size: 13px;
+		line-height: 1;
+	}
+}
+
+.btn-icon-danger:hover {
+	background-color: $danger-bg;
+	color: $danger;
+}
+
+// Bootstrap ships `.btn-sm`, but every page that wanted a compact button was
+// re-overriding it with !important. Defined once here — ui.scss loads after
+// Bootstrap, so it wins on order without needing !important.
+.btn-sm {
+	font-size: 11px;
+	padding: 4px 12px;
+}
+
+// A filled destructive button. The outline/yellow button set had no
+// destructive member, so pages were inlining #ef4444.
+.btn-danger-solid {
+	background-color: $danger;
+	border: none;
+	border-radius: $radius-sm;
+	font-weight: 600;
+	font-size: 12px;
+	color: white;
+
+	&:hover {
+		background-color: $danger-fg;
+		color: white;
+	}
+
+	&:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+}
+
+// Outline variant of the destructive button, for a delete that isn't the
+// primary action on the row.
+.btn-danger-outline {
+	background-color: transparent;
+	border: 1px solid $danger;
+	border-radius: $radius-sm;
+	font-weight: 600;
+	font-size: 12px;
+	color: $danger;
+
+	&:hover {
+		background-color: $danger;
+		border-color: $danger;
+		color: white;
+	}
+}
+
+// Breadcrumb back-link. Pair with a `fi fi-br-angle-left` icon.
+.back-link {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	font-size: 12px;
+	font-weight: 600;
+	color: $text-muted;
+	text-decoration: none;
+	margin-bottom: 8px;
+
+	&:hover {
+		color: $text;
+	}
+
+	i {
+		font-size: 10px;
+		line-height: 1;
+	}
+}
+
+// Selectable chip — a pill wrapping a checkbox or radio, filled when on.
+// Used by the job editor's team scoping and the applicant team picker.
+.chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 5px 12px;
+	border-radius: $radius-pill;
+	border: 1px solid $border-strong;
+	background-color: $surface;
+	font-size: 12px;
+	font-weight: 600;
+	color: $text-body;
+	cursor: pointer;
+	transition: all 0.15s;
+
+	&:hover {
+		border-color: $yellow-primary;
+	}
+
+	input {
+		margin: 0;
+	}
+}
+
+.chip-selected {
+	background-color: $yellow-primary;
+	border-color: $yellow-primary;
+	color: $dark-primary;
+}
+
+// ---------------------------------------------------------------------------
+// Text helpers
+// ---------------------------------------------------------------------------
+.muted {
+	color: $text-muted;
+	font-size: 13px;
+}
+
+.subtle {
+	color: $text-subtle;
+	font-size: 12px;
+}
+
+// Like `.field-hint` but with no margin, for hints that sit inside a flex row
+// rather than under an input.
+.hint {
+	font-size: 11px;
+	color: $text-muted;
+}
+
+.divider {
+	height: 1px;
+	background-color: $border;
+	border: none;
+	margin: 16px 0;
+	width: 100%;
+}
+
+// ---------------------------------------------------------------------------
+// Public screens — the signed-out gradient shell shared by the landing page,
+// auth, reset, register, invite, and the apply success page. It was copy-pasted
+// across all six before it lived here.
+// ---------------------------------------------------------------------------
+.auth-screen {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100vw;
+	min-height: 100vh;
+	padding: 20px;
+	background: linear-gradient(90deg, $orange-primary 0%, $yellow-primary 100%);
+}
+
+// Soft destructive button. Six surfaces had grown their own copy of this.
+.btn-danger-soft {
+	background-color: $danger-bg;
+	border: 1px solid $danger-border;
+	border-radius: $radius-sm;
+	font-weight: 600;
+	font-size: 12px;
+	color: $danger-fg;
+
+	&:hover {
+		background-color: $danger-bg-strong;
+		color: $danger-fg;
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Modals — one shell for every dialog in the app.
+// ---------------------------------------------------------------------------
+.modal-backdrop-luma {
+	position: fixed;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.5);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1000;
+	padding: 20px;
+}
+
+.modal-panel {
+	background: $surface;
+	border-radius: $radius-lg;
+	box-shadow: $shadow-modal;
+	width: 100%;
+	max-width: 560px;
+	max-height: 90vh;
+	overflow-y: auto;
+	padding: 24px;
+}
+
+.modal-head {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 16px;
+}
+
+.modal-title {
+	font-size: 18px;
+	font-weight: 800;
+	color: $text;
+	margin: 0;
+}
+
+.modal-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 20px;
+}
+
+// For dialogs that need a sticky header and footer around a scrolling body —
+// the email generator, the interview creator. `.modal-panel` on its own is a
+// single scrolling column, which is right for short forms and wrong for these.
+.modal-panel-lg {
+	max-width: 860px;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+
+.modal-body {
+	flex: 1;
+	overflow-y: auto;
+	padding: 20px 24px;
+	min-height: 0;
+}
+
+.modal-panel-lg > .modal-head {
+	padding: 20px 24px;
+	margin-bottom: 0;
+	border-bottom: 1px solid $border;
+	flex-shrink: 0;
+}
+
+.modal-panel-lg > .modal-actions {
+	padding: 16px 24px;
+	margin-top: 0;
+	border-top: 1px solid $border;
+	background-color: $surface-muted;
+	flex-shrink: 0;
+}
+
+// ---------------------------------------------------------------------------
+// Tab bar — the admin panel and the email generator both grew one of these.
+// ---------------------------------------------------------------------------
+.tab-bar {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	border-bottom: 1px solid $border;
+	margin-bottom: 16px;
+	overflow-x: auto;
+}
+
+.tab-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 8px 14px;
+	background: none;
+	border: none;
+	border-bottom: 2px solid transparent;
+	font-size: 13px;
+	font-weight: 600;
+	color: $text-muted;
+	white-space: nowrap;
+	cursor: pointer;
+	transition: all 0.15s;
+
+	&:hover {
+		color: $text;
+	}
+
+	&.active {
+		color: $text;
+		border-bottom-color: $yellow-primary;
+	}
+}
+
+.tab-count {
+	font-size: 10px;
+	font-weight: 700;
+	padding: 1px 6px;
+	border-radius: $radius-pill;
+	background-color: $border-faint;
+	color: $text-body;
+}

@@ -62,9 +62,9 @@
 	}
 	.step-selected .step-sidebar {
 		background-color: $dark-secondary;
-		border-radius: 5px;
+		border-radius: $radius-sm;
 	}
 	.step-disabled .step-sidebar {
-		color: $light-tertiary;
+		color: $text-muted;
 	}
 </style>

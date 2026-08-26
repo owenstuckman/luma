@@ -1,7 +1,85 @@
+// Design tokens. Variables ONLY — this file is `@use`d with `as *` by ~30
+// components, so any rule written here would be emitted once per component.
+// Shared component CLASSES live in `ui.scss`, which is loaded globally by
+// `luma.scss` exactly once.
+
+// ---------------------------------------------------------------------------
+// Brand
+// ---------------------------------------------------------------------------
 $default: #212529;
 $yellow-primary: #ffc800;
 $yellow-secondary: #e8aa00;
+$orange-primary: #ff9900; // only used as the left stop of the public gradient
 $light-secondary: #f3f6fc;
 $light-tertiary: #878fa1;
 $dark-primary: #0f1112;
 $dark-secondary: #192b2e;
+
+// ---------------------------------------------------------------------------
+// Surfaces & lines
+// ---------------------------------------------------------------------------
+$surface: #ffffff; // cards, panels, header bar
+$surface-sunken: $light-secondary; // page background behind cards
+$surface-muted: #fafbfc; // table headers, inset rows
+$border: #e5e7eb; // default hairline
+$border-strong: #d1d5db; // input borders, dividers that must read
+$border-faint: #f1f5f9; // row separators inside a card
+
+// ---------------------------------------------------------------------------
+// Text
+// ---------------------------------------------------------------------------
+$text: $dark-primary;
+$text-muted: $light-tertiary;
+$text-subtle: #9ca3af; // placeholders, disabled, timestamps
+$text-body: #6b7280; // secondary prose
+$text-dim: #64748b; // spent/expired states
+
+// ---------------------------------------------------------------------------
+// Status. Each tone is (bg, fg, accent) so badges/alerts/banners stay in step.
+// These were already the de-facto palette — they existed as ~350 copy-pasted
+// hex literals before being named here.
+// ---------------------------------------------------------------------------
+$danger: #ef4444;
+$danger-fg: #991b1b;
+$danger-bg: #fef2f2;
+$danger-bg-strong: #fee2e2; // hover fill on a soft destructive button
+$danger-border: #fca5a5;
+
+$success: #22c55e;
+$success-fg: #065f46;
+$success-bg: #ecfdf5;
+$success-fill: #a7f3d0; // painted state (selected availability slots)
+
+$warning: #f59e0b;
+$warning-fg: #92400e;
+$warning-bg: #fffbeb;
+$warning-border: #fef3c7;
+$warning-strong: #fcd34d; // rules that must read against a warning fill
+$warning-tint: #fefce8; // selected-row wash
+
+$info: #3b82f6;
+$info-fg: #1e40af;
+$info-bg: #eff6ff;
+
+// ---------------------------------------------------------------------------
+// Shape & depth. One radius scale, one shadow scale — the admin panel's.
+// ---------------------------------------------------------------------------
+$radius-sm: 5px;
+$radius: 8px; // the default for cards and panels
+$radius-lg: 12px;
+$radius-pill: 999px;
+
+$shadow-sm: 0 0 8px rgba(0, 0, 0, 0.04);
+$shadow: 0 0 12px rgba(0, 0, 0, 0.06); // resting card
+$shadow-lg: 0 4px 20px rgba(0, 0, 0, 0.12); // hover / raised
+$shadow-modal: 0 10px 40px rgba(0, 0, 0, 0.2);
+
+// ---------------------------------------------------------------------------
+// Chrome
+// ---------------------------------------------------------------------------
+$sidebar-width: 220px;
+$navbar-height: 45px;
+$content-max: 1100px;
+
+// Focus ring — matches the Bootstrap override in luma.scss.
+$focus-ring: 0 0 0 0.25rem rgba(255, 200, 0, 0.25);

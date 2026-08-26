@@ -42,12 +42,8 @@
 			<h2 style="color: white;">Select Organization</h2>
 
 			{#if orgs.length === 0}
-				<p style="color: #878fa1; margin-top: 10px;">
-					You're not a member of any organization yet.
-				</p>
-				<p style="color: #878fa1; font-size: 13px;">
-					Ask an admin to add you, or create a new organization.
-				</p>
+				<p class="muted no-org-title">You're not a member of any organization yet.</p>
+				<p class="muted">Ask an admin to add you, or create a new organization.</p>
 				<a href="/register" class="btn btn-primary" style="margin-top: 15px;">Create Organization</a
 				>
 			{:else}
@@ -62,7 +58,7 @@
 								<span class="org-item-name">{membership.organizations.name}</span>
 								<span class="org-item-role">{membership.role}</span>
 							</div>
-							<i class="fi fi-br-angle-right" style="color: #878fa1; font-size: 10px;"></i>
+							<i class="fi fi-br-angle-right org-arrow"></i>
 						</a>
 					{/each}
 				</div>
@@ -98,6 +94,13 @@
 		padding: 40px;
 		min-width: 350px;
 	}
+	.no-org-title {
+		margin-top: 10px;
+	}
+	.org-arrow {
+		font-size: 10px;
+		color: $text-muted;
+	}
 	.org-list {
 		display: flex;
 		flex-direction: column;
@@ -111,7 +114,7 @@
 		gap: 12px;
 		padding: 12px 16px;
 		background-color: $dark-secondary;
-		border-radius: 8px;
+		border-radius: $radius;
 		color: white;
 		text-decoration: none;
 		transition: background-color 0.2s ease;
@@ -137,7 +140,7 @@
 	}
 	.org-item-role {
 		font-size: 11px;
-		color: $light-tertiary;
+		color: $text-muted;
 		text-transform: capitalize;
 	}
 </style>

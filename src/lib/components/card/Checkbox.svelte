@@ -14,7 +14,7 @@
 
 <div class="card">
 	<h5>{title}</h5>
-	{#if subtitle}<p class="p2">{subtitle}</p>{/if}
+	{#if subtitle}<p class="field-hint">{subtitle}</p>{/if}
 	{#each options as option, i}
 		<div class="form-check">
 			<input

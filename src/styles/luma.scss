@@ -12,6 +12,10 @@ $font-family-base:
 
 @use 'bootstrap/scss/bootstrap';
 
+// Shared UI primitives (panels, pills, tables, empty states...). Loaded here,
+// exactly once, so no component ever redefines them. See `ui.scss`.
+@use 'ui.scss';
+
 // text
 p {
 	font-weight: 400;
@@ -40,10 +44,15 @@ h3 {
 h4 {
 	font-weight: 900;
 	color: $dark-primary;
-	font-size: 32px;
-	text-align: center;
+	font-size: 26px;
+	text-align: left;
 	margin-top: 5px;
 	margin-bottom: 15px;
+}
+// The applicant flow centres its step headings; everything else reads left.
+.text-center h4,
+h4.text-center {
+	text-align: center;
 }
 h5 {
 	font-weight: 700;
@@ -64,7 +73,7 @@ a {
 .layout {
 	display: grid;
 	grid-template-rows: 45px 1fr;
-	grid-template-columns: 205px 1fr;
+	grid-template-columns: $sidebar-width 1fr;
 	grid-template-areas:
 		'navbar navbar'
 		'sidebar content';
@@ -86,9 +95,15 @@ a {
 	flex-direction: column;
 	justify-content: start;
 	align-items: start;
-	padding: 20px 30px;
+	padding: 25px 30px;
 	background-color: $light-secondary;
 	overflow-y: auto;
+}
+// Keep long-form recruiter pages to the same measure as the admin panel
+// instead of letting them run the full width of a wide monitor.
+.content-left > * {
+	max-width: $content-max;
+	width: 100%;
 }
 
 // button: primary
@@ -269,7 +284,7 @@ a {
 	.layout {
 		display: grid;
 		grid-template-rows: 45px 1fr;
-		grid-template-columns: 205px 1fr;
+		grid-template-columns: $sidebar-width 1fr;
 		grid-template-areas:
 			'navbar navbar'
 			'content content';

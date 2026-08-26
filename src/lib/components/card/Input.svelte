@@ -8,7 +8,7 @@
 
 <div class="card p-3">
 	<h5>{title}</h5>
-	{#if subtitle}<p class="p2">{subtitle}</p>{/if}
+	{#if subtitle}<p class="field-hint">{subtitle}</p>{/if}
 	<input
 		type="text"
 		class="form-control"

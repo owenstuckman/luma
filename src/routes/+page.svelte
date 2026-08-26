@@ -44,7 +44,7 @@
 					{/each}
 				</div>
 			{:else}
-				<p style="color: #878fa1; font-size: 14px;">No organizations yet.</p>
+				<p class="muted">No organizations yet.</p>
 			{/if}
 
 			<div style="display: flex; gap: 10px; margin-top: 10px;">
@@ -53,10 +53,10 @@
 				</a>
 			</div>
 
-			<div class="divider">
-				<span class="divider-line"></span>
-				<span class="divider-text">or</span>
-				<span class="divider-line"></span>
+			<div class="or-divider">
+				<span class="or-divider-line"></span>
+				<span class="or-divider-text">or</span>
+				<span class="or-divider-line"></span>
 			</div>
 
 			<a href="/auth?redirect=/register" class="create-org-link">
@@ -76,7 +76,7 @@
 
 	.login-screen {
 		display: flex;
-		background: #ffc800;
+		background: $yellow-primary;
 		background: linear-gradient(90deg, rgba(255, 153, 0, 1) 0%, rgba(255, 200, 0, 1) 100%);
 		justify-content: center;
 		align-items: center;
@@ -95,7 +95,7 @@
 		padding: 30px;
 		justify-content: left;
 		align-items: start;
-		box-shadow: 0 0px 12px rgba(0, 0, 0, 0.1);
+		box-shadow: $shadow;
 		overflow-y: auto;
 	}
 
@@ -140,7 +140,7 @@
 		gap: 10px;
 		padding: 10px 14px;
 		background-color: $dark-secondary;
-		border-radius: 8px;
+		border-radius: $radius;
 		color: white;
 		text-decoration: none;
 		transition: background-color 0.2s ease;
@@ -166,19 +166,21 @@
 		color: $light-tertiary;
 	}
 
-	.divider {
+	// Named `or-divider`, not `divider`: `.divider` is a shared class in ui.scss
+	// (a 1px rule) and would otherwise bleed into this flex row.
+	.or-divider {
 		display: flex;
 		align-items: center;
 		gap: 10px;
 		width: 100%;
 		margin-top: 6px;
 	}
-	.divider-line {
+	.or-divider-line {
 		flex: 1;
 		height: 1px;
 		background-color: $dark-secondary;
 	}
-	.divider-text {
+	.or-divider-text {
 		color: $light-tertiary;
 		font-size: 12px;
 		font-weight: 600;
@@ -196,7 +198,7 @@
 		font-weight: 600;
 		font-size: 13px;
 		padding: 8px 20px;
-		border-radius: 6px;
+		border-radius: $radius-sm;
 		transition: all 0.2s ease;
 		&:hover {
 			background-color: $dark-secondary;

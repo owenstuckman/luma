@@ -346,9 +346,24 @@
 
 <div class="layout">
 	<div class="content-left">
-		<div class="page-header">
-			<h4>Full Schedule</h4>
-			<div class="header-actions">
+		<div class="page-head">
+			<div>
+				<h4 class="page-title">Full Schedule</h4>
+				<p class="page-subtitle">
+					All interviews: <strong>{interviews.length}</strong> across
+					<strong>{interviewerEmails.length}</strong>
+					interviewers
+					{#if flaggedCount > 0}
+						<span
+							class="pill pill-warning"
+							title="These interviews were placed with relaxed constraints and need human review"
+						>
+							⚠ {flaggedCount} need review
+						</span>
+					{/if}
+				</p>
+			</div>
+			<div class="page-actions">
 				<button
 					class="btn btn-secondary btn-sm"
 					on:click={() => (showEmailModal = true)}
@@ -376,37 +391,22 @@
 		</div>
 
 		<div class="filter-bar">
-			<p class="subtitle">
-				All interviews: <strong>{interviews.length}</strong> across
-				<strong>{interviewerEmails.length}</strong>
-				interviewers
-				{#if flaggedCount > 0}
-					<span
-						class="flagged-badge"
-						title="These interviews were placed with relaxed constraints and need human review"
-					>
-						⚠ {flaggedCount} need review
-					</span>
-				{/if}
-			</p>
-			<div class="filter-controls">
-				{#if flaggedCount > 0}
-					<label class="flagged-toggle">
-						<input type="checkbox" bind:checked={showFlaggedOnly} />
-						Flagged only
-					</label>
-				{/if}
-				<select bind:value={interviewerFilter} class="form-control" style="max-width: 250px;">
-					<option value="all">All Interviewers</option>
-					{#each interviewerEmails as email}
-						<option value={email}>{email}</option>
-					{/each}
-				</select>
-			</div>
+			{#if flaggedCount > 0}
+				<label class="flagged-toggle">
+					<input type="checkbox" bind:checked={showFlaggedOnly} />
+					Flagged only
+				</label>
+			{/if}
+			<select bind:value={interviewerFilter} class="form-control" style="max-width: 250px;">
+				<option value="all">All Interviewers</option>
+				{#each interviewerEmails as email}
+					<option value={email}>{email}</option>
+				{/each}
+			</select>
 		</div>
 
 		{#if loading}
-			<p class="placeholder">Loading schedule...</p>
+			<p class="muted placeholder">Loading schedule...</p>
 		{:else if calendarApp}
 			<div class="calendar-wrap">
 				<ScheduleXCalendar {calendarApp} />
@@ -415,7 +415,7 @@
 
 		<!-- Interviewer legend -->
 		{#if interviewerFilter === 'all' && interviewerEmails.length > 0}
-			<div class="legend">
+			<div class="panel legend">
 				{#each interviewerEmails as email}
 					<span class="legend-item">
 						<span class="legend-dot" style="background-color: {getInterviewerColor(email)};"></span>
@@ -446,35 +446,35 @@
 <!-- Create individual interview modal -->
 {#if showModal}
 	<div
-		class="modal-overlay"
+		class="modal-backdrop-luma"
 		on:click={() => (showModal = false)}
 		on:keydown={(e) => e.key === 'Escape' && (showModal = false)}
 	>
 		<div
-			class="modal-content"
+			class="modal-panel create-modal"
 			on:click|stopPropagation
 			on:keydown|stopPropagation
 			role="dialog"
 			aria-modal="true"
 			aria-label="Schedule Individual Interview"
 		>
-			<div class="modal-header">
-				<h6>Schedule Individual Interview</h6>
-				<button class="modal-close" on:click={() => (showModal = false)} aria-label="Close dialog"
+			<div class="modal-head">
+				<h6 class="modal-title">Schedule Individual Interview</h6>
+				<button class="btn-icon" on:click={() => (showModal = false)} aria-label="Close dialog"
 					>×</button
 				>
 			</div>
 
 			{#if createSuccess}
-				<div class="alert-success">{createSuccess}</div>
+				<div class="alert-soft alert-success">{createSuccess}</div>
 				<button
 					class="btn btn-primary btn-sm"
 					style="margin-top: 8px;"
 					on:click={() => (showModal = false)}>Close</button
 				>
 			{:else}
-				<div class="form-row">
-					<label>Job Posting</label>
+				<div class="field">
+					<label class="field-label">Job Posting</label>
 					<select class="form-select" bind:value={newJobId}>
 						<option value="">All applicants</option>
 						{#each jobs as job}
@@ -483,8 +483,8 @@
 					</select>
 				</div>
 
-				<div class="form-row">
-					<label>Applicant *</label>
+				<div class="field">
+					<label class="field-label">Applicant *</label>
 					<select class="form-select" bind:value={newApplicantEmail}>
 						<option value="">Select applicant...</option>
 						{#each filteredApplicants as a}
@@ -493,8 +493,8 @@
 					</select>
 				</div>
 
-				<div class="form-row">
-					<label>Interviewer *</label>
+				<div class="field">
+					<label class="field-label">Interviewer *</label>
 					<select class="form-select" bind:value={newInterviewerEmail}>
 						<option value="">Select interviewer...</option>
 						{#each orgMembers as m}
@@ -503,24 +503,24 @@
 					</select>
 				</div>
 
-				<div class="form-row">
-					<label>Date *</label>
+				<div class="field">
+					<label class="field-label">Date *</label>
 					<input type="date" class="form-control" bind:value={newDate} />
 				</div>
 
 				<div class="time-row">
-					<div class="form-row" style="flex: 1;">
-						<label>Start Time *</label>
+					<div class="field" style="flex: 1;">
+						<label class="field-label">Start Time *</label>
 						<input type="time" class="form-control" bind:value={newStart} />
 					</div>
-					<div class="form-row" style="flex: 1;">
-						<label>End Time</label>
+					<div class="field" style="flex: 1;">
+						<label class="field-label">End Time</label>
 						<input type="time" class="form-control" bind:value={newEnd} />
 					</div>
 				</div>
 
-				<div class="form-row">
-					<label>Location</label>
+				<div class="field">
+					<label class="field-label">Location</label>
 					<input
 						class="form-control"
 						bind:value={newLocation}
@@ -529,7 +529,7 @@
 				</div>
 
 				{#if conflictWarnings.length > 0}
-					<div class="conflict-warning">
+					<div class="alert-soft alert-warning conflict-warning">
 						<strong>Scheduling conflicts detected:</strong>
 						{#each conflictWarnings as warning}
 							<p style="margin: 4px 0 0; font-size: 12px;">{warning}</p>
@@ -538,7 +538,7 @@
 				{/if}
 
 				{#if createError}
-					<p class="error-text">{createError}</p>
+					<p class="field-error error-text">{createError}</p>
 				{/if}
 
 				<div class="modal-actions">
@@ -561,65 +561,17 @@
 <style lang="scss">
 	@use '../../../../../styles/col.scss' as *;
 
-	.page-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 16px;
-		h4 {
-			margin: 0;
-		}
-	}
-	.header-actions {
-		display: flex;
-		gap: 8px;
-		align-items: center;
-	}
-	.filter-bar {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		gap: 12px;
-		margin-bottom: 15px;
-		flex-wrap: wrap;
-	}
-	.filter-controls {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		flex-wrap: wrap;
-	}
-	.subtitle {
-		font-size: 13px;
-		color: $light-tertiary;
-		margin: 0;
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		flex-wrap: wrap;
-	}
-	.flagged-badge {
-		display: inline-block;
-		background-color: #fef3c7;
-		color: #92400e;
-		font-size: 11px;
-		font-weight: 700;
-		padding: 2px 8px;
-		border-radius: 10px;
-		cursor: default;
-	}
 	.flagged-toggle {
 		display: flex;
 		align-items: center;
 		gap: 5px;
 		font-size: 12px;
 		font-weight: 600;
-		color: #92400e;
+		color: $warning-fg;
 		cursor: pointer;
 		white-space: nowrap;
 	}
 	.placeholder {
-		color: $light-tertiary;
 		padding: 20px;
 	}
 	.calendar-wrap {
@@ -635,16 +587,13 @@
 		gap: 12px;
 		margin-top: 15px;
 		padding: 12px;
-		background: white;
-		border-radius: 8px;
-		box-shadow: 0 0px 12px rgba(0, 0, 0, 0.08);
 	}
 	.legend-item {
 		display: flex;
 		align-items: center;
 		gap: 5px;
 		font-size: 11px;
-		color: $light-tertiary;
+		color: $text-muted;
 	}
 	.legend-dot {
 		width: 8px;
@@ -654,84 +603,18 @@
 	}
 
 	/* Modal */
-	.modal-overlay {
-		position: fixed;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		background-color: rgba(0, 0, 0, 0.5);
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		z-index: 1000;
-	}
-	.modal-content {
-		background-color: white;
-		border-radius: 10px;
-		padding: 24px;
-		width: min(480px, 90vw);
-		box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-		max-height: 90vh;
-		overflow-y: auto;
-	}
-	.modal-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 16px;
-		h6 {
-			margin: 0;
-		}
-	}
-	.modal-close {
-		background: none;
-		border: none;
-		font-size: 20px;
-		cursor: pointer;
-		color: $light-tertiary;
-		line-height: 1;
-		&:hover {
-			color: $dark-primary;
-		}
-	}
-	.form-row {
-		margin-bottom: 12px;
-		label {
-			display: block;
-			font-size: 12px;
-			font-weight: 600;
-			color: $light-tertiary;
-			margin-bottom: 4px;
-		}
+	.create-modal {
+		max-width: min(480px, 90vw);
 	}
 	.time-row {
 		display: flex;
 		gap: 12px;
 	}
-	.modal-actions {
-		display: flex;
-		gap: 8px;
-		margin-top: 16px;
-	}
 	.conflict-warning {
-		background-color: #fef3c7;
-		color: #92400e;
-		padding: 10px 14px;
-		border-radius: 6px;
-		font-size: 13px;
-		margin-top: 4px;
+		margin: 4px 0 0;
 	}
 	.error-text {
-		color: #ef4444;
 		font-size: 13px;
 		margin: 6px 0;
-	}
-	.alert-success {
-		background-color: #ecfdf5;
-		color: #065f46;
-		padding: 10px 14px;
-		border-radius: 6px;
-		font-size: 13px;
 	}
 </style>

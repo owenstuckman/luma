@@ -133,7 +133,7 @@
 		<option value="status">Sort: Status</option>
 		<option value="rating">Sort: Rating</option>
 	</select>
-	<span class="result-count">{filtered.length} candidates</span>
+	<span class="muted result-count">{filtered.length} candidates</span>
 	<div class="filter-actions">
 		<button
 			class="btn btn-quaternary btn-sm"
@@ -148,12 +148,12 @@
 </div>
 
 {#if selectMode}
-	<div class="bulk-bar">
+	<div class="panel bulk-bar">
 		<label class="bulk-select-all">
 			<input type="checkbox" checked={allSelected} on:change={toggleSelectAll} />
 			Select all ({filtered.length})
 		</label>
-		<span class="bulk-count">{selectedIds.size} selected</span>
+		<span class="muted bulk-count">{selectedIds.size} selected</span>
 		<div class="bulk-actions">
 			<slot name="bulk" />
 		</div>
@@ -165,20 +165,20 @@
 {#if loading}
 	<div class="card-grid">
 		{#each [1, 2, 3, 4, 5, 6] as n (n)}
-			<div class="skeleton-card">
-				<div class="skeleton-block" style="height: 16px; width: 55%; margin-bottom: 10px;"></div>
-				<div class="skeleton-block" style="height: 12px; width: 75%;"></div>
+			<div class="panel skeleton-card">
+				<div class="skeleton" style="height: 16px; width: 55%; margin-bottom: 10px;"></div>
+				<div class="skeleton" style="height: 12px; width: 75%;"></div>
 			</div>
 		{/each}
 	</div>
 {:else if filtered.length === 0}
 	<div class="empty-state">
-		<i class="fi fi-br-users empty-icon"></i>
-		<p>{emptyMessage}</p>
+		<i class="fi fi-br-users"></i>
+		<p class="empty-hint">{emptyMessage}</p>
 	</div>
 {:else if view === 'table'}
-	<div class="table-wrap">
-		<table class="candidate-table">
+	<div class="panel panel-flush table-scroll">
+		<table class="data-table candidate-table">
 			<thead>
 				<tr>
 					{#if selectMode}<th class="col-check"></th>{/if}
@@ -217,12 +217,12 @@
 							<td class="cell-sub">{c.team_names.length > 0 ? c.team_names.join(', ') : '—'}</td>
 						{/if}
 						<td>
-							<span class="pill" style="background-color: {STAGE_COLORS[c.stage]};">
+							<span class="stage-pill" style="background-color: {STAGE_COLORS[c.stage]};">
 								{STAGE_LABELS[c.stage]}
 							</span>
 						</td>
 						<td>
-							<span class="pill" style="background-color: {getStatusColor(c.status)};">
+							<span class="stage-pill" style="background-color: {getStatusColor(c.status)};">
 								{c.status}
 							</span>
 						</td>
@@ -235,7 +235,7 @@
 								<span class="cell-sub">—</span>
 							{:else}
 								{#each c.decisions as d (d.id)}
-									<span class="pill" style="background-color: {OUTCOME_COLORS[d.outcome]};">
+									<span class="stage-pill" style="background-color: {OUTCOME_COLORS[d.outcome]};">
 										{d.outcome}{d.team_name ? ` · ${d.team_name}` : ''}
 									</span>
 								{/each}
@@ -251,7 +251,7 @@
 	<div class="card-grid">
 		{#each paged as c (c.id)}
 			<div
-				class="candidate-card"
+				class="panel candidate-card"
 				class:card-selected={selectedIds.has(c.id)}
 				on:click={() => open(c.id)}
 				on:keydown={() => {}}
@@ -274,7 +274,7 @@
 							<span class="conflict-flag" title="Hired by more than one team">⚑</span>
 						{/if}
 					</span>
-					<span class="pill" style="background-color: {getStatusColor(c.status)};">
+					<span class="stage-pill" style="background-color: {getStatusColor(c.status)};">
 						{c.status}
 					</span>
 				</div>
@@ -286,7 +286,7 @@
 					<p class="cell-sub">{c.team_names.join(', ')}</p>
 				{/if}
 				<div class="card-foot">
-					<span class="pill" style="background-color: {STAGE_COLORS[c.stage]};">
+					<span class="stage-pill" style="background-color: {STAGE_COLORS[c.stage]};">
 						{STAGE_LABELS[c.stage]}
 					</span>
 					{#if c.interview_count > 0}
@@ -326,16 +326,7 @@
 <style lang="scss">
 	@use '../../../styles/col.scss' as *;
 
-	.filter-bar {
-		display: flex;
-		gap: 10px;
-		align-items: center;
-		margin-bottom: 15px;
-		flex-wrap: wrap;
-	}
 	.result-count {
-		font-size: 13px;
-		color: $light-tertiary;
 		font-weight: 500;
 	}
 	.filter-actions {
@@ -343,20 +334,12 @@
 		gap: 6px;
 		margin-left: auto;
 	}
-	.btn-sm {
-		font-size: 11px !important;
-		padding: 4px 10px !important;
-	}
 
 	.bulk-bar {
 		display: flex;
 		align-items: center;
 		gap: 15px;
 		padding: 10px 16px;
-		background-color: white;
-		border-radius: 8px;
-		box-shadow: 0 0px 12px rgba(0, 0, 0, 0.08);
-		margin-bottom: 15px;
 		flex-wrap: wrap;
 	}
 	.bulk-select-all {
@@ -369,7 +352,6 @@
 	}
 	.bulk-count {
 		font-size: 12px;
-		color: $light-tertiary;
 		font-weight: 500;
 	}
 	.bulk-actions {
@@ -385,10 +367,8 @@
 		gap: 12px;
 	}
 	.candidate-card {
-		background-color: white;
-		border-radius: 8px;
 		padding: 16px;
-		box-shadow: 0 0px 12px rgba(0, 0, 0, 0.08);
+		margin-bottom: 0;
 		cursor: pointer;
 		transition:
 			box-shadow 0.2s ease,
@@ -396,7 +376,7 @@
 		position: relative;
 	}
 	.candidate-card:hover {
-		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+		box-shadow: $shadow-lg;
 		transform: translateY(-1px);
 	}
 	.card-selected {
@@ -422,37 +402,8 @@
 		margin-top: 10px;
 	}
 
-	.table-wrap {
-		overflow-x: auto;
-		background-color: white;
-		border-radius: 8px;
-		box-shadow: 0 0px 12px rgba(0, 0, 0, 0.08);
-	}
-	.candidate-table {
-		width: 100%;
-		border-collapse: collapse;
-		font-size: 13px;
-	}
-	.candidate-table th {
-		text-align: left;
-		padding: 10px 12px;
-		font-size: 11px;
-		text-transform: uppercase;
-		letter-spacing: 0.03em;
-		color: $light-tertiary;
-		border-bottom: 1px solid #e5e7eb;
-		white-space: nowrap;
-	}
-	.candidate-table td {
-		padding: 10px 12px;
-		border-bottom: 1px solid #f3f4f6;
-		vertical-align: middle;
-	}
 	.candidate-table tbody tr {
 		cursor: pointer;
-	}
-	.candidate-table tbody tr:hover {
-		background-color: #fafafa;
 	}
 	.row-selected {
 		background-color: rgba(250, 204, 21, 0.12);
@@ -464,66 +415,38 @@
 	.cell-name {
 		font-weight: 700;
 		font-size: 14px;
-		color: $dark-primary;
+		color: $text;
 		display: inline-block;
 	}
 	.cell-sub {
 		font-size: 12px;
-		color: $light-tertiary;
+		color: $text-muted;
 		margin: 2px 0;
 		display: block;
 	}
 	.conflict-flag {
-		color: #f59e0b;
+		color: $warning;
 		font-size: 13px;
 		margin-left: 4px;
 	}
-	.pill {
+
+	// Stage / status / outcome pills carry a computed background colour and so
+	// can't use the shared tonal `.pill` classes.
+	.stage-pill {
 		display: inline-block;
 		font-size: 10px;
 		font-weight: 700;
-		color: white;
+		color: $surface;
 		padding: 2px 8px;
-		border-radius: 999px;
+		border-radius: $radius-pill;
 		text-transform: uppercase;
 		margin-right: 4px;
 		white-space: nowrap;
 	}
 
-	.empty-state {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		padding: 60px 20px;
-		color: $light-tertiary;
-		text-align: center;
-	}
-	.empty-icon {
-		font-size: 40px;
-		margin-bottom: 12px;
-		opacity: 0.4;
-	}
-
 	.skeleton-card {
-		background: white;
-		border-radius: 8px;
 		padding: 20px;
-		box-shadow: 0 0px 12px rgba(0, 0, 0, 0.08);
-	}
-	.skeleton-block {
-		background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
-		background-size: 200% 100%;
-		animation: shimmer 1.5s infinite;
-		border-radius: 6px;
-	}
-	@keyframes shimmer {
-		0% {
-			background-position: 200% 0;
-		}
-		100% {
-			background-position: -200% 0;
-		}
+		margin-bottom: 0;
 	}
 
 	.pagination {
@@ -536,7 +459,7 @@
 	}
 	.page-info {
 		font-size: 12px;
-		color: $light-tertiary;
+		color: $text-muted;
 		font-weight: 600;
 	}
 </style>

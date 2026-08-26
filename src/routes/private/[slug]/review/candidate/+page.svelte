@@ -341,10 +341,10 @@
 					{/if}
 
 					<div style="margin-top: 12px;">
-						<label style="font-size: 12px; font-weight: 600; color: #878fa1;">Change Status</label>
+						<label class="field-label">Change Status</label>
 						<select
 							class="form-control"
-							style="max-width: 200px; margin-top: 4px;"
+							style="max-width: 200px;"
 							value={applicant.status}
 							on:change={(e) => handleStatusChange(e.currentTarget.value)}
 						>
@@ -361,10 +361,10 @@
 					<h5>Review Votes</h5>
 
 					<div class="vote-counts">
-						<span class="vote-stat approve">{tally.approve} approve</span>
-						<span class="vote-stat reject">{tally.reject} reject</span>
+						<span class="pill pill-success">{tally.approve} approve</span>
+						<span class="pill pill-danger">{tally.reject} reject</span>
 						{#if tally.neutral > 0}
-							<span class="vote-stat neutral">{tally.neutral} neutral</span>
+							<span class="pill pill-neutral">{tally.neutral} neutral</span>
 						{/if}
 						{#if thresholds.weighted_scoring}
 							<span class="vote-weighted">
@@ -419,9 +419,9 @@
 				<div class="card">
 					<h5>Timeline</h5>
 					{#if timelineLoading}
-						<p style="color: #878fa1; font-size: 13px;">Loading history...</p>
+						<p class="muted">Loading history...</p>
 					{:else if timeline.length === 0}
-						<p style="color: #878fa1; font-size: 13px;">No recorded activity.</p>
+						<p class="muted">No recorded activity.</p>
 					{:else}
 						<ol class="timeline">
 							{#each timeline as ev, i (i)}
@@ -539,13 +539,13 @@
 											<p class="eval-text"><strong>−</strong> {ev.eval.weaknesses}</p>
 										{/if}
 										{#if ev.eval.notes}
-											<p class="eval-text" style="color: #878fa1;">{ev.eval.notes}</p>
+											<p class="eval-text eval-text-muted">{ev.eval.notes}</p>
 										{/if}
 									</div>
 								{/each}
 							</div>
 						{:else}
-							<p style="color: #878fa1; font-size: 13px;">No evaluations submitted yet.</p>
+							<p class="muted">No evaluations submitted yet.</p>
 						{/if}
 					</div>
 				{/if}
@@ -574,7 +574,7 @@
 							{/each}
 						</div>
 					{:else}
-						<p style="color: #878fa1; font-size: 13px;">No comments yet.</p>
+						<p class="muted">No comments yet.</p>
 					{/if}
 
 					<div class="add-comment">
@@ -606,7 +606,7 @@
 
 	.candidate-page {
 		min-height: 100vh;
-		background-color: $light-secondary;
+		background-color: $surface-sunken;
 		padding: 20px 30px;
 	}
 
@@ -618,25 +618,9 @@
 		align-items: center;
 		margin-bottom: 6px;
 	}
-	.vote-stat {
-		font-size: 12px;
-		font-weight: 700;
-		padding: 2px 10px;
-		border-radius: 999px;
-		color: white;
-	}
-	.vote-stat.approve {
-		background-color: #22c55e;
-	}
-	.vote-stat.reject {
-		background-color: #ef4444;
-	}
-	.vote-stat.neutral {
-		background-color: #878fa1;
-	}
 	.vote-weighted {
 		font-size: 11px;
-		color: $light-tertiary;
+		color: $text-muted;
 	}
 	.vote-actions {
 		display: flex;
@@ -646,25 +630,25 @@
 		font-size: 12px !important;
 		padding: 5px 14px !important;
 		border: none;
-		color: white;
+		color: $surface;
 		font-weight: 700;
 	}
 	.approve-btn {
-		background-color: #22c55e;
+		background-color: $success;
 	}
 	.reject-btn {
-		background-color: #ef4444;
+		background-color: $danger;
 	}
 	.blind-note {
 		font-size: 11px;
-		color: #0ea5e9;
+		color: $info;
 		margin-top: 8px;
 		display: flex;
 		align-items: center;
 		gap: 6px;
 	}
 	.response-hidden {
-		color: $light-tertiary;
+		color: $text-muted;
 		font-style: italic;
 	}
 
@@ -687,7 +671,7 @@
 		top: 24px;
 		bottom: 0;
 		width: 2px;
-		background-color: #e5e7eb;
+		background-color: $border;
 	}
 	.timeline-marker {
 		flex-shrink: 0;
@@ -697,7 +681,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		color: white;
+		color: $surface;
 		font-size: 10px;
 		z-index: 1;
 	}
@@ -714,29 +698,29 @@
 	.timeline-title {
 		font-size: 13px;
 		font-weight: 700;
-		color: $dark-primary;
+		color: $text;
 	}
 	.timeline-tag {
 		font-size: 10px;
 		font-weight: 700;
-		color: white;
+		color: $surface;
 		padding: 1px 8px;
-		border-radius: 999px;
+		border-radius: $radius-pill;
 		text-transform: uppercase;
 	}
 	.timeline-time {
 		font-size: 11px;
-		color: $light-tertiary;
+		color: $text-muted;
 		display: block;
 	}
 	.timeline-actor {
 		font-size: 11px;
-		color: $light-tertiary;
+		color: $text-muted;
 		display: block;
 	}
 	.timeline-detail {
 		font-size: 12px;
-		color: $dark-primary;
+		color: $text;
 		margin: 4px 0 0;
 		white-space: pre-wrap;
 	}
@@ -747,12 +731,12 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
-		color: $light-tertiary;
+		color: $text-muted;
 		font-size: 13px;
 		font-weight: 600;
 	}
 	.back-btn:hover {
-		color: $dark-primary;
+		color: $text;
 	}
 
 	.candidate-layout {
@@ -768,15 +752,15 @@
 
 	.meta {
 		font-size: 13px;
-		color: $light-tertiary;
+		color: $text-muted;
 		margin: 2px 0;
 	}
 	.status-badge {
 		font-size: 10px;
 		font-weight: 700;
-		color: white;
+		color: $surface;
 		padding: 2px 8px;
-		border-radius: 999px;
+		border-radius: $radius-pill;
 		text-transform: uppercase;
 	}
 	.response-item {
@@ -785,7 +769,7 @@
 	.response-key {
 		font-size: 11px;
 		font-weight: 700;
-		color: $light-tertiary;
+		color: $text-muted;
 		text-transform: uppercase;
 	}
 	.response-value {
@@ -801,8 +785,8 @@
 	}
 	.comment-item {
 		padding: 10px;
-		background-color: $light-secondary;
-		border-radius: 6px;
+		background-color: $surface-sunken;
+		border-radius: $radius-sm;
 	}
 	.comment-header {
 		display: flex;
@@ -814,9 +798,9 @@
 	.comment-decision {
 		font-size: 9px;
 		font-weight: 700;
-		color: white;
+		color: $surface;
 		padding: 1px 6px;
-		border-radius: 999px;
+		border-radius: $radius-pill;
 		text-transform: uppercase;
 	}
 	.comment-text {
@@ -826,7 +810,7 @@
 	.add-comment {
 		margin-top: 15px;
 		padding-top: 15px;
-		border-top: 1px solid #e5e7eb;
+		border-top: 1px solid $border;
 	}
 
 	/* Evaluation summary */
@@ -838,7 +822,7 @@
 	.eval-label {
 		font-size: 11px;
 		font-weight: 700;
-		color: $light-tertiary;
+		color: $text-muted;
 		text-transform: uppercase;
 		letter-spacing: 0.03em;
 	}
@@ -849,15 +833,15 @@
 	}
 	.star {
 		font-size: 16px;
-		color: #d1d5db;
+		color: $border-strong;
 	}
 	.star.filled {
-		color: #fbbf24;
+		color: $yellow-primary;
 	}
 	.rating-num {
 		font-size: 13px;
 		font-weight: 700;
-		color: $dark-primary;
+		color: $text;
 		margin-left: 6px;
 	}
 	.rec-pills {
@@ -868,9 +852,9 @@
 	.rec-pill {
 		font-size: 10px;
 		font-weight: 700;
-		color: white;
+		color: $surface;
 		padding: 2px 8px;
-		border-radius: 999px;
+		border-radius: $radius-pill;
 	}
 	.eval-list {
 		margin-top: 12px;
@@ -880,8 +864,8 @@
 	}
 	.eval-item {
 		padding: 10px;
-		background-color: $light-secondary;
-		border-radius: 6px;
+		background-color: $surface-sunken;
+		border-radius: $radius-sm;
 	}
 	.eval-item-header {
 		display: flex;
@@ -892,11 +876,14 @@
 	.eval-interviewer {
 		font-size: 12px;
 		font-weight: 700;
-		color: $dark-primary;
+		color: $text;
 	}
 	.eval-text {
 		font-size: 12px;
-		color: $dark-primary;
+		color: $text;
 		margin: 3px 0 0;
+	}
+	.eval-text-muted {
+		color: $text-muted;
 	}
 </style>

@@ -140,34 +140,32 @@
 <div class="layout">
 	<div class="content-left">
 		{#if loading}
-			<div class="skeleton-block" style="height: 28px; width: 200px; margin-bottom: 10px;"></div>
-			<div class="skeleton-block" style="height: 16px; width: 350px; margin-bottom: 25px;"></div>
+			<div class="skeleton" style="height: 28px; width: 200px; margin-bottom: 10px;"></div>
+			<div class="skeleton" style="height: 16px; width: 350px; margin-bottom: 25px;"></div>
 			<div class="job-grid">
 				{#each [1, 2, 3] as _}
 					<div class="skeleton-card">
-						<div
-							class="skeleton-block"
-							style="height: 18px; width: 60%; margin-bottom: 10px;"
-						></div>
-						<div
-							class="skeleton-block"
-							style="height: 14px; width: 80%; margin-bottom: 14px;"
-						></div>
-						<div class="skeleton-block" style="height: 14px; width: 40%;"></div>
+						<div class="skeleton" style="height: 18px; width: 60%; margin-bottom: 10px;"></div>
+						<div class="skeleton" style="height: 14px; width: 80%; margin-bottom: 14px;"></div>
+						<div class="skeleton" style="height: 14px; width: 40%;"></div>
 					</div>
 				{/each}
 			</div>
 		{:else if !$selectedJob}
 			<!-- Job Picker -->
-			<h4 style="text-align: left;">Hello, {userEmail}</h4>
-			<p>
-				Welcome to the {org?.name || ''} recruiter dashboard. Select a job posting to get started.
-			</p>
+			<div class="page-head">
+				<div>
+					<h4 class="page-title">Hello, {userEmail}</h4>
+					<p class="page-subtitle">
+						Welcome to the {org?.name || ''} recruiter dashboard. Select a job posting to get started.
+					</p>
+				</div>
+			</div>
 
 			{#if jobs.length === 0}
 				<div class="empty-state">
-					<i class="fi fi-br-briefcase empty-icon"></i>
-					<p>No active job postings.</p>
+					<i class="fi fi-br-briefcase"></i>
+					<div class="empty-title">No active job postings.</div>
 					<a href="/private/{slug}/settings/jobs" class="btn btn-tertiary">Manage Job Postings</a>
 				</div>
 			{:else}
@@ -197,16 +195,18 @@
 			{/if}
 		{:else}
 			<!-- Dashboard for selected job -->
-			<div class="dashboard-header">
+			<div class="page-head">
 				<div>
-					<h4 style="text-align: left; margin-bottom: 2px;">{$selectedJob.name}</h4>
+					<h4 class="page-title">{$selectedJob.name}</h4>
 					{#if $selectedJob.description}
-						<p class="selected-desc">{$selectedJob.description}</p>
+						<p class="page-subtitle">{$selectedJob.description}</p>
 					{/if}
 				</div>
-				<button class="btn btn-quaternary btn-sm" on:click={clearSelection}>
-					<i class="fi fi-br-arrow-left"></i> All Jobs
-				</button>
+				<div class="page-actions">
+					<button class="btn btn-quaternary btn-sm" on:click={clearSelection}>
+						<i class="fi fi-br-arrow-left"></i> All Jobs
+					</button>
+				</div>
 			</div>
 
 			<div class="stat-grid">
@@ -228,9 +228,9 @@
 				</div>
 			</div>
 
-			<div style="margin-top: 30px;">
-				<h5>Quick Links</h5>
-				<div style="display: flex; gap: 10px; flex-wrap: wrap;">
+			<div class="quick-links">
+				<div class="section-title">Quick Links</div>
+				<div class="quick-link-row">
 					<a href="/private/{slug}/review" class="btn btn-tertiary">Review Applicants</a>
 					<a href="/private/{slug}/schedule/full" class="btn btn-tertiary">View Schedule</a>
 					<a href="/private/{slug}/candidates" class="btn btn-tertiary">Candidates</a>
@@ -247,30 +247,12 @@
 <style lang="scss">
 	@use '../../../../styles/col.scss' as *;
 
-	.placeholder {
-		color: $light-tertiary;
-		padding: 20px;
-	}
-	.skeleton-block {
-		background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
-		background-size: 200% 100%;
-		animation: shimmer 1.5s infinite;
-		border-radius: 6px;
-	}
 	.skeleton-card {
-		background: white;
-		border-radius: 8px;
+		background: $surface;
+		border-radius: $radius;
 		padding: 20px;
-		box-shadow: 0 0px 12px rgba(0, 0, 0, 0.08);
-		border-left: 4px solid #e5e7eb;
-	}
-	@keyframes shimmer {
-		0% {
-			background-position: 200% 0;
-		}
-		100% {
-			background-position: -200% 0;
-		}
+		box-shadow: $shadow;
+		border-left: 4px solid $border;
 	}
 
 	/* Job picker */
@@ -281,10 +263,10 @@
 		margin-top: 20px;
 	}
 	.job-card {
-		background-color: white;
-		border-radius: 8px;
+		background-color: $surface;
+		border-radius: $radius;
 		padding: 20px;
-		box-shadow: 0 0px 12px rgba(0, 0, 0, 0.08);
+		box-shadow: $shadow;
 		cursor: pointer;
 		transition:
 			box-shadow 0.2s ease,
@@ -292,17 +274,17 @@
 		border-left: 4px solid $yellow-primary;
 	}
 	.job-card:hover {
-		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+		box-shadow: $shadow-lg;
 		transform: translateY(-2px);
 	}
 	.job-name {
 		font-weight: 800;
 		font-size: 16px;
-		color: $dark-primary;
+		color: $text;
 	}
 	.job-desc {
 		font-size: 13px;
-		color: $light-tertiary;
+		color: $text-muted;
 		margin: 6px 0 12px;
 		display: -webkit-box;
 		-webkit-line-clamp: 2;
@@ -317,72 +299,20 @@
 	.job-count {
 		font-size: 13px;
 		font-weight: 700;
-		color: $dark-primary;
+		color: $text;
 	}
 	.job-date {
 		font-size: 11px;
-		color: $light-tertiary;
+		color: $text-muted;
 	}
 
-	.empty-state {
+	.quick-links {
+		margin-top: 30px;
+		width: 100%;
+	}
+	.quick-link-row {
 		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		padding: 60px 20px;
-		color: $light-tertiary;
-		text-align: center;
-	}
-	.empty-icon {
-		font-size: 40px;
-		margin-bottom: 12px;
-		opacity: 0.4;
-	}
-
-	/* Dashboard header */
-	.dashboard-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: flex-start;
-		gap: 12px;
-		margin-bottom: 10px;
-	}
-	.selected-desc {
-		font-size: 13px;
-		color: $light-tertiary;
-		margin: 0;
-	}
-	.btn-sm {
-		font-size: 11px !important;
-		padding: 4px 10px !important;
-	}
-
-	/* Stats */
-	.stat-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-		gap: 15px;
-		margin-top: 20px;
-	}
-	.stat-card {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		padding: 20px;
-		background-color: white;
-		border-radius: 8px;
-		box-shadow: 0 0px 12px rgba(0, 0, 0, 0.08);
-	}
-	.stat-number {
-		font-size: 32px;
-		font-weight: 900;
-		color: $dark-primary;
-	}
-	.stat-label {
-		font-size: 12px;
-		font-weight: 600;
-		color: $light-tertiary;
-		margin-top: 4px;
+		gap: 10px;
+		flex-wrap: wrap;
 	}
 </style>

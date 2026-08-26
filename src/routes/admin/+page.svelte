@@ -370,7 +370,7 @@
 	}
 	.admin-layout {
 		display: grid;
-		grid-template-columns: 220px 1fr;
+		grid-template-columns: $sidebar-width 1fr;
 		min-height: 100vh;
 		background-color: $light-secondary;
 	}
@@ -442,18 +442,18 @@
 		justify-content: space-between;
 		align-items: center;
 		padding: 15px 30px;
-		background-color: white;
-		border-bottom: 1px solid #e5e7eb;
+		background-color: $surface;
+		border-bottom: 1px solid $border;
 		h4 {
 			margin: 0;
 		}
 	}
 	.admin-content {
 		padding: 25px 30px;
-		max-width: 1100px;
+		max-width: $content-max;
 	}
 	.error-text {
-		color: #ef4444;
+		color: $danger;
 		font-size: 13px;
 		margin: 4px 0;
 	}

@@ -58,28 +58,28 @@
 		align-items: center;
 		gap: 8px;
 		padding: 10px 18px;
-		border-radius: 8px;
+		border-radius: $radius;
 		font-size: 13px;
 		font-weight: 600;
-		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+		box-shadow: $shadow-lg;
 		cursor: pointer;
 		animation: slideIn 0.25s ease-out;
 		max-width: 400px;
 	}
 	.toast-info {
-		background-color: #eef2ff;
-		color: #3730a3;
-		border: 1px solid #c7d2fe;
+		background-color: $info-bg;
+		color: $info-fg;
+		border: 1px solid $info;
 	}
 	.toast-success {
-		background-color: #ecfdf5;
-		color: #065f46;
-		border: 1px solid #6ee7b7;
+		background-color: $success-bg;
+		color: $success-fg;
+		border: 1px solid $success;
 	}
 	.toast-error {
-		background-color: #fef2f2;
-		color: #991b1b;
-		border: 1px solid #fca5a5;
+		background-color: $danger-bg;
+		color: $danger-fg;
+		border: 1px solid $danger-border;
 	}
 
 	@keyframes slideIn {

@@ -129,11 +129,17 @@
 
 <div class="layout">
 	<div class="content-left">
-		<h4 style="text-align: left;">Candidates</h4>
-		<p class="subtitle">Everyone who has applied to this organization, and where they stand.</p>
+		<div class="page-head">
+			<div>
+				<h4 class="page-title">Candidates</h4>
+				<p class="page-subtitle">
+					Everyone who has applied to this organization, and where they stand.
+				</p>
+			</div>
+		</div>
 
 		{#if loadError}
-			<div class="error-banner">{loadError}</div>
+			<div class="alert-soft alert-error">{loadError}</div>
 		{/if}
 
 		{#if !loading && candidates.length > 0}
@@ -148,15 +154,15 @@
 			</div>
 
 			{#if conflictCount > 0}
-				<div class="conflict-banner">
+				<div class="alert-soft alert-warning conflict-banner">
 					⚑ {conflictCount} candidate{conflictCount !== 1 ? 's have' : ' has'} a hire decision from more
 					than one team.
 				</div>
 			{/if}
 
-			<div class="job-filter">
-				<label for="job-filter-select">Job</label>
-				<select id="job-filter-select" bind:value={jobFilter} class="form-control">
+			<div class="filter-bar">
+				<label class="filter-label" for="job-filter-select">Job</label>
+				<select id="job-filter-select" bind:value={jobFilter} class="form-control job-select">
 					<option value="all">All jobs</option>
 					{#each jobs as job (job.id)}
 						<option value={job.id}>{job.name}</option>
@@ -218,27 +224,8 @@
 <style lang="scss">
 	@use '../../../../styles/col.scss' as *;
 
-	.subtitle {
-		font-size: 13px;
-		color: $light-tertiary;
-		margin-bottom: 15px;
-	}
-	.error-banner {
-		background-color: #fef2f2;
-		color: #b91c1c;
-		border-radius: 8px;
-		padding: 10px 14px;
-		font-size: 13px;
-		margin-bottom: 15px;
-	}
 	.conflict-banner {
-		background-color: #fffbeb;
-		color: #b45309;
-		border-radius: 8px;
-		padding: 10px 14px;
-		font-size: 13px;
 		font-weight: 600;
-		margin-bottom: 15px;
 	}
 
 	.stage-strip {
@@ -251,10 +238,10 @@
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		background-color: white;
-		border-radius: 8px;
+		background-color: $surface;
+		border-radius: $radius;
 		padding: 10px 14px;
-		box-shadow: 0 0px 12px rgba(0, 0, 0, 0.08);
+		box-shadow: $shadow;
 		flex: 1 1 120px;
 	}
 	.stage-dot {
@@ -266,31 +253,15 @@
 	.stage-count {
 		font-size: 18px;
 		font-weight: 800;
-		color: $dark-primary;
+		color: $text;
 	}
 	.stage-label {
 		font-size: 12px;
-		color: $light-tertiary;
+		color: $text-muted;
 		font-weight: 600;
 	}
 
-	.job-filter {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		margin-bottom: 15px;
-
-		label {
-			font-size: 12px;
-			font-weight: 600;
-			color: $light-tertiary;
-		}
-		select {
-			max-width: 260px;
-		}
-	}
-	.btn-sm {
-		font-size: 11px !important;
-		padding: 4px 10px !important;
+	.job-select {
+		max-width: 260px;
 	}
 </style>

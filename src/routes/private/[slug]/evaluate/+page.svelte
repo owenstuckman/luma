@@ -183,21 +183,24 @@
 
 <div class="layout">
 	<div class="content-left">
-		<h4 style="text-align: left;">Evaluate Interviewees</h4>
-
-		<div class="filter-bar">
-			<p class="subtitle">{interviews.length} interviews assigned to you</p>
-			<select bind:value={filterStatus} class="form-control" style="max-width: 180px;">
-				<option value="all">All</option>
-				<option value="pending">Needs Evaluation</option>
-				<option value="completed">Evaluated</option>
-			</select>
+		<div class="page-head">
+			<div>
+				<h4 class="page-title">Evaluate Interviewees</h4>
+				<p class="page-subtitle">{interviews.length} interviews assigned to you</p>
+			</div>
+			<div class="page-actions">
+				<select bind:value={filterStatus} class="form-control" style="max-width: 180px;">
+					<option value="all">All</option>
+					<option value="pending">Needs Evaluation</option>
+					<option value="completed">Evaluated</option>
+				</select>
+			</div>
 		</div>
 
 		{#if loading}
-			<p class="placeholder">Loading interviews...</p>
+			<p class="muted placeholder">Loading interviews...</p>
 		{:else if filteredInterviews.length === 0}
-			<p class="placeholder">No interviews found.</p>
+			<p class="muted placeholder">No interviews found.</p>
 		{:else}
 			<div class="interview-list">
 				{#each filteredInterviews as iv}
@@ -226,7 +229,7 @@
 									{getRecommendationLabel(String(eval_.recommendation || ''))}
 								</span>
 							{:else}
-								<span class="eval-badge" style="background-color: #878fa1;">Pending</span>
+								<span class="eval-badge eval-badge-pending">Pending</span>
 							{/if}
 						</div>
 						<p class="card-meta">{iv.applicant || ''}</p>
@@ -260,30 +263,30 @@
 <!-- Evaluation modal -->
 {#if activeInterview}
 	<div
-		class="modal-overlay"
+		class="modal-backdrop-luma"
 		on:click={closeEvaluation}
 		on:keydown={() => {}}
 		role="button"
 		tabindex="-1"
 	>
 		<div
-			class="modal-card"
+			class="modal-panel"
 			on:click|stopPropagation={() => {}}
 			on:keydown={() => {}}
 			role="dialog"
 			tabindex="-1"
 		>
-			<div class="modal-header">
-				<h5>
+			<div class="modal-head">
+				<h5 class="modal-title">
 					Evaluate: {applicantMap[activeInterview.applicant || '']?.name ||
 						activeInterview.applicant}
 				</h5>
-				<button class="close-btn" on:click={closeEvaluation}>&times;</button>
+				<button class="btn-icon close-btn" on:click={closeEvaluation}>&times;</button>
 			</div>
 
-			<div class="modal-body">
-				<div class="form-group">
-					<label>Overall Rating</label>
+			<div>
+				<div class="field">
+					<label class="field-label">Overall Rating</label>
 					<div class="star-input">
 						{#each [1, 2, 3, 4, 5] as star}
 							<button
@@ -295,8 +298,8 @@
 					</div>
 				</div>
 
-				<div class="form-group">
-					<label>Recommendation</label>
+				<div class="field">
+					<label class="field-label">Recommendation</label>
 					<select bind:value={recommendation} class="form-control">
 						<option value="strong_yes">Strong Yes</option>
 						<option value="yes">Yes</option>
@@ -306,8 +309,8 @@
 					</select>
 				</div>
 
-				<div class="form-group">
-					<label>Strengths</label>
+				<div class="field">
+					<label class="field-label">Strengths</label>
 					<textarea
 						bind:value={strengths}
 						class="form-control"
@@ -315,8 +318,8 @@
 						placeholder="What stood out positively?"></textarea>
 				</div>
 
-				<div class="form-group">
-					<label>Areas for Improvement</label>
+				<div class="field">
+					<label class="field-label">Areas for Improvement</label>
 					<textarea
 						bind:value={weaknesses}
 						class="form-control"
@@ -324,8 +327,8 @@
 						placeholder="Any concerns or weaknesses?"></textarea>
 				</div>
 
-				<div class="form-group">
-					<label>Additional Notes</label>
+				<div class="field">
+					<label class="field-label">Additional Notes</label>
 					<textarea
 						bind:value={notes}
 						class="form-control"
@@ -334,7 +337,7 @@
 				</div>
 			</div>
 
-			<div class="modal-footer">
+			<div class="modal-actions">
 				<button class="btn btn-quaternary" on:click={closeEvaluation}>Cancel</button>
 				<button class="btn btn-tertiary" on:click={saveEvaluation} disabled={saving}>
 					{saving ? 'Saving...' : 'Save Evaluation'}
@@ -347,21 +350,7 @@
 <style lang="scss">
 	@use '../../../../styles/col.scss' as *;
 
-	.filter-bar {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		gap: 12px;
-		margin-bottom: 15px;
-		flex-wrap: wrap;
-	}
-	.subtitle {
-		font-size: 13px;
-		color: $light-tertiary;
-		margin: 0;
-	}
 	.placeholder {
-		color: $light-tertiary;
 		padding: 20px;
 	}
 
@@ -371,21 +360,21 @@
 		gap: 12px;
 	}
 	.interview-card {
-		background: white;
-		border-radius: 8px;
+		background: $surface;
+		border-radius: $radius;
 		padding: 16px;
-		box-shadow: 0 0px 12px rgba(0, 0, 0, 0.08);
+		box-shadow: $shadow;
 		cursor: pointer;
 		transition:
 			box-shadow 0.2s ease,
 			transform 0.2s ease;
 	}
 	.interview-card:hover {
-		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+		box-shadow: $shadow-lg;
 		transform: translateY(-1px);
 	}
 	.interview-card.evaluated {
-		border-left: 3px solid #22c55e;
+		border-left: 3px solid $success;
 	}
 	.card-top {
 		display: flex;
@@ -396,19 +385,23 @@
 	.applicant-name {
 		font-weight: 700;
 		font-size: 14px;
-		color: $dark-primary;
+		color: $text;
 	}
+	// Background colour comes from getRecommendationColor() at runtime.
 	.eval-badge {
 		font-size: 10px;
 		font-weight: 700;
-		color: white;
+		color: $surface;
 		padding: 2px 8px;
-		border-radius: 999px;
+		border-radius: $radius-pill;
 		text-transform: uppercase;
+	}
+	.eval-badge-pending {
+		background-color: $text-muted;
 	}
 	.card-meta {
 		font-size: 12px;
-		color: $light-tertiary;
+		color: $text-muted;
 		margin: 2px 0;
 	}
 	.card-rating {
@@ -416,71 +409,16 @@
 	}
 	.star {
 		font-size: 16px;
-		color: #d1d5db;
+		color: $border-strong;
 	}
 	.star.filled {
-		color: #fbbf24;
+		color: $yellow-primary;
 	}
 
 	/* Modal */
-	.modal-overlay {
-		position: fixed;
-		top: 0;
-		left: 0;
-		width: 100%;
-		height: 100%;
-		background: rgba(0, 0, 0, 0.4);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		z-index: 1000;
-	}
-	.modal-card {
-		background: white;
-		border-radius: 12px;
-		width: 520px;
-		max-width: 90vw;
-		max-height: 85vh;
-		overflow-y: auto;
-		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
-	}
-	.modal-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 20px 24px 0;
-	}
-	.modal-header h5 {
-		margin: 0;
-		font-size: 16px;
-	}
 	.close-btn {
-		background: none;
-		border: none;
 		font-size: 24px;
-		cursor: pointer;
-		color: $light-tertiary;
-		padding: 0;
 		line-height: 1;
-	}
-	.modal-body {
-		padding: 16px 24px;
-	}
-	.modal-footer {
-		padding: 0 24px 20px;
-		display: flex;
-		justify-content: flex-end;
-		gap: 10px;
-	}
-	.form-group {
-		margin-bottom: 14px;
-	}
-	.form-group label {
-		display: block;
-		font-size: 12px;
-		font-weight: 600;
-		color: $light-tertiary;
-		margin-bottom: 4px;
 	}
 	.star-input {
 		display: flex;
@@ -491,14 +429,14 @@
 		border: none;
 		font-size: 28px;
 		cursor: pointer;
-		color: #d1d5db;
+		color: $border-strong;
 		padding: 0;
 		transition: color 0.15s;
 	}
 	.star-btn.filled {
-		color: #fbbf24;
+		color: $yellow-primary;
 	}
 	.star-btn:hover {
-		color: #f59e0b;
+		color: $warning;
 	}
 </style>

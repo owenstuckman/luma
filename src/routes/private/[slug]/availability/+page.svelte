@@ -113,10 +113,14 @@
 
 <div class="layout">
 	<div class="content-left">
-		<h4 style="text-align: left;">My Availability</h4>
-		<p class="subtitle">
-			Set your weekly availability for interviews. Select the time slots when you're free.
-		</p>
+		<div class="page-head">
+			<div>
+				<h4 class="page-title">My Availability</h4>
+				<p class="page-subtitle">
+					Set your weekly availability for interviews. Select the time slots when you're free.
+				</p>
+			</div>
+		</div>
 
 		<div class="week-nav">
 			<button class="btn btn-quaternary btn-sm" on:click={prevWeek}>
@@ -132,7 +136,7 @@
 		</div>
 
 		{#if loading}
-			<p class="placeholder">Loading availability...</p>
+			<p class="muted placeholder">Loading availability...</p>
 		{:else}
 			<AvailabilityGrid
 				bind:this={gridRef}
@@ -150,10 +154,10 @@
 					{saving ? 'Saving...' : 'Save Availability'}
 				</button>
 				{#if saveSuccess}
-					<span class="success-msg">{saveSuccess}</span>
+					<span class="save-msg success-msg">{saveSuccess}</span>
 				{/if}
 				{#if saveError}
-					<span class="error-msg">{saveError}</span>
+					<span class="save-msg error-msg">{saveError}</span>
 				{/if}
 			</div>
 		{/if}
@@ -166,11 +170,6 @@
 <style lang="scss">
 	@use '../../../../styles/col.scss' as *;
 
-	.subtitle {
-		font-size: 13px;
-		color: $light-tertiary;
-		margin-bottom: 15px;
-	}
 	.week-nav {
 		display: flex;
 		align-items: center;
@@ -180,14 +179,9 @@
 	.week-label {
 		font-size: 14px;
 		font-weight: 700;
-		color: $dark-primary;
-	}
-	.btn-sm {
-		font-size: 11px !important;
-		padding: 4px 10px !important;
+		color: $text;
 	}
 	.placeholder {
-		color: $light-tertiary;
 		padding: 20px;
 	}
 	.save-bar {
@@ -196,14 +190,14 @@
 		gap: 12px;
 		margin-top: 16px;
 	}
-	.success-msg {
-		color: #065f46;
+	.save-msg {
 		font-size: 13px;
 		font-weight: 600;
 	}
+	.success-msg {
+		color: $success-fg;
+	}
 	.error-msg {
-		color: #ef4444;
-		font-size: 13px;
-		font-weight: 600;
+		color: $danger;
 	}
 </style>

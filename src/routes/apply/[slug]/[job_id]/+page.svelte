@@ -257,18 +257,17 @@
 {:else if maintenanceMode}
 	<div class="loading-screen">
 		<div class="error-card">
-			<h2 style="color: white;">Applications Closed</h2>
-			<p style="color: #878fa1; margin-top: 8px;">
+			<h2>Applications Closed</h2>
+			<p class="muted">
 				Applications are currently closed for maintenance. Please check back later.
 			</p>
-			<a href="/" style="margin-top: 16px;"><button class="btn btn-primary">Back to Home</button></a
-			>
+			<a href="/"><button class="btn btn-primary">Back to Home</button></a>
 		</div>
 	</div>
 {:else if error}
 	<div class="loading-screen">
 		<div class="error-card">
-			<h2 style="color: white;">{error}</h2>
+			<h2>{error}</h2>
 			<a href="/"><button class="btn btn-primary">Back to Home</button></a>
 		</div>
 	</div>
@@ -340,7 +339,7 @@
 		<div class="content">
 			{#if currentStep === 0}
 				<!-- Personal Info (always required) -->
-				<h4>Personal Information</h4>
+				<h4 class="text-center">Personal Information</h4>
 				<div class="card">
 					<h5>First Name <span class="required">*</span></h5>
 					<input
@@ -376,8 +375,8 @@
 				</div>
 			{:else if isTeamStep}
 				<!-- Team picker: drives which questions the rest of the form shows -->
-				<h4>Which teams are you applying to?</h4>
-				<p class="review-hint">
+				<h4 class="text-center">Which teams are you applying to?</h4>
+				<p class="muted review-hint">
 					Select one or more. Later steps will only ask questions relevant to the teams you pick.
 				</p>
 
@@ -404,8 +403,8 @@
 				{#if teamError}<p class="field-error">{teamError}</p>{/if}
 			{:else if isReviewStep}
 				<!-- Review & Submit -->
-				<h4>Review & Submit</h4>
-				<p class="review-hint">
+				<h4 class="text-center">Review & Submit</h4>
+				<p class="muted review-hint">
 					Please review your answers before submitting. Click a section to edit.
 				</p>
 
@@ -476,20 +475,19 @@
 				{/each}
 
 				{#if submitError}
-					<div style="color: red; margin-top: 1rem;">{submitError}</div>
+					<div class="alert-soft alert-error submit-error">{submitError}</div>
 				{/if}
 
 				<button
 					on:click={submitApplication}
-					class="btn btn-tertiary"
-					style="margin-top: 20px; padding: 10px 40px;"
+					class="btn btn-tertiary submit-btn"
 					disabled={submitting}
 				>
 					{submitting ? 'Submitting...' : 'Submit Application'}
 				</button>
 			{:else if currentFormStep}
 				<!-- Dynamic question step -->
-				<h4>{currentFormStep.title}</h4>
+				<h4 class="text-center">{currentFormStep.title}</h4>
 				{#each currentFormStep.questions as question (question.id)}
 					<QuestionRenderer {question} {storagePrefix} />
 				{/each}
@@ -617,9 +615,8 @@
 		padding: 10px 0;
 	}
 
+	// Colour and size come from the shared `.muted` class.
 	.review-hint {
-		font-size: 13px;
-		color: $light-tertiary;
 		margin-bottom: 12px;
 	}
 
@@ -637,11 +634,11 @@
 		align-items: flex-start;
 		gap: 4px;
 		text-align: left;
-		background-color: white;
+		background-color: $surface;
 		border: 2px solid transparent;
-		border-radius: 8px;
+		border-radius: $radius;
 		padding: 16px;
-		box-shadow: 0 0px 12px rgba(0, 0, 0, 0.08);
+		box-shadow: $shadow;
 		cursor: pointer;
 		transition:
 			border-color 0.15s ease,
@@ -667,7 +664,7 @@
 	}
 	.team-desc {
 		font-size: 12px;
-		color: $light-tertiary;
+		color: $text-muted;
 	}
 	.review-card {
 		cursor: pointer;
@@ -677,7 +674,7 @@
 		border: 1px solid transparent;
 		&:hover {
 			border-color: $yellow-primary;
-			box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+			box-shadow: $shadow-lg;
 		}
 	}
 	.review-field {
@@ -685,7 +682,7 @@
 		flex-direction: column;
 		gap: 2px;
 		padding: 8px 0;
-		border-bottom: 1px solid #f1f5f9;
+		border-bottom: 1px solid $border-faint;
 		&:last-child {
 			border-bottom: none;
 		}
@@ -693,13 +690,13 @@
 	.review-label {
 		font-size: 11px;
 		font-weight: 700;
-		color: $light-tertiary;
+		color: $text-muted;
 		text-transform: uppercase;
 		letter-spacing: 0.03em;
 	}
 	.review-value {
 		font-size: 14px;
-		color: $dark-primary;
+		color: $text;
 		word-break: break-word;
 		display: flex;
 		flex-wrap: wrap;
@@ -707,27 +704,31 @@
 	}
 	.review-tag {
 		display: inline-block;
-		background-color: #f1f5f9;
-		color: $dark-primary;
+		background-color: $border-faint;
+		color: $text;
 		font-size: 12px;
 		padding: 2px 8px;
-		border-radius: 4px;
+		border-radius: $radius-sm;
 	}
 	.review-empty {
-		color: $light-tertiary;
+		color: $text-muted;
 		font-style: italic;
 		font-size: 13px;
 	}
 	.required {
-		color: #ef4444;
+		color: $danger;
 	}
-	.field-error {
-		color: #ef4444;
-		font-size: 12px;
-		margin: 4px 0 0;
-	}
+	// `.field-error` is shared (ui.scss); only the invalid border is local.
 	.is-invalid {
-		border-color: #ef4444 !important;
+		border-color: $danger !important;
+	}
+	.submit-error {
+		max-width: 500px;
+		margin-top: 1rem;
+	}
+	.submit-btn {
+		margin-top: 20px;
+		padding: 10px 40px;
 	}
 
 	.mobile-progress {

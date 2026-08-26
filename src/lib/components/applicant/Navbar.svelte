@@ -1,22 +1,15 @@
 <div class="navbar">
 	<div class="navbar-left">
 		<div class="navbar-logo">
-			<a href="/"
-				><img
-					src="/images/ui/logo_white.png"
-					alt="LUMA logo"
-					style="height: 30px; width: auto;"
-				/></a
-			>
+			<a href="/"><img src="/images/ui/logo_white.png" alt="LUMA logo" class="navbar-mark" /></a>
 		</div>
 		<div class="navbar-year">
 			<button
-				class="btn btn-secondary"
+				class="btn btn-secondary navbar-btn"
 				type="button"
 				id="dropdownYear"
 				data-bs-toggle="dropdown"
 				aria-expanded="false"
-				style="width: 145px;"
 				on:click={() => {
 					localStorage.clear();
 					location.reload();
@@ -27,12 +20,11 @@
 		</div>
 		<div class="navbar-year">
 			<button
-				class="btn btn-secondary"
+				class="btn btn-secondary navbar-btn"
 				type="button"
 				id="dropdownYear"
 				data-bs-toggle="dropdown"
 				aria-expanded="false"
-				style="width: 145px;"
 				on:click={() => window.history.back()}
 			>
 				Back
@@ -81,5 +73,12 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
+	}
+	.navbar-mark {
+		height: 30px;
+		width: auto;
+	}
+	.navbar-btn {
+		width: 145px;
 	}
 </style>
