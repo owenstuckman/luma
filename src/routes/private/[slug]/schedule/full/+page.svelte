@@ -365,7 +365,7 @@
 			</div>
 			<div class="page-actions">
 				<button
-					class="btn btn-secondary btn-sm"
+					class="btn btn-quaternary btn-sm"
 					on:click={() => (showEmailModal = true)}
 					disabled={interviews.length === 0}
 					aria-label="Generate notification emails"
@@ -373,7 +373,7 @@
 					<i class="fi fi-br-envelope" aria-hidden="true"></i> Generate Emails
 				</button>
 				<button
-					class="btn btn-secondary btn-sm"
+					class="btn btn-quaternary btn-sm"
 					on:click={exportCSV}
 					disabled={interviews.length === 0}
 					aria-label="Export schedule as CSV"

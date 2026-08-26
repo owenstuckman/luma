@@ -101,9 +101,16 @@ a {
 }
 // Keep long-form recruiter pages to the same measure as the admin panel
 // instead of letting them run the full width of a wide monitor.
+//
+// `flex-shrink: 0` is load-bearing: `.content-left` is a flex column, so a tall
+// child (a 40-row table) is otherwise squashed to fit the viewport. That used to
+// overflow visibly; once panels started clipping their own overflow it silently
+// ate every row past the fold. Let children keep their natural height and let
+// `.content-left` do the scrolling.
 .content-left > * {
 	max-width: $content-max;
 	width: 100%;
+	flex-shrink: 0;
 }
 
 // button: primary

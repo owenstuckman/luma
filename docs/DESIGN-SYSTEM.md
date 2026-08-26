@@ -173,6 +173,23 @@ restyling an unrelated element:
 If you need a variant, add a **second** class next to the shared one
 (`class="list-row job-row"`) and style only the delta. Never redeclare the shared name.
 
+## Gotchas that cost real time
+
+- **`ui.scss` is `@use`d near the TOP of `luma.scss`**, because Sass requires `@use`
+  before other rules. So luma's own rules come _later_ in the output and win ties. A
+  shared class that collides with a `luma.scss` rule needs extra specificity —
+  `.btn.btn-sm`, not `.btn-sm`. Never reach for `!important`.
+- **Never put `overflow: hidden` on a container that wraps a table.** `.content-left` is a
+  flex column, so a tall child gets flex-shrunk to fit the viewport; combined with
+  `overflow: hidden` the rows past the fold vanish with no scrollbar to hint at it. Use
+  `overflow-x` alone, and `flex-shrink: 0` on anything tall.
+- **Vite's file watcher does not fire on `/mnt/c` paths from WSL.** CSS edits look inert
+  until you restart the dev server. If a change seems to have no effect, check the Svelte
+  scope hash (`s-xxxxx`) in devtools — unchanged means you're looking at a stale build.
+- `src/lib/components/applicant/Sidebar.svelte` is **dead code**, imported nowhere. The
+  applicant sidebar that renders is inline in `apply/[slug]/[job_id]/+page.svelte`. Check
+  what's actually mounted before styling a component.
+
 ## Conventions
 
 1. **Never write a raw hex** in a component. If a color isn't in `col.scss`, add it there.

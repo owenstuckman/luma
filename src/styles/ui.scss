@@ -68,9 +68,12 @@
 	width: 100%;
 }
 
+// For a panel whose child (usually a table) should meet its edges.
+// Deliberately does NOT set `overflow: hidden` — that clips the Y axis too, and
+// a tall table inside a flex column then loses every row past the fold with no
+// scrollbar to hint at it. Corner clipping is not worth silently hiding data.
 .panel-flush {
 	padding: 0;
-	overflow: hidden;
 }
 
 .panel-head {
@@ -219,9 +222,11 @@
 }
 
 // Wrap any wide table in this so the page itself never scrolls sideways.
+// `overflow-x` only — never `overflow`, which would clip vertically as well.
 .table-scroll {
 	width: 100%;
 	overflow-x: auto;
+	flex-shrink: 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -453,9 +458,14 @@
 }
 
 // Bootstrap ships `.btn-sm`, but every page that wanted a compact button was
-// re-overriding it with !important. Defined once here — ui.scss loads after
-// Bootstrap, so it wins on order without needing !important.
-.btn-sm {
+// re-overriding it with !important.
+//
+// Written as `.btn.btn-sm` on purpose. `ui.scss` is `@use`d near the TOP of
+// luma.scss (Sass requires @use before other rules), so luma's own button
+// rules come later in the output and a bare `.btn-sm` would lose to
+// `.btn-quaternary { font-size: 16px }`. Two classes beats one, so this wins
+// without `!important`. Same reason for the destructive sizes below.
+.btn.btn-sm {
 	font-size: 11px;
 	padding: 4px 12px;
 }

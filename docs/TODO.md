@@ -511,6 +511,34 @@ a local `.divider`. Svelte's scoping makes the local copy win, so the shared rul
 quietly restyling unrelated elements. See the naming-collisions table in
 [DESIGN-SYSTEM.md](DESIGN-SYSTEM.md) — that table exists because of these.
 
+**Caught by visual verification, not by the build** (all four fixed):
+
+1. **Tables were silently clipped.** `.panel-flush` set `overflow: hidden` for corner
+   clipping, which also clips the Y axis. `.content-left` is a flex column, so a tall
+   child is shrunk to fit — the candidates table rendered 4,236px of rows inside a 466px
+   box and showed **5 of ~48 rows with no scrollbar**. `.panel-flush` no longer sets
+   `overflow`, and `.table-scroll` sets `overflow-x` only plus `flex-shrink: 0`. Corner
+   clipping is not worth silently hiding data.
+2. **`.btn-sm` lost to `.btn-quaternary`.** Sass requires `@use` before other rules, so
+   `ui.scss` is pulled in near the top of `luma.scss` and luma's own button rules come
+   later in the output. Fixed by writing it `.btn.btn-sm` — two classes beats one, no
+   `!important` needed. Any future shared rule that collides with a `luma.scss` rule needs
+   the same treatment.
+3. **The applicant sidebar never got the new active treatment**, because the component
+   that has it (`src/lib/components/applicant/Sidebar.svelte`) is **dead code — imported
+   nowhere**. The sidebar that actually renders is inline in
+   `apply/[slug]/[job_id]/+page.svelte`. Both were updated; the dead one should probably
+   be deleted.
+4. **Two illegible buttons** on `/schedule/full`: `.btn-secondary` is white-on-transparent,
+   built for the dark navbar, and was being used in a light page header. Switched to
+   `.btn-quaternary`. `.btn-secondary` remains correct on dark chrome (both navbars, the
+   error card).
+
+Note for anyone verifying by hand: **Vite's file watcher does not fire on this repo's
+`/mnt/c` path from WSL.** Edits appear to have no effect until the dev server is
+restarted, which makes a working fix look broken. Check the Svelte scope hash
+(`s-xxxxx`) — if it hasn't changed, you're looking at a stale build, not your CSS.
+
 **Follow-ups, none blocking:**
 
 - `Footer.svelte` and `NextButton.svelte` carry identical `.footer-buttons` rules. That is a

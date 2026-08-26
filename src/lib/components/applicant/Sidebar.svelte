@@ -39,32 +39,47 @@
 		padding-top: 5px;
 		background-color: $dark-primary;
 	}
+	// Same nav treatment as the recruiter and admin sidebars: muted until it's
+	// the step you're on, then yellow with a left rule.
 	.step-sidebar {
 		display: flex;
-		margin-top: 5px;
-		margin-bottom: 5px;
-		padding-left: 10px;
-		height: 35px;
+		margin-top: 2px;
+		margin-bottom: 2px;
+		padding-left: 13px;
+		height: 36px;
 		width: 195px;
-		font-weight: 600;
+		font-weight: 500;
 		align-items: center;
 		justify-content: start;
 		background-color: transparent;
 		border: none;
-		font-size: 12px;
-		color: white;
+		border-left: 3px solid transparent;
+		border-radius: 0 $radius-sm $radius-sm 0;
+		font-size: 13px;
+		color: $text-muted;
+		transition: all 0.15s;
 		i {
 			display: flex;
 			align-items: center;
 			font-size: 16px;
 			margin-right: 15px;
 		}
+		&:hover {
+			background-color: rgba(255, 255, 255, 0.05);
+			color: white;
+		}
 	}
 	.step-selected .step-sidebar {
-		background-color: $dark-secondary;
-		border-radius: $radius-sm;
+		color: $yellow-primary;
+		background-color: rgba(255, 200, 0, 0.08);
+		border-left-color: $yellow-primary;
+		font-weight: 600;
 	}
 	.step-disabled .step-sidebar {
-		color: $text-muted;
+		color: $text-subtle;
+		&:hover {
+			background-color: transparent;
+			color: $text-subtle;
+		}
 	}
 </style>

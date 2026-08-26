@@ -2,7 +2,7 @@
 	import { page } from '$app/stores';
 </script>
 
-<div class="error-screen">
+<div class="auth-screen error-screen">
 	<div class="error-card">
 		<h1 class="error-code">{$page.status}</h1>
 		<h2 class="error-title">
@@ -33,16 +33,11 @@
 <style lang="scss">
 	@use '../styles/col.scss' as *;
 
-	.error-screen {
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		min-height: 100vh;
-		background: linear-gradient(90deg, rgba(255, 153, 0, 1) 0%, rgba(255, 200, 0, 1) 100%);
-	}
+	// Layout comes from the shared `.auth-screen` gradient shell; only the card
+	// is local. The card stays dark on purpose — `.panel` is a white surface.
 	.error-card {
 		background-color: $dark-primary;
-		border-radius: 10px;
+		border-radius: $radius-lg;
 		padding: 50px;
 		text-align: center;
 		display: flex;
