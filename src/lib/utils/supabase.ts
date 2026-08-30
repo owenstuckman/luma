@@ -15,7 +15,8 @@ import type {
 	AdminAnalytics,
 	SchedulingConfigRow,
 	InterviewerAvailability,
-	Team
+	Team,
+	QuestionSchema
 } from '$lib/types';
 
 const supabase = createBrowserClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY);
@@ -173,6 +174,50 @@ export const updateJobPosting = async (id: number, updates: Partial<JobPosting>)
 	return data as JobPosting;
 };
 
+/**
+ * Replace a posting's form schema.
+ *
+ * Split out from `updateJobPosting` deliberately: the form builder writes
+ * `questions` and nothing else, and a partial update that accidentally carried
+ * `name`/`description` along would let a stale editor tab clobber a rename made
+ * elsewhere. The schema is written whole — there is no partial-schema update.
+ */
+export const updateJobQuestions = async (jobId: number, schema: QuestionSchema) => {
+	const { data, error } = await supabase
+		.from('job_posting')
+		.update({ questions: schema })
+		.eq('id', jobId)
+		.select()
+		.single();
+
+	if (error) {
+		console.error('Error saving form schema:', error);
+		throw new Error(error.message);
+	}
+	return data as JobPosting;
+};
+
+/**
+ * How many applicants have already applied to this posting.
+ *
+ * Used by the form builder to warn before an edit that would orphan collected
+ * answers (renaming or deleting a question id). Returns 0 rather than throwing
+ * when the count can't be read — the warning is advisory, and failing to fetch
+ * it must not block editing the form.
+ */
+export const getJobApplicantCount = async (jobId: number): Promise<number> => {
+	const { count, error } = await supabase
+		.from('applicants')
+		.select('id', { count: 'exact', head: true })
+		.eq('job', jobId);
+
+	if (error) {
+		console.warn('Could not count applicants for job', jobId, error.message);
+		return 0;
+	}
+	return count ?? 0;
+};
+
 export const deleteJobPosting = async (id: number) => {
 	const { error } = await supabase.from('job_posting').delete().eq('id', id);
 
@@ -206,6 +251,37 @@ export const sendApplication = async (row: object) => {
 
 	if (error) {
 		console.error('Error sending application:', error);
+		throw new Error('Failed to send application to Supabase');
+	}
+	return data;
+};
+
+/**
+ * Insert every application produced by one submit, in a single statement.
+ *
+ * Since migration 00024 an applicant who picks three teams produces three rows.
+ * They go in as ONE insert on purpose: a partial failure would leave someone
+ * accepted onto one team's roster and missing from another's, with no signal to
+ * the applicant that half their submission vanished. One statement means all of
+ * them land or none do, and the caller's error path stays honest.
+ */
+export const sendApplications = async (rows: object[]) => {
+	if (rows.length === 0) return null;
+
+	const { data, error } = await supabase.from('applicants').insert(rows);
+
+	if (error) {
+		console.error('Error sending application:', error);
+		// 23505 is the `applicants_job_email_team_uniq` index (migration 00025):
+		// one application per person, per team, per posting. Reaching it means
+		// they already applied — usually a double-submit or a second visit to the
+		// form — so say that instead of a generic failure they can only respond
+		// to by trying again and failing again.
+		if (error.code === '23505') {
+			throw new Error(
+				'It looks like you have already applied to one of these teams with this email address. If you think this is a mistake, contact the organization directly.'
+			);
+		}
 		throw new Error('Failed to send application to Supabase');
 	}
 	return data;
@@ -406,6 +482,15 @@ export const deleteInterview = async (id: number) => {
 	}
 };
 
+/**
+ * `applicant_id` should be supplied wherever the caller knows which APPLICATION
+ * the interview is for. Since migration 00024 one email can own several
+ * applications (one per team), and `applicant` is only the email — so a row
+ * left without an id falls back to the email join and is attributed to every
+ * sibling application at once, inflating each team's interview and evaluation
+ * counts. It stays optional because the manual "create interview" form is
+ * driven by a typed-in address that may match no applicant row at all.
+ */
 export const createInterview = async (interviewData: {
 	start_time: string;
 	end_time?: string;
@@ -414,6 +499,7 @@ export const createInterview = async (interviewData: {
 	comments?: string;
 	job: number;
 	applicant: string;
+	applicant_id?: number | null;
 	interviewer: string;
 	org_id: number;
 }) => {
@@ -817,6 +903,8 @@ export const bulkCreateInterviews = async (
 		type: string;
 		job: number;
 		applicant: string;
+		/** See createInterview — identifies WHICH application this is for. */
+		applicant_id?: number | null;
 		interviewer: string;
 		org_id: number;
 		source: string;

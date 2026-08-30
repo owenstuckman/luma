@@ -8,10 +8,22 @@
 		getCurrentUserEmail,
 		updateApplicantStatus,
 		getUserRoleInOrg,
-		getOrgMembersWithEmail
+		getOrgMembersWithEmail,
+		getTeams
 	} from '$lib/utils/supabase';
-	import { getCandidateTimeline } from '$lib/utils/candidates';
-	import type { TimelineEvent, TimelineKind } from '$lib/utils/candidates';
+	import {
+		getCandidateTimeline,
+		getSubmissionSiblings,
+		getApplicationInterviews,
+		resolveApplicationTeam
+	} from '$lib/utils/candidates';
+	import type {
+		TimelineEvent,
+		TimelineKind,
+		SubmissionSibling,
+		InterviewLite
+	} from '$lib/utils/candidates';
+	import { allQuestions } from '$lib/utils/formSchema';
 	import {
 		tallyVotes,
 		thresholdOutcome,
@@ -23,7 +35,7 @@
 	} from '$lib/utils/review';
 	import { readOrgSettings, DEFAULT_ORG_SETTINGS } from '$lib/types/orgSettings';
 	import type { OrgSettings } from '$lib/types/orgSettings';
-	import type { Applicant, CommentEntry, QuestionSchema } from '$lib/types';
+	import type { Applicant, CommentEntry, QuestionSchema, Team } from '$lib/types';
 
 	interface Evaluation {
 		rating: number;
@@ -35,21 +47,21 @@
 		evaluatedAt: string;
 	}
 
-	interface InterviewWithEval {
-		id: number;
-		interviewer: string | null;
-		start_time: string;
-		comments: Record<string, unknown> | null;
-	}
-
 	let applicant: Applicant | null = null;
 	let commentsArray: CommentEntry[] = [];
 	let newComment = '';
 	let newStatus = 'pending';
 	let loading = true;
-	let interviews: InterviewWithEval[] = [];
+	// This application's interviews only — never a sibling application's. The
+	// evaluation summary below averages them into a rating, and averaging across
+	// teams would be exactly the cross-team conflation the split exists to stop.
+	let interviews: InterviewLite[] = [];
 	let timeline: TimelineEvent[] = [];
 	let timelineLoading = true;
+	let teams: Team[] = [];
+	// Sibling applications from the same submit. Surfaced ONLY as the quiet
+	// "also applied to" line below — never merged into this application.
+	let siblings: SubmissionSibling[] = [];
 
 	// --- Review voting ---
 	let orgSettings: OrgSettings = DEFAULT_ORG_SETTINGS;
@@ -69,6 +81,26 @@
 	// a plain reviewer sees a redacted copy.
 	$: shown = applicant ? redactApplicant(applicant, jobSchema, blinded) : null;
 	$: myVote = tally.voters.find((v) => v.email === myEmail.toLowerCase())?.vote ?? null;
+
+	// The ONE team this application is for. Everything on this page is about
+	// that team's application; sibling applications are a footnote, not part of
+	// the record being reviewed.
+	$: appTeam = applicant ? resolveApplicationTeam(applicant, teams) : null;
+
+	// Author-written copy can contain `{team}`; a per-team question is stored
+	// under its authored id, so the placeholder has to be filled in at render
+	// time from this application's team.
+	$: teamCopy = appTeam?.legacy_multi
+		? appTeam.all_names.join(' / ')
+		: (appTeam?.name ?? 'this team');
+
+	$: questionLabels = ((): Record<string, string> => {
+		const map: Record<string, string> = {};
+		for (const q of allQuestions(jobSchema)) {
+			map[q.id] = (q.title ?? q.id).replace(/\{team\}/g, teamCopy);
+		}
+		return map;
+	})();
 
 	const TIMELINE_ICONS: Record<TimelineKind, string> = {
 		draft: 'fi-br-pencil',
@@ -165,12 +197,15 @@
 						jobSchema = jobRow?.questions ?? null;
 					}
 
-					const { data: ivData } = await supabase
-						.from('interviews')
-						.select('id, interviewer, start_time, comments')
-						.eq('org_id', orgData.id)
-						.eq('applicant', applicant.email);
-					interviews = (ivData || []) as InterviewWithEval[];
+					teams = await getTeams(orgData.id);
+
+					try {
+						siblings = await getSubmissionSiblings(orgData.id, applicant);
+					} catch (error) {
+						console.error('Failed to load sibling applications:', error);
+					}
+
+					interviews = await getApplicationInterviews(orgData.id, applicant);
 
 					try {
 						timeline = await getCandidateTimeline(orgData.id, applicant);
@@ -333,6 +368,31 @@
 					</div>
 					<p class="meta">{shown?.email ?? applicant.email}</p>
 					<p class="meta">Applied {new Date(applicant.created_at).toLocaleDateString()}</p>
+					{#if appTeam?.legacy_multi}
+						<p class="team-line">
+							<span
+								class="pill pill-warning"
+								title="Submitted before applications were split per team"
+							>
+								Legacy · {appTeam.all_names.join(', ')}
+							</span>
+						</p>
+					{:else if appTeam?.name}
+						<p class="team-line">
+							<span class="pill pill-neutral">{appTeam.name}</span>
+						</p>
+					{/if}
+					{#if !blinded && siblings.length > 0}
+						<p class="sibling-note">
+							Also applied to
+							{#each siblings as sib, i (sib.id)}
+								<a href="/private/{slug}/review/candidate?id={sib.id}&from={backTo}">
+									{sib.team_name ?? `application #${sib.id}`}</a
+								>{i < siblings.length - 1 ? ', ' : ''}
+							{/each}
+							— reviewed separately.
+						</p>
+					{/if}
 					{#if blinded}
 						<p class="blind-note">
 							<i class="fi fi-br-eye-crossed"></i>
@@ -463,7 +523,7 @@
 						<h5>Application Responses</h5>
 						{#each Object.entries(shown.recruitInfo) as [key, value]}
 							<div class="response-item">
-								<span class="response-key">{key}</span>
+								<span class="response-key">{questionLabels[key] ?? key}</span>
 								<p
 									class="response-value"
 									class:response-hidden={shown.redactedQuestionIds.includes(key)}
@@ -767,10 +827,26 @@
 		margin-bottom: 12px;
 	}
 	.response-key {
-		font-size: 11px;
+		font-size: 12px;
 		font-weight: 700;
 		color: $text-muted;
-		text-transform: uppercase;
+	}
+	.team-line {
+		margin: 8px 0 0;
+	}
+	/* Deliberately understated: a sibling application is a navigation aid, not
+	   part of this candidate's identity here. */
+	.sibling-note {
+		font-size: 11px;
+		color: $text-subtle;
+		margin: 6px 0 0;
+	}
+	.sibling-note a {
+		color: $text-muted;
+		text-decoration: underline;
+	}
+	.sibling-note a:hover {
+		color: $text;
 	}
 	.response-value {
 		font-size: 14px;

@@ -3,7 +3,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { supabase } from '$lib/utils/supabase';
-	import { getActiveRoles } from '$lib/utils/supabase';
+	import { getActiveRoles, getTeams } from '$lib/utils/supabase';
 	import { getCandidates, STAGE_LABELS } from '$lib/utils/candidates';
 	import type { CandidateRow } from '$lib/utils/candidates';
 	import Sidebar from '$lib/components/recruiter/Sidebar.svelte';
@@ -11,12 +11,13 @@
 	import Toast from '$lib/components/recruiter/Toast.svelte';
 	import CandidateList from '$lib/components/recruiter/CandidateList.svelte';
 	import { selectedJob } from '$lib/stores/jobFilter';
-	import type { Applicant, JobPosting } from '$lib/types';
+	import type { Applicant, JobPosting, Team } from '$lib/types';
 	import type { RealtimeChannel } from '@supabase/supabase-js';
 
 	let applicants: CandidateRow[] = [];
 	let orgId: number | null = null;
 	let jobs: (JobPosting & { applicantCount: number })[] = [];
+	let teams: Team[] = [];
 	let loading = true;
 	let listLoading = false;
 	let list: CandidateList;
@@ -64,6 +65,9 @@
 			return;
 		}
 		orgId = orgData.id;
+
+		// The team filter narrows the queue to one team's applications.
+		teams = await getTeams(orgData.id);
 
 		// Load active jobs for the picker
 		const activeJobs = await getActiveRoles(orgId ?? undefined);
@@ -280,10 +284,11 @@
 		const targets =
 			selectMode && selectedIds.size > 0 ? rows0.filter((a) => selectedIds.has(a.id)) : rows0;
 
-		const headers = ['Name', 'Email', 'Stage', 'Status', 'Applied', 'Job ID'];
+		const headers = ['Name', 'Email', 'Team', 'Stage', 'Status', 'Applied', 'Job ID'];
 		const rows = targets.map((a) => [
 			`"${a.name}"`,
 			`"${a.email}"`,
+			`"${a.team.legacy_multi ? `Legacy: ${a.team.all_names.join(' + ')}` : (a.team.name ?? '')}"`,
 			STAGE_LABELS[a.stage],
 			a.status,
 			new Date(a.created_at).toLocaleDateString(),
@@ -360,6 +365,7 @@
 			<CandidateList
 				bind:this={list}
 				candidates={applicants}
+				{teams}
 				loading={listLoading}
 				bind:selectMode
 				bind:selectedIds

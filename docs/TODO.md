@@ -244,6 +244,86 @@ that wants unit tests, and its first version shipped a real bug that assertions 
 near-zero config) and committing the 33 assertions as a real suite. Not done unprompted
 because it adds a dev dependency.
 
+## Phase 2.6 — Per-team applications + the Archimedes 2026 form ✅
+
+Requested 2026-08-29: build the **2026 Fall Recruitment** form for Archimedes, and treat an
+application to each team as a **distinct** application rather than one row tagged with
+several teams.
+
+### The model change
+
+- [x] **`00024_per_team_applications.sql`** — `applicants.team_id` (FK to `teams`) and
+      `applicants.submission_group` (uuid), plus indexes. Backfills `team_id` only where
+      `selected_team_slugs` held exactly one slug; historical multi-team rows are left alone
+      because splitting them would have to invent which answers belonged to which team, and
+      the per-team essays those rows would need were never collected.
+- [x] **`splitSubmissionByTeam()`** in `formSchema.ts` — pure. Turns one filled-in form into
+      one submission per selected team, carrying the shared answers plus only that team's
+      scoped questions. An Astra reviewer never sees the Terra essay.
+- [x] **`per_team` team scope** — `team_scope: { per_team: true }` asks a question once per
+      team the applicant picked, substituting `{team}` in the title/subtitle/placeholder.
+      The form expands it to unique ids (`why_team::astra`) so inputs can be keyed; the
+      split collapses them back to the authored id (`why_team`) on the row that team owns.
+      That collapse is what keeps rows comparable and lets `reject_if` keep matching against
+      authored ids.
+- [x] **Auto-reject is now per application.** Rules are evaluated against one team's answers
+      under one team's scope, so "No" to the Astra citizenship question denies the Astra
+      application and leaves Terra/Juvo pending.
+- [x] **Ordering is the org's, not the applicant's.** Expansion and the split both order by
+      `teams.display_order`, so two applicants who pick the same pair always see the same
+      sequence regardless of click order.
+
+### Constraints that made the split impossible (found by testing, not by reading)
+
+- [x] **`00025_applicant_uniqueness.sql` + `00026_interview_applicant_id.sql`.** An `anon`-role insert of two sibling
+      rows failed on `applicants_email_key`. Investigating turned up two bad constraints:
+  - `UNIQUE (email)` — blocked the split, and more broadly made an address usable **once
+    across the entire platform**: no reapplying in a later cycle, and no two orgs ever
+    sharing a candidate.
+  - `UNIQUE (name)` — a live bug unrelated to teams. Two applicants named "John Smith" could
+    never both exist; at 400+ applicants a cycle that is close to certain, and the second
+    one's submission would have failed with a constraint error they could not act on.
+  - Replaced with `UNIQUE (job, email, team_id) NULLS NOT DISTINCT`. **The NULLS clause is
+    load-bearing** — `team_id` is null for orgs with no teams and `job` is nullable, and
+    under the default every such row compares unequal to every other, so the same form could
+    be submitted unlimited times.
+  - `interviews.applicant_id` added. `interviews.applicant` is the applicant's **email as
+    text**, so once one address owns several applications an email join hands every sibling
+    the same interviews — the Astra row would show Terra's interview and count it toward
+    Astra's evaluation progress. Backfilled only where the email mapped to exactly one row.
+- [x] A `23505` from the new index is translated by `sendApplications()` into "you have
+      already applied to one of these teams", instead of a generic failure the applicant can
+      only respond to by retrying and failing again.
+
+### The Archimedes form
+
+- [x] **`job_posting` id 7, "2026 Fall Recruitment"**, seeded in `00024`. Shared: major,
+      expected graduation year (`blinded`), "Why are you interested in Archimedes?".
+      Per-team: "Why are you interested in {team}?". Team-scoped: Astra → U.S. citizen or
+      permanent resident; Infinitum → 18 or older. Terra and Juvo add nothing beyond the
+      shared set. Both eligibility questions auto-reject on "No".
+- [x] **VT email enforced as an org setting**, not a second question —
+      `settings.application.email_domain = 'vt.edu'`, with subdomains accepted and null
+      meaning unrestricted. Any org can set its own. It gates the existing address on
+      purpose: interviews and `email_log` join applicants on that address, so a second
+      "school email" field would fork the candidate's identity.
+- [x] Applicant-facing copy states plainly that each team is submitted as its own
+      application, and the review step says how many are about to be sent.
+- [x] **Fixed a pre-existing bug** in the review step: "click a section to edit" jumped to
+      `stepIndex + 1`, ignoring the team-picker step, so with teams configured every edit
+      link landed one step short.
+
+### Verified
+
+- Pure logic exercised directly: picking Terra + Astra shows Astra's citizenship question
+  and not Infinitum's, expands `why_team` into both teams in org order, and splits into two
+  applications — Astra denied, Terra pending, neither carrying the other's essay.
+- `anon`-role inserts confirmed against prod inside a rolled-back transaction: two sibling
+  rows accepted, a duplicate Astra application rejected by the unique index, and a different
+  team for the same person still allowed.
+
+---
+
 ## Phase 3 — Review Stage (1-2 days) — 🔧 in progress
 
 Done:
@@ -550,6 +630,153 @@ restarted, which makes a working fix look broken. Check the Svelte scope hash
   cleanup.
 
 ---
+
+## Phase 6.6 — Per-team applications + the Archimedes 2026 form ✅ (complete)
+
+Owner ask: build the Archimedes **2026 Fall Recruitment** form, and make an application to
+two teams be **two applications in the backend** — "treat each application as distinct. I
+don't want to mark them in the same manner, ie showing all the teams they did for it."
+
+### The model change
+
+- [x] **`00024_per_team_applications.sql`** — `applicants.team_id` (FK to `teams`) and
+      `applicants.submission_group` (uuid), plus indexes. One `applicants` row per team:
+      applying to Astra and Terra creates two rows with their own `status`, their own
+      review, and only the answers that team asked for.
+- [x] **Legacy rows deliberately NOT split.** Backfill sets `team_id` only where
+      `selected_team_slugs` holds exactly one slug. Splitting a historical multi-team row
+      would have to invent which answers belonged to which team, and the per-team essays
+      those rows would need were never collected. They stay as legacy combined
+      applications, and read code must tolerate both shapes.
+- [x] **`splitSubmissionByTeam()`** in `utils/formSchema.ts` — pure, so it can move
+      server-side with the rest of the submit path. Emits in the org's configured team
+      order, not the order the applicant ticked boxes, so sibling rows are created in a
+      stable sequence.
+- [x] **`submission_group` is for auditing, not for re-merging.** It links the siblings so a
+      split is traceable and a resubmit is detectable. The reviewer UI must never label an
+      application with every team the person applied to — that is the exact thing the owner
+      asked not to happen.
+
+### `per_team` questions
+
+- [x] **`team_scope: { per_team: true }`** — a third scope mode. The question is asked once
+      per team the applicant picked, with `{team}` in the title/subtitle/placeholder
+      replaced by that team's name. This is what makes "Why are you interested in {team}?"
+      a distinct answer per application, authored once instead of copy-pasted per team.
+- [x] **Ids expand, then collapse.** The form renders unique ids (`why_team::astra`) so it
+      can key inputs; the split writes the answer back under the *authored* id (`why_team`)
+      on the row that team owns. Every Astra application therefore stores its essay under
+      the same key, and `reject_if` rules — written against authored ids — keep working
+      without knowing expansion happened.
+- [x] **Provenance is carried, not parsed.** Expanded copies get `base_id` / `per_team_slug`
+      fields rather than the split re-deriving them from the id string, which would break
+      the moment an author used the separator in an id of their own.
+
+### Auto-reject is now per-team
+
+- [x] Rules are evaluated **once per team**, against that team's answers under that team's
+      scope. A "No" on the Astra citizenship question denies the Astra application and
+      leaves the same person's Terra application pending. Previously one rule denied the
+      whole candidate.
+
+### Two legacy constraints that had to go (`00025_applicant_uniqueness.sql`)
+
+- [x] **`applicants_email_key UNIQUE (email)`** — globally unique email meant one
+      application per person *for all time*, across teams, jobs and cycles. It hard-blocked
+      the second row of every split.
+- [x] **`applicants_name_key UNIQUE (name)`** — **a live bug, unrelated to this work.** Two
+      applicants who share a name could never both exist, in any org, ever. A second "John
+      Smith" was rejected at the database and surfaced in the form as a generic failure.
+- [x] Replaced by `applicants_job_email_team_uniq` on `(job, lower(email), team_id)`
+      `NULLS NOT DISTINCT` — one application per person, per posting, per team. Still stops
+      the double-tapped submit the old constraint was groping at, without forbidding the
+      legitimate cases. `NULLS NOT DISTINCT` matters: without it an org with no teams
+      (`team_id IS NULL`) gets no dedup at all, since NULLs compare distinct.
+- [x] **`CREATE INDEX IF NOT EXISTS` silently kept the WRONG index.** The first live
+      version of this index was created on raw `email`, and the statement above — same
+      index *name*, different definition — did nothing at all, because `IF NOT EXISTS`
+      matches on the name only. `SPLIT-TEST@vt.edu` then inserted happily alongside
+      `split-test@vt.edu`. **`IF NOT EXISTS` makes a migration re-runnable; it does not
+      make it corrective.** To change an existing index's definition you must drop it
+      explicitly first. Caught only because the constraint was tested with a real duplicate
+      insert instead of being assumed to work — and initially mis-diagnosed as Postgres
+      dropping the `lower()` expression, which it does not do.
+- [x] Email is now normalized to lowercase on write. Interviews, drafts and `email_log` all
+      join applicants on that address, so drifting case forks one person into two
+      candidates across every one of those joins.
+
+### The Archimedes form (job posting id 7, seeded in `00024`)
+
+Shared: major, expected graduation year (`blinded`). Per-team: Astra asks U.S.
+citizen/permanent resident, Infinitum asks 18-or-older — both `reject_if` on "No", both
+scoped so they only affect their own team's application. Terra and Juvo add nothing beyond
+the shared set. Interest: "Why are you interested in Archimedes?" (shared) and "Why are you
+interested in {team}?" (`per_team`).
+
+- [x] **Applicant email domain restriction** — `organizations.settings.application.email_domain`
+      (bare, e.g. `vt.edu`; null = unrestricted; subdomains accepted). Set for Archimedes.
+      It constrains the **existing** email field rather than adding a second "school email"
+      question, on purpose: interviews and `email_log` join applicants on that address, so a
+      second address would fork the candidate's identity.
+
+### Fixed in passing
+
+- [x] **Review step "click a section to edit" jumped to the wrong step.** It used
+      `stepIndex + 1`, ignoring that question steps start at index 2 when a team picker is
+      present — so every edit link landed on the team picker instead of the question.
+
+### Verified
+
+Split logic exercised directly against a schema with all three scope modes: the Infinitum
+question stays hidden for an Astra+Terra applicant, `why_team` expands to exactly two
+questions in org order (not click order), the Astra row comes back denied while Terra stays
+pending, and neither row carries the other's essay. Then the real insert was run **as the
+`anon` role** against prod — which is what exposed both unique constraints, and what
+confirmed the dedup index rejects a case-varied duplicate while still accepting a third
+team for the same person. Test rows removed.
+
+### Interviews now belong to an application (`00026_interview_applicant_id.sql`)
+
+`interviews.applicant` is the applicant's EMAIL as text. That was unambiguous while an
+address owned one application; after the split, joining on it hands every sibling row the
+same interviews — the Astra application would show Terra's interview and count it toward
+Astra's evaluation progress.
+
+- [x] **`interviews.applicant_id`** (FK to `applicants`, `ON DELETE CASCADE`) + index.
+- [x] **Backfilled only where unambiguous** — exactly one applicant row for that address in
+      that org. On prod that linked **886 of 891** interviews; the remaining 5 stay null and
+      fall back to the email join, which is correct for them precisely because they have no
+      sibling to be confused with. Guessing on an ambiguous match would silently attach an
+      interview to the wrong team's application.
+- [x] The `applicant` email column **stays** — the scheduler, the `.ics` builder and
+      `email_log` all still key off it. Readers prefer `applicant_id` and fall back to email.
+
+Remaining:
+
+- [ ] **Teach the scheduler to set `applicant_id`** when it creates interviews. Until it
+      does, newly scheduled interviews have a null `applicant_id` and hit the email
+      fallback, which reintroduces the fan-out for exactly the rows that matter most.
+
+### One stray row in the prod migration ledger
+
+`supabase_migrations.schema_migrations` on prod carries **version `20260830002519`,
+`per_team_identity_constraints`**, which has no file in `supabase/migrations/`. It was a
+duplicate of this phase's constraint work, applied four seconds before `applicant_uniqueness`
+during parallel development; its effects are fully and correctly represented by `00025` and
+`00026`, and the live schema matches those two files. It is left in place rather than
+deleted, because a ledger row is an accurate record of something that really ran.
+
+**So the `ls supabase/migrations/` vs `list_migrations` drift check now expects prod to have
+exactly one more row than the repo has files, and that row is this one.** Any *other*
+mismatch is real drift.
+
+### Open question for the owner
+
+**Which interview rounds are shared across a candidate's teams?** `docs/CLAUDE.md` describes
+a shared R1 followed by per-team R2/R3. If R1 really is one interview for the whole person,
+then fanning R1 across sibling applications is *correct* and only R2/R3 must be per-team —
+which is a different rule from "every interview belongs to one application". This is a
+recruitment-process decision, not a code one, so it is recorded rather than guessed.
 
 ## Phase 7 — Pre-launch QA (half day)
 

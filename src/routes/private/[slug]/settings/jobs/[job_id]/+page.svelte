@@ -2,9 +2,15 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { supabase, getTeams } from '$lib/utils/supabase';
-	import { updateJobPosting } from '$lib/utils/supabase';
-	import type { Team, RejectRule } from '$lib/types';
+	import {
+		supabase,
+		getTeams,
+		updateJobPosting,
+		updateJobQuestions,
+		getJobApplicantCount
+	} from '$lib/utils/supabase';
+	import { visibleSteps } from '$lib/utils/formSchema';
+	import type { Team, RejectRule, TeamScope } from '$lib/types';
 	import Sidebar from '$lib/components/recruiter/Sidebar.svelte';
 	import Navbar from '$lib/components/recruiter/Navbar.svelte';
 	import QuestionRenderer from '$lib/components/QuestionRenderer.svelte';
@@ -20,33 +26,48 @@
 	let jobDescription = '';
 	let steps: FormStep[] = [];
 
-	// Editing state
+	// How many applications already exist for this posting. Drives the warnings
+	// about orphaning collected answers — advisory only, never blocking.
+	let applicantCount = 0;
+
+	// Step editing (rename / re-icon) — one step open at a time.
 	let editingStepIndex: number | null = null;
-	let editingQuestionIndex: number | null = null;
 
 	// New step form
 	let showAddStep = false;
 	let newStepTitle = '';
 	let newStepIcon = 'fi-br-document';
 
-	// New question form
+	// Question form. The same form serves "add" and "edit": `addingQuestionToStep`
+	// is the step it is open on, `editingQuestionIndex` is null for a new question
+	// and the index of the question being edited otherwise.
 	let addingQuestionToStep: number | null = null;
+	let editingQuestionIndex: number | null = null;
+	/** The id the edited question had on open — compared to warn about orphaning. */
+	let editingOriginalId = '';
 	let newQ: FormQuestion = emptyQuestion();
+	/** Stop auto-slugging the id from the title once it has been typed in. */
+	let newQIdTouched = false;
 
 	// --- V1 per-question metadata (team_scope / reject_if / blinded) ---
-	// Held as flat UI state and folded into the question on add, because the
+	// Held as flat UI state and folded into the question on save, because the
 	// stored shapes are unions that are awkward to bind directly.
 	let teams: Team[] = [];
+	/** The three team_scope modes, as a single explicit choice. */
+	let newQScopeMode: 'shared' | 'teams' | 'per_team' = 'shared';
 	let newQTeamSlugs: string[] = [];
 	let newQRejectOp: '' | RejectRule['op'] = '';
 	let newQRejectValue = '';
+	let newQRejectList: string[] = [];
 
-	/** Ops that need no operand — the rest read `newQRejectValue`. */
+	/** Ops that need no operand — the rest read `newQRejectValue`/`newQRejectList`. */
 	const NULLARY_OPS = ['truthy', 'falsy'];
-	/** Ops whose operand is a list, entered comma-separated. */
+	/** Ops whose operand is a list of values. */
 	const LIST_OPS = ['in', 'not_in'];
 	/** Ops whose operand must be numeric. */
 	const NUMERIC_OPS = ['lt', 'gt'];
+	/** Types whose answer comes from a fixed list — these must have options. */
+	const CHOICE_TYPES = ['radio', 'checkbox', 'checkbox_image', 'dropdown'];
 
 	const rejectOps: { value: RejectRule['op']; label: string }[] = [
 		{ value: 'eq', label: 'is exactly' },
@@ -59,28 +80,67 @@
 		{ value: 'falsy', label: 'is left blank' }
 	];
 
+	/* ------------------------------------------------------------------ *
+	 * team_scope helpers
+	 *
+	 * `TeamScope` is a three-branch union — 'shared' | { teams } | { per_team }.
+	 * Everything that reads a scope goes through these so no call site has to
+	 * assume `.teams` exists on every branch.
+	 * ------------------------------------------------------------------ */
+
+	function isPerTeamScope(scope: TeamScope | undefined): boolean {
+		return !!scope && scope !== 'shared' && 'per_team' in scope && scope.per_team === true;
+	}
+
+	function scopeTeamSlugs(scope: TeamScope | undefined): string[] {
+		if (!scope || scope === 'shared') return [];
+		if ('teams' in scope && Array.isArray(scope.teams)) return scope.teams;
+		return [];
+	}
+
+	function scopeModeOf(scope: TeamScope | undefined): 'shared' | 'teams' | 'per_team' {
+		if (isPerTeamScope(scope)) return 'per_team';
+		return scopeTeamSlugs(scope).length > 0 ? 'teams' : 'shared';
+	}
+
+	function teamName(slug: string): string {
+		return teams.find((t) => t.slug === slug)?.name ?? slug;
+	}
+
+	/** Build the stored `team_scope` union from the flat form state. */
+	function buildTeamScope(): TeamScope | undefined {
+		// 'shared' serializes as ABSENT, matching the seeded schemas and keeping
+		// no-op keys out of the stored JSON.
+		if (newQScopeMode === 'shared') return undefined;
+		if (newQScopeMode === 'per_team') return { per_team: true };
+		if (newQTeamSlugs.length === 0) return undefined;
+		return { teams: [...newQTeamSlugs] };
+	}
+
 	$: rejectNeedsValue = newQRejectOp !== '' && !NULLARY_OPS.includes(newQRejectOp);
+	$: rejectIsList = newQRejectOp !== '' && LIST_OPS.includes(newQRejectOp);
+	$: rejectIsNumeric = newQRejectOp !== '' && NUMERIC_OPS.includes(newQRejectOp);
+	/** Choice questions offer their OWN options as the operand, not free text. */
+	$: rejectFromOptions =
+		CHOICE_TYPES.includes(newQ.type) && (newQ.options?.length ?? 0) > 0 && !rejectIsNumeric;
 	$: rejectValueInvalid =
 		rejectNeedsValue &&
-		(newQRejectValue.trim() === '' ||
-			(NUMERIC_OPS.includes(newQRejectOp) && Number.isNaN(Number(newQRejectValue.trim()))));
+		(rejectIsList
+			? newQRejectList.length === 0
+			: newQRejectValue.trim() === '' ||
+				(rejectIsNumeric && !Number.isFinite(Number(newQRejectValue.trim()))));
 
 	/** Build the stored `reject_if` union from the flat form state. */
 	function buildRejectRule(): RejectRule | undefined {
 		if (newQRejectOp === '') return undefined;
 		const op = newQRejectOp;
 		if (NULLARY_OPS.includes(op)) return { op } as RejectRule;
+		if (LIST_OPS.includes(op)) {
+			if (newQRejectList.length === 0) return undefined;
+			return { op, value: [...newQRejectList] } as RejectRule;
+		}
 		const raw = newQRejectValue.trim();
 		if (!raw) return undefined;
-		if (LIST_OPS.includes(op)) {
-			return {
-				op,
-				value: raw
-					.split(',')
-					.map((s) => s.trim())
-					.filter(Boolean)
-			} as RejectRule;
-		}
 		if (NUMERIC_OPS.includes(op)) {
 			const n = Number(raw);
 			return Number.isFinite(n) ? ({ op, value: n } as RejectRule) : undefined;
@@ -88,10 +148,18 @@
 		return { op, value: raw } as RejectRule;
 	}
 
+	function toggleRejectListValue(value: string) {
+		newQRejectList = newQRejectList.includes(value)
+			? newQRejectList.filter((v) => v !== value)
+			: [...newQRejectList, value];
+	}
+
 	function resetQuestionMeta() {
+		newQScopeMode = 'shared';
 		newQTeamSlugs = [];
 		newQRejectOp = '';
 		newQRejectValue = '';
+		newQRejectList = [];
 	}
 
 	function toggleNewQTeam(slug: string) {
@@ -100,13 +168,81 @@
 			: [...newQTeamSlugs, slug];
 	}
 
+	/* ------------------------------------------------------------------ *
+	 * Question ids
+	 *
+	 * The id is the key the answer is stored under, so a duplicate silently
+	 * overwrites another question's answer. Non-empty, unique and key-safe are
+	 * all enforced inline, and again in validateSchema() before any save.
+	 * ------------------------------------------------------------------ */
+
+	const ID_PATTERN = /^[A-Za-z0-9_]+$/;
+
+	function slugifyId(text: string): string {
+		return text
+			.toLowerCase()
+			.replace(/[^a-z0-9]+/g, '_')
+			.replace(/^_+|_+$/g, '')
+			.slice(0, 48);
+	}
+
+	function onNewQTitleInput() {
+		if (!newQIdTouched) newQ.id = slugifyId(newQ.title);
+	}
+
+	/** Every id in the schema except the question currently being edited. */
+	$: takenIds = steps.flatMap((s, si) =>
+		s.questions
+			.filter((_, qi) => !(si === addingQuestionToStep && qi === editingQuestionIndex))
+			.map((q) => q.id)
+	);
+
+	$: newQIdError = (() => {
+		const v = newQ.id.trim();
+		if (!v) return 'An id is required — it is the key this answer is stored under.';
+		if (!ID_PATTERN.test(v)) return 'Letters, numbers and underscores only (no spaces or colons).';
+		if (takenIds.includes(v)) return `"${v}" is already used by another question in this form.`;
+		return '';
+	})();
+
+	$: newQTitleError = newQ.title.trim() ? '' : 'A title is required.';
+	$: newQOptionsError =
+		CHOICE_TYPES.includes(newQ.type) && (newQ.options?.length ?? 0) === 0
+			? 'Add at least one option, one per line.'
+			: '';
+	$: newQScopeError =
+		newQScopeMode === 'teams' && newQTeamSlugs.length === 0
+			? 'Pick at least one team, or switch back to Shared.'
+			: '';
+	$: newQInvalid = Boolean(
+		newQIdError || newQTitleError || newQOptionsError || newQScopeError || rejectValueInvalid
+	);
+
+	/** Renaming a key on a posting that already has answers orphans them. */
+	$: idOrphanWarning =
+		editingQuestionIndex !== null &&
+		applicantCount > 0 &&
+		newQ.id.trim() !== '' &&
+		newQ.id.trim() !== editingOriginalId;
+
+	/** Live `{team}` interpolation so per-team copy can be proof-read in place. */
+	$: perTeamPreview =
+		newQScopeMode === 'per_team'
+			? teams.map((t) => ({
+					name: t.name,
+					title: (newQ.title || '').replace(/\{team\}/g, t.name),
+					subtitle: (newQ.subtitle || '').replace(/\{team\}/g, t.name)
+				}))
+			: [];
+
 	/** One-line summary of a question's V1 metadata, for the collapsed list row. */
 	function metaSummary(q: FormQuestion): string {
 		const bits: string[] = [];
-		const scope = q.team_scope;
-		if (scope && scope !== 'shared' && scope.teams?.length) {
-			const names = scope.teams.map((s) => teams.find((t) => t.slug === s)?.name ?? s);
-			bits.push(names.join(' / '));
+		if (isPerTeamScope(q.team_scope)) {
+			bits.push('asked once per selected team');
+		} else {
+			const slugs = scopeTeamSlugs(q.team_scope);
+			if (slugs.length > 0) bits.push(slugs.map(teamName).join(' / '));
 		}
 		if (q.reject_if) {
 			const op = rejectOps.find((o) => o.value === q.reject_if!.op)?.label ?? q.reject_if.op;
@@ -179,20 +315,65 @@
 		// Empty when migration 00015 isn't applied — the team-scope control then
 		// hides itself and questions stay shared, which is the correct default.
 		if (jobData.org_id) teams = await getTeams(jobData.org_id);
+		applicantCount = await getJobApplicantCount(jobId);
 		loading = false;
 	});
 
+	/**
+	 * Structural checks that must hold before anything is written. These are the
+	 * failures that are silent at runtime rather than loud: a duplicate id
+	 * overwrites an answer, an option-less dropdown renders an unanswerable
+	 * question, an untitled step renders a blank page.
+	 */
+	function validateSchema(): string[] {
+		const problems: string[] = [];
+		const seen = new Map<string, string>();
+
+		steps.forEach((step, si) => {
+			if (!step.title.trim()) problems.push(`Step ${si + 1} needs a title.`);
+
+			step.questions.forEach((q) => {
+				const where = `Step ${si + 1} · "${q.title || q.id || 'untitled question'}"`;
+				const id = (q.id ?? '').trim();
+
+				if (!id) problems.push(`${where}: missing a question id.`);
+				else if (!ID_PATTERN.test(id))
+					problems.push(`${where}: id "${id}" may only contain letters, numbers and underscores.`);
+				else if (seen.has(id))
+					problems.push(`${where}: id "${id}" is already used by ${seen.get(id)}.`);
+				else seen.set(id, where);
+
+				if (!q.title.trim()) problems.push(`${where}: missing a title.`);
+				if (CHOICE_TYPES.includes(q.type) && (q.options?.length ?? 0) === 0)
+					problems.push(`${where}: a ${q.type} question needs at least one option.`);
+			});
+		});
+
+		return problems;
+	}
+
+	let schemaProblems: string[] = [];
+
 	async function saveAll() {
 		if (!job) return;
+
+		schemaProblems = validateSchema();
+		if (schemaProblems.length > 0) {
+			saveMessage = 'Error: fix the problems listed below.';
+			return;
+		}
+
 		saving = true;
 		saveMessage = '';
 
 		try {
 			await updateJobPosting(job.id, {
 				name: jobName,
-				description: jobDescription,
-				questions: { steps } as any
+				description: jobDescription
 			});
+			// The schema is written on its own so a stale tab can't clobber a rename
+			// made elsewhere — see updateJobQuestions in src/lib/utils/supabase.ts.
+			await updateJobQuestions(job.id, { steps });
 			saveMessage = 'Saved!';
 			setTimeout(() => {
 				saveMessage = '';
@@ -214,8 +395,15 @@
 	}
 
 	function removeStep(index: number) {
-		if (!confirm(`Remove step "${steps[index].title}" and all its questions?`)) return;
+		const count = steps[index].questions.length;
+		const extra =
+			applicantCount > 0 && count > 0
+				? `\n\n${applicantCount} application(s) already exist. Their answers to these ${count} question(s) stay in the database but stop being shown against this form.`
+				: '';
+		if (!confirm(`Remove step "${steps[index].title}" and all its questions?${extra}`)) return;
 		steps = steps.filter((_, i) => i !== index);
+		if (editingStepIndex === index) editingStepIndex = null;
+		if (addingQuestionToStep === index) closeQuestionForm();
 	}
 
 	function moveStep(index: number, direction: -1 | 1) {
@@ -224,19 +412,75 @@
 		const newSteps = [...steps];
 		[newSteps[index], newSteps[newIndex]] = [newSteps[newIndex], newSteps[index]];
 		steps = newSteps;
+		// Indices just moved; close anything anchored to one.
+		editingStepIndex = null;
+		closeQuestionForm();
+	}
+
+	function setStepIcon(index: number, icon: string) {
+		steps[index].icon = icon;
+		steps = [...steps];
 	}
 
 	// Question management
-	function addQuestion(stepIndex: number) {
-		if (!newQ.title.trim() || !newQ.id.trim()) return;
-		if (rejectValueInvalid) return;
-		const q = { ...newQ };
-		// Clean up options
-		if (q.options) q.options = q.options.filter((o) => o.trim() !== '');
+	function openAddQuestion(stepIndex: number) {
+		addingQuestionToStep = stepIndex;
+		editingQuestionIndex = null;
+		editingOriginalId = '';
+		newQ = emptyQuestion();
+		newQIdTouched = false;
+		optionsText = '';
+		resetQuestionMeta();
+	}
 
-		// Fold the V1 metadata in. Omit each key entirely when unset so the
-		// stored schema stays clean and `undefined` never lands in the JSON.
-		if (newQTeamSlugs.length > 0) q.team_scope = { teams: [...newQTeamSlugs] };
+	function openEditQuestion(stepIndex: number, qIndex: number) {
+		const q = steps[stepIndex].questions[qIndex];
+		addingQuestionToStep = stepIndex;
+		editingQuestionIndex = qIndex;
+		editingOriginalId = q.id;
+		newQ = { ...q, options: [...(q.options ?? [])] };
+		newQIdTouched = true;
+		optionsText = (q.options ?? []).join('\n');
+
+		newQScopeMode = scopeModeOf(q.team_scope);
+		newQTeamSlugs = scopeTeamSlugs(q.team_scope);
+		newQRejectOp = q.reject_if?.op ?? '';
+		newQRejectList =
+			q.reject_if && 'value' in q.reject_if && Array.isArray(q.reject_if.value)
+				? q.reject_if.value.map(String)
+				: [];
+		newQRejectValue =
+			q.reject_if && 'value' in q.reject_if && !Array.isArray(q.reject_if.value)
+				? String(q.reject_if.value)
+				: '';
+	}
+
+	function closeQuestionForm() {
+		addingQuestionToStep = null;
+		editingQuestionIndex = null;
+		editingOriginalId = '';
+		newQ = emptyQuestion();
+		newQIdTouched = false;
+		optionsText = '';
+		resetQuestionMeta();
+	}
+
+	function saveQuestion(stepIndex: number) {
+		if (newQInvalid) return;
+
+		const q: FormQuestion = { ...newQ, id: newQ.id.trim(), title: newQ.title.trim() };
+
+		// Drop keys that don't apply, so the stored schema stays clean and
+		// `undefined` never lands in the JSON.
+		if (q.options) q.options = q.options.filter((o) => o.trim() !== '');
+		if (!CHOICE_TYPES.includes(q.type)) delete q.options;
+		if (!q.subtitle?.trim()) delete q.subtitle;
+		if (!q.placeholder?.trim()) delete q.placeholder;
+		if (!q.required) delete q.required;
+		if (!q.maxLength) delete q.maxLength;
+
+		const scope = buildTeamScope();
+		if (scope) q.team_scope = scope;
 		else delete q.team_scope;
 
 		const rule = buildRejectRule();
@@ -245,16 +489,28 @@
 
 		if (!q.blinded) delete q.blinded;
 
-		steps[stepIndex].questions = [...steps[stepIndex].questions, q];
+		if (editingQuestionIndex !== null) {
+			steps[stepIndex].questions[editingQuestionIndex] = q;
+		} else {
+			steps[stepIndex].questions = [...steps[stepIndex].questions, q];
+		}
 		steps = [...steps];
-		newQ = emptyQuestion();
-		resetQuestionMeta();
-		addingQuestionToStep = null;
+		closeQuestionForm();
 	}
 
 	function removeQuestion(stepIndex: number, qIndex: number) {
+		const q = steps[stepIndex].questions[qIndex];
+		if (applicantCount > 0) {
+			if (
+				!confirm(
+					`Remove "${q.title}"?\n\n${applicantCount} application(s) already answered this form. The answers stored under "${q.id}" are orphaned — they stay in the database but stop being shown.`
+				)
+			)
+				return;
+		}
 		steps[stepIndex].questions = steps[stepIndex].questions.filter((_, i) => i !== qIndex);
 		steps = [...steps];
+		if (addingQuestionToStep === stepIndex) closeQuestionForm();
 	}
 
 	function moveQuestion(stepIndex: number, qIndex: number, direction: -1 | 1) {
@@ -264,9 +520,10 @@
 		[qs[qIndex], qs[newIndex]] = [qs[newIndex], qs[qIndex]];
 		steps[stepIndex].questions = [...qs];
 		steps = [...steps];
+		if (addingQuestionToStep === stepIndex) closeQuestionForm();
 	}
 
-	// Options helpers for new question
+	// Options helpers for the question form
 	let optionsText = '';
 	$: newQ.options = optionsText.split('\n').filter((o) => o.trim() !== '');
 
@@ -276,9 +533,18 @@
 
 	let showPreview = false;
 	let previewStep = 0;
+
+	// Preview as an applicant who selected EVERY team: that is the only view that
+	// shows both team-scoped questions and every copy of a per-team question.
+	$: allTeamSlugs = teams.map((t) => t.slug);
+	// Expanded one step at a time so a step with no questions yet still appears
+	// in the builder's preview (visibleSteps drops empty steps for applicants).
+	$: expandedSteps = steps.map(
+		(s) => visibleSteps({ steps: [s] }, allTeamSlugs, teams)[0] ?? { ...s, questions: [] }
+	);
 	$: previewSteps = [
 		{ title: 'Personal Info', icon: 'fi-br-file-user', questions: [] as FormQuestion[] },
-		...steps,
+		...expandedSteps,
 		{ title: 'Review & Submit', icon: 'fi-br-paper-plane', questions: [] as FormQuestion[] }
 	];
 	$: currentPreviewStep = previewSteps[previewStep] ?? null;
@@ -317,18 +583,31 @@
 		{#if loading}
 			<p class="muted">Loading...</p>
 		{:else}
+			{#if applicantCount > 0}
+				<div class="alert-soft alert-warning live-warning">
+					<strong
+						>{applicantCount} application{applicantCount === 1 ? '' : 's'} already submitted.</strong
+					>
+					You can still edit this form, but answers are stored under each question's
+					<strong>id</strong>. Renaming or deleting a question orphans the answers already collected
+					under the old id — they stay in the database and stop appearing against this question.
+					Adding questions and editing wording is always safe.
+				</div>
+			{/if}
+
 			<!-- Job Details -->
 			<div class="panel section-card">
 				<div class="panel-head">
 					<h5 class="panel-title">Job Details</h5>
 				</div>
 				<div class="field">
-					<label class="field-label">Position Name</label>
-					<input type="text" class="form-control" bind:value={jobName} />
+					<label class="field-label" for="job-name">Position Name</label>
+					<input id="job-name" type="text" class="form-control" bind:value={jobName} />
 				</div>
 				<div class="field">
-					<label class="field-label">Description</label>
-					<textarea class="form-control" bind:value={jobDescription} rows="2"></textarea>
+					<label class="field-label" for="job-desc">Description</label>
+					<textarea id="job-desc" class="form-control" bind:value={jobDescription} rows="2"
+					></textarea>
 				</div>
 			</div>
 
@@ -348,8 +627,9 @@
 			{#if showAddStep}
 				<div class="panel add-step-card">
 					<div class="field">
-						<label class="field-label">Step Title</label>
+						<label class="field-label" for="new-step-title">Step Title</label>
 						<input
+							id="new-step-title"
 							type="text"
 							class="form-control"
 							bind:value={newStepTitle}
@@ -357,14 +637,15 @@
 						/>
 					</div>
 					<div class="field">
-						<label class="field-label">Icon</label>
+						<span class="field-label">Icon</span>
 						<div class="icon-grid">
-							{#each iconOptions as icon}
+							{#each iconOptions as icon (icon)}
 								<button
 									class="icon-btn"
 									class:icon-selected={newStepIcon === icon}
 									on:click={() => (newStepIcon = icon)}
 									title={icon}
+									aria-label={icon}
 								>
 									<i class="fi {icon}"></i>
 								</button>
@@ -393,12 +674,21 @@
 					<div class="step-header">
 						<div class="step-title-line">
 							<i class="fi {step.icon} step-icon"></i>
-							<span class="step-title">Step {stepIndex + 1}: {step.title}</span>
+							<span class="step-title">Step {stepIndex + 1}: {step.title || '(untitled)'}</span>
 							<span class="question-count"
 								>{step.questions.length} question{step.questions.length !== 1 ? 's' : ''}</span
 							>
 						</div>
 						<div class="step-actions">
+							<button
+								class="btn-icon"
+								on:click={() =>
+									(editingStepIndex = editingStepIndex === stepIndex ? null : stepIndex)}
+								title="Rename step"
+								aria-label="Rename step"
+							>
+								<i class="fi fi-br-file-edit" aria-hidden="true"></i>
+							</button>
 							<button
 								class="btn-icon"
 								on:click={() => moveStep(stepIndex, -1)}
@@ -428,6 +718,43 @@
 						</div>
 					</div>
 
+					{#if editingStepIndex === stepIndex}
+						<div class="step-edit">
+							<div class="field">
+								<label class="field-label" for="step-title-{stepIndex}">Step title</label>
+								<input
+									id="step-title-{stepIndex}"
+									type="text"
+									class="form-control"
+									bind:value={step.title}
+									on:input={() => (steps = [...steps])}
+								/>
+								{#if !step.title.trim()}
+									<p class="field-error">A step needs a title.</p>
+								{/if}
+							</div>
+							<div class="field">
+								<span class="field-label">Icon</span>
+								<div class="icon-grid">
+									{#each iconOptions as icon (icon)}
+										<button
+											class="icon-btn"
+											class:icon-selected={step.icon === icon}
+											on:click={() => setStepIcon(stepIndex, icon)}
+											title={icon}
+											aria-label={icon}
+										>
+											<i class="fi {icon}"></i>
+										</button>
+									{/each}
+								</div>
+							</div>
+							<button class="btn btn-quaternary btn-sm" on:click={() => (editingStepIndex = null)}
+								>Done</button
+							>
+						</div>
+					{/if}
+
 					<!-- Questions in this step -->
 					{#each step.questions as question, qIndex}
 						<div class="question-row">
@@ -445,7 +772,9 @@
 									{#if question.reject_if}
 										<span class="pill pill-danger">Auto-reject</span>
 									{/if}
-									{#if question.team_scope && question.team_scope !== 'shared'}
+									{#if isPerTeamScope(question.team_scope)}
+										<span class="pill pill-warning">Per team</span>
+									{:else if scopeTeamSlugs(question.team_scope).length > 0}
 										<span class="pill pill-warning">Team-scoped</span>
 									{/if}
 									{#if question.blinded}
@@ -457,6 +786,14 @@
 								{/if}
 							</div>
 							<div class="question-actions">
+								<button
+									class="btn-icon"
+									on:click={() => openEditQuestion(stepIndex, qIndex)}
+									title="Edit question"
+									aria-label="Edit question"
+								>
+									<i class="fi fi-br-file-edit" aria-hidden="true"></i>
+								</button>
 								<button
 									class="btn-icon"
 									on:click={() => moveQuestion(stepIndex, qIndex, -1)}
@@ -484,40 +821,71 @@
 						</div>
 					{/each}
 
-					<!-- Add question to this step -->
+					<!-- Add / edit a question in this step -->
 					{#if addingQuestionToStep === stepIndex}
 						<div class="add-question-form">
+							<div class="form-heading">
+								{editingQuestionIndex !== null ? 'Edit question' : 'New question'}
+							</div>
+
+							<div class="field">
+								<label class="field-label" for="q-title">Title</label>
+								<input
+									id="q-title"
+									type="text"
+									class="form-control"
+									bind:value={newQ.title}
+									on:input={onNewQTitleInput}
+									placeholder="Question text shown to applicant"
+								/>
+								{#if newQTitleError}
+									<p class="field-error">{newQTitleError}</p>
+								{/if}
+							</div>
+
 							<div class="field-row">
 								<div class="field field-grow">
-									<label class="field-label">Question ID</label>
+									<label class="field-label" for="q-id">Question ID</label>
 									<input
+										id="q-id"
 										type="text"
-										class="form-control"
+										class="form-control mono-input"
 										bind:value={newQ.id}
-										placeholder="unique_id (no spaces)"
+										on:input={() => (newQIdTouched = true)}
+										placeholder="unique_key"
 									/>
+									{#if newQIdError}
+										<p class="field-error">{newQIdError}</p>
+									{:else}
+										<p class="field-hint">
+											The key this answer is stored under. Auto-filled from the title; edit it
+											freely, but it must be unique across the whole form.
+										</p>
+									{/if}
 								</div>
 								<div class="field field-grow">
-									<label class="field-label">Type</label>
-									<select class="form-control" bind:value={newQ.type}>
-										{#each questionTypes as qt}
+									<label class="field-label" for="q-type">Type</label>
+									<select id="q-type" class="form-control" bind:value={newQ.type}>
+										{#each questionTypes as qt (qt.value)}
 											<option value={qt.value}>{qt.label}</option>
 										{/each}
 									</select>
 								</div>
 							</div>
+
+							{#if idOrphanWarning}
+								<div class="alert-soft alert-warning inline-alert">
+									Changing this id from <code>{editingOriginalId}</code> to
+									<code>{newQ.id.trim()}</code>
+									orphans the answers {applicantCount} applicant{applicantCount === 1 ? '' : 's'}
+									already gave under the old id.
+								</div>
+							{/if}
+
 							<div class="field">
-								<label class="field-label">Title</label>
+								<label class="field-label" for="q-subtitle">Subtitle (optional)</label>
 								<input
-									type="text"
-									class="form-control"
-									bind:value={newQ.title}
-									placeholder="Question text shown to applicant"
-								/>
-							</div>
-							<div class="field">
-								<label class="field-label">Subtitle (optional)</label>
-								<input
+									id="q-subtitle"
 									type="text"
 									class="form-control"
 									bind:value={newQ.subtitle}
@@ -525,22 +893,49 @@
 								/>
 							</div>
 
-							{#if ['radio', 'checkbox', 'checkbox_image', 'dropdown'].includes(newQ.type)}
+							<div class="field-row">
+								<div class="field field-grow">
+									<label class="field-label" for="q-placeholder">Placeholder (optional)</label>
+									<input
+										id="q-placeholder"
+										type="text"
+										class="form-control"
+										bind:value={newQ.placeholder}
+									/>
+								</div>
+								<div class="field maxlen-field">
+									<label class="field-label" for="q-maxlength">Max length (optional)</label>
+									<input
+										id="q-maxlength"
+										type="number"
+										min="1"
+										class="form-control"
+										bind:value={newQ.maxLength}
+									/>
+								</div>
+							</div>
+
+							{#if CHOICE_TYPES.includes(newQ.type)}
 								<div class="field">
-									<label class="field-label">Options (one per line)</label>
+									<label class="field-label" for="q-options">Options (one per line)</label>
 									<textarea
+										id="q-options"
 										class="form-control"
 										bind:value={optionsText}
 										rows="4"
 										placeholder="Option 1&#10;Option 2&#10;Option 3"></textarea>
+									{#if newQOptionsError}
+										<p class="field-error">{newQOptionsError}</p>
+									{/if}
 								</div>
 							{/if}
 
 							{#if newQ.type === 'input_dual'}
 								<div class="field-row">
 									<div class="field field-grow">
-										<label class="field-label">Label 1</label>
+										<label class="field-label" for="q-label1">Label 1</label>
 										<input
+											id="q-label1"
 											type="text"
 											class="form-control"
 											bind:value={newQ.label1}
@@ -548,8 +943,9 @@
 										/>
 									</div>
 									<div class="field field-grow">
-										<label class="field-label">Label 2</label>
+										<label class="field-label" for="q-label2">Label 2</label>
 										<input
+											id="q-label2"
 											type="text"
 											class="form-control"
 											bind:value={newQ.label2}
@@ -561,8 +957,9 @@
 
 							{#if newQ.type === 'checkbox_image'}
 								<div class="field">
-									<label class="field-label">Description</label>
+									<label class="field-label" for="q-description">Description</label>
 									<textarea
+										id="q-description"
 										class="form-control"
 										bind:value={newQ.description}
 										rows="2"
@@ -570,8 +967,9 @@
 								</div>
 								<div class="field-row">
 									<div class="field field-grow">
-										<label class="field-label">Image URL</label>
+										<label class="field-label" for="q-image">Image URL</label>
 										<input
+											id="q-image"
 											type="text"
 											class="form-control"
 											bind:value={newQ.imageSrc}
@@ -579,8 +977,9 @@
 										/>
 									</div>
 									<div class="field field-grow">
-										<label class="field-label">Image Alt Text</label>
+										<label class="field-label" for="q-image-alt">Image Alt Text</label>
 										<input
+											id="q-image-alt"
 											type="text"
 											class="form-control"
 											bind:value={newQ.imageAlt}
@@ -590,8 +989,9 @@
 								</div>
 								<div class="field-row">
 									<div class="field field-grow">
-										<label class="field-label">Link Name</label>
+										<label class="field-label" for="q-link-name">Link Name</label>
 										<input
+											id="q-link-name"
 											type="text"
 											class="form-control"
 											bind:value={newQ.linkName}
@@ -599,8 +999,9 @@
 										/>
 									</div>
 									<div class="field field-grow">
-										<label class="field-label">Link URL</label>
+										<label class="field-label" for="q-link-url">Link URL</label>
 										<input
+											id="q-link-url"
 											type="text"
 											class="form-control"
 											bind:value={newQ.linkURL}
@@ -621,33 +1022,83 @@
 							<div class="meta-section">
 								{#if teams.length > 0}
 									<div class="field">
-										<label class="field-label">Show this question to</label>
+										<span class="field-label">Who sees this question</span>
 										<div class="scope-row">
-											{#each teams as team (team.id)}
-												<label
-													class="scope-chip"
-													class:scope-on={newQTeamSlugs.includes(team.slug)}
-												>
-													<input
-														type="checkbox"
-														checked={newQTeamSlugs.includes(team.slug)}
-														on:change={() => toggleNewQTeam(team.slug)}
-													/>
-													{team.name}
-												</label>
-											{/each}
+											<label class="chip" class:chip-selected={newQScopeMode === 'shared'}>
+												<input type="radio" bind:group={newQScopeMode} value="shared" />
+												Shared
+											</label>
+											<label class="chip" class:chip-selected={newQScopeMode === 'teams'}>
+												<input type="radio" bind:group={newQScopeMode} value="teams" />
+												Specific teams
+											</label>
+											<label class="chip" class:chip-selected={newQScopeMode === 'per_team'}>
+												<input type="radio" bind:group={newQScopeMode} value="per_team" />
+												Once per team
+											</label>
 										</div>
-										<p class="field-hint">
-											{newQTeamSlugs.length === 0
-												? 'No teams selected — shown to everyone.'
-												: `Only applicants who pick ${newQTeamSlugs.length} selected team(s) will see this.`}
-										</p>
+
+										{#if newQScopeMode === 'shared'}
+											<p class="field-hint">
+												Everyone who applies answers this once, whatever teams they picked.
+											</p>
+										{:else if newQScopeMode === 'teams'}
+											<div class="scope-row scope-teams">
+												{#each teams as team (team.id)}
+													<label
+														class="chip"
+														class:chip-selected={newQTeamSlugs.includes(team.slug)}
+													>
+														<input
+															type="checkbox"
+															checked={newQTeamSlugs.includes(team.slug)}
+															on:change={() => toggleNewQTeam(team.slug)}
+														/>
+														{team.name}
+													</label>
+												{/each}
+											</div>
+											{#if newQScopeError}
+												<p class="field-error">{newQScopeError}</p>
+											{:else}
+												<p class="field-hint">
+													Shown only to applicants who picked at least one of these teams, and asked
+													once no matter how many of them they picked.
+												</p>
+											{/if}
+										{:else}
+											<p class="field-hint">
+												Asked <strong>separately for each team</strong> the applicant selects — an
+												applicant who picks two teams answers it twice, once per team, and each
+												answer belongs to that team's own application. Write
+												<code>&#123;team&#125;</code> in the title, subtitle or placeholder and it is
+												replaced with that team's name.
+											</p>
+											{#if perTeamPreview.length > 0}
+												<div class="per-team-preview">
+													<p class="hint">An applicant who picked every team would see:</p>
+													{#each perTeamPreview as row (row.name)}
+														<div class="per-team-row">
+															<span class="pill pill-neutral">{row.name}</span>
+															<div>
+																<div class="per-team-title">
+																	{row.title || '(no title yet)'}
+																</div>
+																{#if row.subtitle}
+																	<div class="subtle">{row.subtitle}</div>
+																{/if}
+															</div>
+														</div>
+													{/each}
+												</div>
+											{/if}
+										{/if}
 									</div>
 								{/if}
 
 								<div class="field">
 									<label class="field-label" for="reject-op"
-										>Auto-reject the applicant if this answer…</label
+										>Auto-reject this application if the answer…</label
 									>
 									<div class="reject-row">
 										<select id="reject-op" class="form-control" bind:value={newQRejectOp}>
@@ -656,28 +1107,75 @@
 												<option value={op.value}>{op.label}</option>
 											{/each}
 										</select>
-										{#if rejectNeedsValue}
-											<input
-												type={NUMERIC_OPS.includes(newQRejectOp) ? 'number' : 'text'}
-												class="form-control"
-												bind:value={newQRejectValue}
-												placeholder={LIST_OPS.includes(newQRejectOp)
-													? 'Comma-separated values'
-													: 'Value'}
-											/>
+										{#if rejectNeedsValue && !rejectIsList}
+											{#if rejectFromOptions}
+												<select class="form-control" bind:value={newQRejectValue}>
+													<option value="">Choose an option…</option>
+													{#each newQ.options ?? [] as opt (opt)}
+														<option value={opt}>{opt}</option>
+													{/each}
+												</select>
+											{:else if rejectIsNumeric}
+												<input type="number" class="form-control" bind:value={newQRejectValue} />
+											{:else}
+												<input
+													type="text"
+													class="form-control"
+													bind:value={newQRejectValue}
+													placeholder="Value"
+												/>
+											{/if}
 										{/if}
 									</div>
+
+									{#if rejectIsList}
+										{#if rejectFromOptions}
+											<div class="scope-row reject-values">
+												{#each newQ.options ?? [] as opt (opt)}
+													<label class="chip" class:chip-selected={newQRejectList.includes(opt)}>
+														<input
+															type="checkbox"
+															checked={newQRejectList.includes(opt)}
+															on:change={() => toggleRejectListValue(opt)}
+														/>
+														{opt}
+													</label>
+												{/each}
+											</div>
+										{:else}
+											<input
+												type="text"
+												class="form-control reject-values"
+												value={newQRejectList.join(', ')}
+												on:input={(e) =>
+													(newQRejectList = e.currentTarget.value
+														.split(',')
+														.map((s) => s.trim())
+														.filter(Boolean))}
+												placeholder="Comma-separated values"
+											/>
+										{/if}
+									{/if}
+
 									{#if rejectValueInvalid}
 										<p class="field-error">
-											{NUMERIC_OPS.includes(newQRejectOp)
-												? 'Enter a number.'
-												: 'Enter a value to compare against.'}
+											{rejectIsList
+												? 'Choose at least one value.'
+												: rejectIsNumeric
+													? 'Enter a number.'
+													: 'Enter a value to compare against.'}
 										</p>
-									{:else if newQRejectOp !== ''}
-										<p class="field-hint">
-											Applied automatically on submit. A blank answer never triggers auto-reject
-											except with "is left blank".
-										</p>
+									{/if}
+
+									{#if newQRejectOp !== ''}
+										<div class="alert-soft alert-error inline-alert">
+											<strong>Destructive and silent.</strong> When this rule matches, the
+											application is denied automatically on submit — no reviewer sees it, and no
+											email is sent unless one is enabled in settings. It denies
+											<strong>only this team's application</strong>, not the candidate: someone who
+											applied to two teams keeps the other application, which stays pending. A blank
+											answer never triggers a rule except “is left blank”.
+										</div>
 									{/if}
 								</div>
 
@@ -692,34 +1190,34 @@
 							<div class="btn-row">
 								<button
 									class="btn btn-tertiary btn-sm"
-									disabled={rejectValueInvalid}
-									on:click={() => addQuestion(stepIndex)}>Add Question</button
+									disabled={newQInvalid}
+									on:click={() => saveQuestion(stepIndex)}
 								>
-								<button
-									class="btn btn-quaternary btn-sm"
-									on:click={() => {
-										addingQuestionToStep = null;
-										newQ = emptyQuestion();
-										optionsText = '';
-										resetQuestionMeta();
-									}}>Cancel</button
+									{editingQuestionIndex !== null ? 'Apply Changes' : 'Add Question'}
+								</button>
+								<button class="btn btn-quaternary btn-sm" on:click={closeQuestionForm}
+									>Cancel</button
 								>
 							</div>
 						</div>
 					{:else}
-						<button
-							class="add-question-btn"
-							on:click={() => {
-								addingQuestionToStep = stepIndex;
-								newQ = emptyQuestion();
-								optionsText = '';
-							}}
-						>
+						<button class="add-question-btn" on:click={() => openAddQuestion(stepIndex)}>
 							<i class="fi fi-br-plus"></i> Add Question
 						</button>
 					{/if}
 				</div>
 			{/each}
+
+			{#if schemaProblems.length > 0}
+				<div class="alert-soft alert-error schema-problems">
+					<strong>This form can't be saved yet:</strong>
+					<ul>
+						{#each schemaProblems as problem, pi (pi)}
+							<li>{problem}</li>
+						{/each}
+					</ul>
+				</div>
+			{/if}
 
 			<!-- Save button at bottom too -->
 			<div class="save-row">
@@ -780,6 +1278,13 @@
 					{#if currentPreviewStep}
 						<h4 class="preview-step-title">{currentPreviewStep.title}</h4>
 
+						{#if teams.length > 0 && previewStep !== 0 && previewStep !== previewSteps.length - 1}
+							<p class="hint preview-note">
+								Previewing as an applicant who selected every team, so team-scoped questions and
+								every copy of a per-team question are shown.
+							</p>
+						{/if}
+
 						{#if previewStep === 0}
 							<!-- Personal info step mock -->
 							<div class="card">
@@ -801,7 +1306,7 @@
 								<h5>Personal Information</h5>
 								<p class="muted">Name and email will appear here.</p>
 							</div>
-							{#each steps as step}
+							{#each expandedSteps as step}
 								<div class="card preview-dim">
 									<h5>{step.title}</h5>
 									{#each step.questions as q}
@@ -844,9 +1349,9 @@
 	@use '../../../../../../styles/col.scss' as *;
 
 	// Shared furniture (.page-head, .panel, .field/.field-label/.field-hint/
-	// .field-error, .pill, .btn-icon, .empty-state, .muted/.subtle, .modal-*)
-	// is global — src/styles/ui.scss. Only what's unique to the form builder
-	// lives here.
+	// .field-error, .pill, .chip, .alert-soft, .btn-icon, .empty-state,
+	// .muted/.subtle/.hint, .modal-*) is global — src/styles/ui.scss. Only what's
+	// unique to the form builder lives here.
 
 	.save-msg {
 		font-size: 13px;
@@ -855,6 +1360,31 @@
 	}
 	.save-msg.error {
 		color: $danger;
+	}
+
+	// A shared alert used as a page banner / inline field note.
+	.live-warning {
+		max-width: 760px;
+		margin-bottom: 16px;
+		font-size: 12px;
+	}
+	.inline-alert {
+		margin: 8px 0 0;
+		font-size: 12px;
+
+		code {
+			font-size: 11px;
+		}
+	}
+	.schema-problems {
+		max-width: 760px;
+		margin-top: 16px;
+		font-size: 12px;
+
+		ul {
+			margin: 6px 0 0;
+			padding-left: 18px;
+		}
 	}
 
 	.section-card {
@@ -875,9 +1405,17 @@
 	.field-row {
 		display: flex;
 		gap: 12px;
+		flex-wrap: wrap;
 	}
 	.field-grow {
 		flex: 1;
+		min-width: 180px;
+	}
+	.maxlen-field {
+		width: 150px;
+	}
+	.mono-input {
+		font-family: monospace;
 	}
 	.check-label {
 		display: flex !important;
@@ -954,6 +1492,13 @@
 		font-weight: 700;
 		font-size: 14px;
 	}
+	.step-edit {
+		padding: 12px 14px;
+		margin-bottom: 10px;
+		background-color: $light-secondary;
+		border-radius: $radius-sm;
+		max-width: 460px;
+	}
 	.question-count {
 		font-size: 11px;
 		color: $text-muted;
@@ -985,6 +1530,7 @@
 		gap: 8px;
 		margin-top: 3px;
 		align-items: center;
+		flex-wrap: wrap;
 	}
 	// Extends the shared `.pill`: the question TYPE reads as a solid dark chip so
 	// it doesn't compete with the status-toned pills beside it.
@@ -1019,20 +1565,26 @@
 		flex-wrap: wrap;
 		gap: 6px;
 	}
-	.scope-chip {
-		display: inline-flex;
-		align-items: center;
-		gap: 5px;
-		font-size: 12px;
-		font-weight: 600;
-		padding: 4px 10px;
-		border: 1px solid $border;
-		border-radius: $radius-pill;
-		cursor: pointer;
+	.scope-teams {
+		margin-top: 8px;
 	}
-	.scope-on {
-		border-color: $yellow-primary;
-		background-color: rgba(255, 200, 0, 0.12);
+	.per-team-preview {
+		margin-top: 8px;
+		padding: 10px 12px;
+		background-color: $surface;
+		border: 1px solid $border;
+		border-radius: $radius-sm;
+		max-width: 520px;
+	}
+	.per-team-row {
+		display: flex;
+		align-items: flex-start;
+		gap: 10px;
+		margin-top: 8px;
+	}
+	.per-team-title {
+		font-size: 13px;
+		font-weight: 600;
 	}
 	.reject-row {
 		display: flex;
@@ -1043,6 +1595,10 @@
 		input {
 			max-width: 240px;
 		}
+	}
+	.reject-values {
+		margin-top: 8px;
+		max-width: 460px;
 	}
 	.question-actions {
 		display: flex;
@@ -1077,6 +1633,14 @@
 		padding: 15px;
 		background-color: $light-secondary;
 		border-radius: $radius-sm;
+	}
+	.form-heading {
+		font-size: 12px;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: $text-muted;
+		margin-bottom: 10px;
 	}
 	.add-step-card {
 		max-width: 400px;
@@ -1182,6 +1746,9 @@
 	}
 	.preview-step-title {
 		margin-bottom: 16px;
+	}
+	.preview-note {
+		margin-bottom: 12px;
 	}
 	.preview-dim {
 		opacity: 0.6;

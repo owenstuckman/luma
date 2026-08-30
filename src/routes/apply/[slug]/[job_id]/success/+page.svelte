@@ -2,13 +2,24 @@
 	import { page } from '$app/stores';
 
 	$: slug = $page.params.slug;
+	// How many applications the submit actually created — one per team chosen.
+	// Absent or unparseable falls back to 1, which is the single-team wording and
+	// is never wrong enough to matter.
+	$: count = Math.max(1, Number($page.url.searchParams.get('n')) || 1);
 </script>
 
 <div class="success-screen">
 	<div class="success-card text-center">
 		<i class="fi fi-br-check-circle success-icon"></i>
 		<h2 class="success-title">Application Submitted!</h2>
-		<p class="muted">Your application has been received. We'll be in touch soon.</p>
+		{#if count > 1}
+			<p class="muted">
+				Your <strong>{count} applications</strong> have been received — one for each team you selected.
+				Each is reviewed separately, so you may hear back about them at different times.
+			</p>
+		{:else}
+			<p class="muted">Your application has been received. We'll be in touch soon.</p>
+		{/if}
 		<div style="display: flex; gap: 10px; margin-top: 15px;">
 			<a href="/apply/{slug}">
 				<button class="btn btn-primary">Back to Positions</button>

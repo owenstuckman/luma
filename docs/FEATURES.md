@@ -50,7 +50,13 @@ Authoritative feature inventory for LUMA V1. Status legend:
 | Question types: input/textarea/radio/checkbox/dropdown/availability/dual | ✅     | All in `QuestionRenderer`                     |
 | Team selector (choose 1-N teams to apply to)                             | ✅     | Step 2 of the form when the org has teams     |
 | Conditional rendering (per-team questions)                               | ✅     | `visibleSteps()` in `utils/formSchema.ts`     |
-| Auto-reject rules per question                                           | 🔧     | Evaluated on submit; move server-side (Ph. 2) |
+| **One application row per team selected**                                | ✅     | `splitSubmissionByTeam()`; migration `00024`  |
+| **`per_team` questions ("Why {team}?") asked once per team**             | ✅     | `team_scope: { per_team: true }`              |
+| **Applicant email domain restriction (per org)**                         | ✅     | `settings.application.email_domain`           |
+| Auto-reject rules per question                                           | 🔧     | Per-team: denies only that team's application |
+| **One application per person / team / posting**                          | ✅     | `applicants_job_email_team_uniq` (`00025`)    |
+| **Duplicate submission surfaced as readable copy**                       | ✅     | `23505` → "you have already applied"          |
+| **Interviews keyed to the application, not the email**                    | ✅     | `interviews.applicant_id` (`00026`)           |
 | Save & resume partial application                                        | 🆕     | DB-backed draft + magic link                  |
 | File upload question type                                                | ⏭️     | Supabase Storage buckets exist; defer V1.1    |
 | Video link question                                                      | ✅     | Use existing URL input                        |

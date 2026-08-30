@@ -34,10 +34,26 @@ export interface EmailSettings {
 	from_name: string | null;
 }
 
+// V1: constraints on the public application form itself.
+export interface ApplicationSettings {
+	/**
+	 * Restrict applicant email addresses to one domain (e.g. 'vt.edu' for a
+	 * university club that only recruits its own students). Null means any
+	 * address is accepted, which is the default and what every pre-existing org
+	 * gets. Stored bare — no '@' — and matched case-insensitively.
+	 *
+	 * This gates the ONE address on the applicant row, deliberately, rather than
+	 * adding a second "school email" question: interviews and the email log join
+	 * applicants on that address, so a second one would fork the identity.
+	 */
+	email_domain: string | null;
+}
+
 export interface OrgSettings {
 	review_thresholds: ReviewThresholds;
 	scheduling: SchedulingDefaults;
 	email: EmailSettings;
+	application: ApplicationSettings;
 }
 
 export const DEFAULT_ORG_SETTINGS: OrgSettings = {
@@ -61,6 +77,9 @@ export const DEFAULT_ORG_SETTINGS: OrgSettings = {
 		auto_send_decision_waitlist: false,
 		from_address: null,
 		from_name: null
+	},
+	application: {
+		email_domain: null
 	}
 };
 
@@ -102,6 +121,7 @@ export function readOrgSettings(raw: unknown): OrgSettings {
 	const rt = isPlainObject(src.review_thresholds) ? src.review_thresholds : {};
 	const sc = isPlainObject(src.scheduling) ? src.scheduling : {};
 	const em = isPlainObject(src.email) ? src.email : {};
+	const ap = isPlainObject(src.application) ? src.application : {};
 	const d = DEFAULT_ORG_SETTINGS;
 
 	return {
@@ -143,6 +163,36 @@ export function readOrgSettings(raw: unknown): OrgSettings {
 			),
 			from_address: pickString(em.from_address, d.email.from_address),
 			from_name: pickString(em.from_name, d.email.from_name)
+		},
+		application: {
+			email_domain: normalizeEmailDomain(pickString(ap.email_domain, d.application.email_domain))
 		}
 	};
+}
+
+/**
+ * Accept what an admin is likely to type — '@vt.edu', 'VT.EDU', ' vt.edu ' —
+ * and store the one canonical form the matcher expects. Anything that isn't a
+ * plausible domain becomes null (no restriction) rather than a filter that
+ * silently rejects every applicant.
+ */
+export function normalizeEmailDomain(raw: string | null): string | null {
+	if (typeof raw !== 'string') return null;
+	const cleaned = raw.trim().toLowerCase().replace(/^@+/, '');
+	if (!cleaned) return null;
+	return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(cleaned) ? cleaned : null;
+}
+
+/** Does this address satisfy the org's domain restriction? */
+export function emailMatchesDomain(email: string, domain: string | null): boolean {
+	if (!domain) return true;
+	const at = email.trim().toLowerCase().lastIndexOf('@');
+	if (at === -1) return false;
+	// Match the domain itself or any subdomain of it, so 'vt.edu' also accepts
+	// 'cs.vt.edu' rather than bouncing a legitimate departmental address.
+	const host = email
+		.trim()
+		.toLowerCase()
+		.slice(at + 1);
+	return host === domain || host.endsWith(`.${domain}`);
 }

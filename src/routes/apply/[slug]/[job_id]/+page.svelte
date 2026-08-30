@@ -3,8 +3,14 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { supabase, isMaintenanceMode, getTeams } from '$lib/utils/supabase';
-	import { sendApplication } from '$lib/utils/supabase';
-	import { visibleSteps, evaluateRejectRules, describeRejectMatch } from '$lib/utils/formSchema';
+	import { sendApplications } from '$lib/utils/supabase';
+	import {
+		visibleSteps,
+		evaluateRejectRules,
+		describeRejectMatch,
+		splitSubmissionByTeam
+	} from '$lib/utils/formSchema';
+	import { readOrgSettings, emailMatchesDomain } from '$lib/types/orgSettings';
 	import type { Organization, JobPosting, FormStep, Team, QuestionSchema } from '$lib/types';
 	import QuestionRenderer from '$lib/components/QuestionRenderer.svelte';
 	import { capture, EVENTS } from '$lib/analytics/posthog';
@@ -13,13 +19,19 @@
 	let job: JobPosting | null = null;
 	let schema: QuestionSchema | null = null;
 	let teams: Team[] = [];
+	// Optional per-org restriction on the applicant's address (Archimedes is
+	// vt.edu). Null for every org that hasn't set one, which is the default.
+	let emailDomain: string | null = null;
 	let selectedTeamSlugs: string[] = [];
 	let teamError = '';
 
 	// Questions are filtered to the teams this applicant picked. With no teams
 	// configured the picker is skipped entirely and every question is shared,
 	// which is how single-team orgs (and pre-00015 deployments) behave.
-	$: steps = visibleSteps(schema, selectedTeamSlugs) as FormStep[];
+	// `teams` is passed so `per_team` questions expand into one copy per team the
+	// applicant picked — that is how "Why are you interested in {team}?" becomes a
+	// separate question, and a separate answer, for each team.
+	$: steps = visibleSteps(schema, selectedTeamSlugs, teams) as FormStep[];
 	$: hasTeamStep = teams.length > 0;
 	let currentStep = 0;
 	let loading = true;
@@ -88,6 +100,7 @@
 		schema = jobData.questions ?? null;
 
 		teams = await getTeams(orgData.id);
+		emailDomain = readOrgSettings(orgData.settings).application.email_domain;
 
 		// Load personal info from localStorage
 		firstName = localStorage.getItem(`${storagePrefix}_firstName`) || '';
@@ -125,6 +138,11 @@
 			step0Errors.email = 'Email is required.';
 		} else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
 			step0Errors.email = 'Please enter a valid email address.';
+		} else if (!emailMatchesDomain(email, emailDomain)) {
+			// Named explicitly rather than a generic "invalid": someone who typed a
+			// personal address needs to know WHICH address to use, not just that
+			// this one was refused.
+			step0Errors.email = `Please use your @${emailDomain} email address.`;
 		}
 		return Object.keys(step0Errors).length === 0;
 	}
@@ -168,47 +186,78 @@
 		submitError = '';
 
 		try {
-			const recruitInfo: Record<string, string> = {};
-
-			// Collect all question answers from localStorage
+			// Answers are keyed by the ids the FORM used, so a per-team question shows
+			// up here as `why_team::astra`. splitSubmissionByTeam collapses those back
+			// to the authored id on the one application they belong to.
+			const formAnswers: Record<string, string> = {};
 			for (const step of steps) {
 				for (const q of step.questions) {
 					const key = `${storagePrefix}_${q.id}`;
 					if (q.type === 'input_dual') {
 						const v1 = localStorage.getItem(`${key}_1`) || '';
 						const v2 = localStorage.getItem(`${key}_2`) || '';
-						recruitInfo[q.id] = `${v1} | ${v2}`;
+						formAnswers[q.id] = `${v1} | ${v2}`;
 					} else {
-						recruitInfo[q.id] = localStorage.getItem(key) || '';
+						formAnswers[q.id] = localStorage.getItem(key) || '';
 					}
 				}
 			}
 
-			// Auto-reject rules are evaluated against the visible questions only,
-			// so a rule attached to a team the applicant didn't pick can't fire.
-			const matches = evaluateRejectRules(recruitInfo, schema, selectedTeamSlugs);
-			const autoRejected = matches.length > 0;
+			// Stored lowercased: interviews, drafts and the email log all join
+			// applicants on this address, and the dedup index from migration 00025
+			// is on lower(email). Letting case vary would fork one person into two
+			// candidates across every one of those joins.
+			const normalizedEmail = email.trim().toLowerCase();
 
-			await sendApplication({
-				name: `${firstName} ${lastName}`,
-				email,
-				recruitInfo,
-				job: job.id,
-				org_id: org.id,
-				status: autoRejected ? 'denied' : 'pending',
-				metadata: autoRejected
-					? {
-							auto_rejected: true,
-							auto_reject_reasons: matches.map(describeRejectMatch),
-							auto_rejected_at: new Date().toISOString()
-						}
-					: {},
-				// `selected_team_slugs` arrives with migration 00020. Only send the
-				// column when the applicant actually picked teams (which requires the
-				// `teams` table from 00015), so orgs without the V1 migrations keep a
-				// working application form instead of a 400 on an unknown column.
-				...(selectedTeamSlugs.length > 0 ? { selected_team_slugs: selectedTeamSlugs } : {})
+			// One submission per team, each becoming its own independent application.
+			const submissions = splitSubmissionByTeam(formAnswers, schema, selectedTeamSlugs, teams);
+
+			// Ties the sibling rows together for auditing. The fallback keeps a
+			// non-secure-context dev server (where crypto.randomUUID is absent) from
+			// failing an otherwise valid submit.
+			const submissionGroup =
+				typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+					? crypto.randomUUID()
+					: `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+			const rows = submissions.map((sub) => {
+				// Evaluated against THIS team's answers under THIS team's scope, so an
+				// eligibility rule can deny the Astra application while the same
+				// person's Terra application stays pending.
+				const matches = evaluateRejectRules(
+					sub.answers,
+					schema,
+					sub.teamSlug ? [sub.teamSlug] : []
+				);
+				const autoRejected = matches.length > 0;
+
+				return {
+					name: `${firstName} ${lastName}`,
+					email: normalizedEmail,
+					recruitInfo: sub.answers,
+					job: job!.id,
+					org_id: org!.id,
+					status: autoRejected ? 'denied' : 'pending',
+					metadata: autoRejected
+						? {
+								auto_rejected: true,
+								auto_reject_reasons: matches.map(describeRejectMatch),
+								auto_rejected_at: new Date().toISOString()
+							}
+						: {},
+					submission_group: submissionGroup,
+					// `team_id` arrives with 00024 and `selected_team_slugs` with 00020.
+					// Both are omitted rather than sent as null when the org has no teams,
+					// so a deployment missing those migrations still accepts applications
+					// instead of 400-ing on an unknown column.
+					...(sub.teamId !== null ? { team_id: sub.teamId } : {}),
+					...(sub.teamSlug ? { selected_team_slugs: [sub.teamSlug] } : {})
+				};
 			});
+
+			await sendApplications(rows);
+
+			const rejectedCount = rows.filter((r) => r.status === 'denied').length;
 
 			// Funnel endpoint. IDs and counts only — never the answers themselves.
 			capture(EVENTS.APPLICATION_SUBMITTED, {
@@ -216,15 +265,17 @@
 				org_slug: org.slug,
 				job_id: job.id,
 				team_count: selectedTeamSlugs.length,
-				question_count: Object.keys(recruitInfo).length,
-				auto_rejected: autoRejected
+				application_count: rows.length,
+				question_count: Object.keys(formAnswers).length,
+				auto_rejected: rejectedCount > 0
 			});
-			if (autoRejected) {
+			if (rejectedCount > 0) {
 				capture(EVENTS.APPLICATION_AUTO_REJECTED, {
 					org_id: org.id,
 					job_id: job.id,
-					// The rule that fired, not the answer that tripped it.
-					rule_count: matches.length
+					// How many of this person's applications were denied — not which
+					// answer denied them.
+					application_count: rejectedCount
 				});
 			}
 
@@ -232,7 +283,10 @@
 			const keysToRemove = Object.keys(localStorage).filter((k) => k.startsWith(storagePrefix));
 			keysToRemove.forEach((k) => localStorage.removeItem(k));
 
-			goto(`/apply/${org!.slug}/${job!.id}/success`);
+			// The count travels in the URL so the confirmation can say "two
+			// applications", which is the applicant's first chance to notice if they
+			// picked a team they didn't mean to.
+			goto(`/apply/${org!.slug}/${job!.id}/success?n=${rows.length}`);
 		} catch (err) {
 			submitError = err instanceof Error ? err.message : 'An unknown error occurred.';
 			setTimeout(() => {
@@ -377,7 +431,9 @@
 				<!-- Team picker: drives which questions the rest of the form shows -->
 				<h4 class="text-center">Which teams are you applying to?</h4>
 				<p class="muted review-hint">
-					Select one or more. Later steps will only ask questions relevant to the teams you pick.
+					Select one or more. Later steps only ask questions relevant to the teams you pick, and
+					<strong>each team you choose is submitted as its own separate application</strong> — so you
+					will be considered for each one independently.
 				</p>
 
 				<div class="team-grid">
@@ -407,6 +463,12 @@
 				<p class="muted review-hint">
 					Please review your answers before submitting. Click a section to edit.
 				</p>
+				{#if selectedTeamSlugs.length > 1}
+					<p class="muted review-hint">
+						Submitting sends <strong>{selectedTeamSlugs.length} separate applications</strong> — one
+						to each team you selected. Each is reviewed on its own.
+					</p>
+				{/if}
 
 				<div
 					class="card review-card"
@@ -429,7 +491,7 @@
 				{#each steps as step, stepIndex}
 					<div
 						class="card review-card"
-						on:click={() => (currentStep = stepIndex + 1)}
+						on:click={() => (currentStep = stepIndex + firstQuestionStep)}
 						on:keydown={() => {}}
 						role="button"
 						tabindex="0"

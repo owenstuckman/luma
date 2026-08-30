@@ -75,10 +75,49 @@ there.
 
 ## Application Form Model
 
-- **One** application per job posting / recruitment cycle.
+- **One application per TEAM**, per job posting / recruitment cycle. This is the single
+  most important thing to know about the model. Applying to Astra and Terra creates **two**
+  `applicants` rows, each with its own `team_id`, its own `status`, and only the answers
+  that team asked for. They are reviewed, interviewed and decided independently.
+  - Migration `00024` introduced this. `submission_group` (uuid) ties the sibling rows
+    together for auditing — it is **not** a licence to re-merge them in the UI. Never label
+    an application with every team the person applied to; an Astra reviewer sees the Astra
+    application. Rows created before 00024 may still carry several slugs in
+    `selected_team_slugs` and were deliberately not backfilled, so tolerate both shapes.
+  - `src/lib/utils/formSchema.ts` → `splitSubmissionByTeam()` performs the split, and it is
+    pure, so the same function can run server-side when the submit path is hardened.
 - Applicant selects 1-N teams up front. Form dynamically renders shared questions + per-team questions for selected teams only.
 - Questions are JSON-schema-driven (`job_posting.questions` → `QuestionRenderer.svelte`). Already exists — extend it, don't rebuild it.
-- Add to schema: `team_scope: 'shared' | { teams: string[] }`, `reject_if: <rule>`, `blinded: boolean`.
+- Add to schema: `team_scope: 'shared' | { teams: string[] } | { per_team: true }`, `reject_if: <rule>`, `blinded: boolean`.
+  - `{ per_team: true }` asks the question **once per team the applicant picked**, with
+    `{team}` in the title/subtitle/placeholder replaced by that team's name. The form
+    expands it to unique ids (`why_team::astra`); the split collapses them back to the
+    authored id (`why_team`) on the row that team owns, so every application stores its
+    answer under the same key and reject rules keep working against authored ids.
+- **Applicant identity constraints** (migrations `00025` + `00026`) — the split was impossible to store
+  until three pre-existing pieces of schema were fixed, and the reasons are worth keeping:
+  - `applicants` had **`UNIQUE (email)`** and **`UNIQUE (name)`**, both now dropped. The
+    email one blocked the split outright and, more broadly, made an address usable *once
+    across the whole platform* — no reapplying next cycle, no two orgs sharing a candidate.
+    The name one was a live bug on its own: two applicants called "John Smith" could never
+    both exist, and at 400+ applicants per cycle that is close to certain.
+  - Replaced by **`applicants_job_email_team_uniq`** — `UNIQUE (job, email, team_id)
+    **NULLS NOT DISTINCT**`. The NULLS clause is load-bearing, not cosmetic: `team_id` is
+    null for orgs with no teams and `job` is nullable, and under the default NULLS DISTINCT
+    every such row compares unequal to every other, so the same form could be submitted
+    unlimited times. A `23505` from this index means "already applied" — `sendApplications()`
+    translates it into copy the applicant can act on.
+  - **`interviews.applicant_id`** (FK to `applicants.id`) was added because
+    `interviews.applicant` is the applicant's **email as text**. With one address owning
+    several applications, an email join gives every sibling the same interviews — the Astra
+    application would show Terra's interview and count it toward Astra's evaluation
+    progress. Read `applicant_id` first; fall back to email only when it is null (legacy
+    rows whose backfill was ambiguous, which by definition have no siblings).
+- **Applicant email domain** — `organizations.settings.application.email_domain` (bare, e.g.
+  `vt.edu`; null = unrestricted) gates the one address on the applicant row. Subdomains are
+  accepted. It constrains the existing email field rather than adding a second "school
+  email" question on purpose: interviews and `email_log` join applicants on that address, so
+  a second address would fork the candidate's identity.
 - All question types from current `QuestionRenderer` (`input`, `input_dual`, `textarea`, `radio`, `checkbox`, `checkbox_image`, `dropdown`, `availability`) plus: file upload (defer to V1.1 — see FEATURES.md), video link (URL input is fine for V1), scale 1-5 (use radio).
 - **Save & resume:** magic-link auth for candidates. Partial responses persist to DB (not localStorage). Existing localStorage flow stays as a fallback for unauth'd typing-in-progress.
 
@@ -173,7 +212,7 @@ Resend and no EmailJS package was ever installed. Keeping Resend meant zero rewr
 - All new DB access goes through `src/lib/utils/*.ts`. No inline `supabase.from(...)` in components. `supabase.ts` holds single-table helpers; `candidates.ts` holds cross-table aggregation (roster rows, candidate timeline). Add a new module rather than growing `supabase.ts` without bound.
 - Org-scoping is **mandatory** — every new query filters by `org_id` (or relies on RLS). When in doubt, verify with `is_org_member()`.
 - Settings are stored on `organizations.settings` JSONB. The canonical `OrgSettings` type and its `readOrgSettings(raw)` normalizer live in **`src/lib/types/orgSettings.ts`** (not `index.ts`). Always read settings through the normalizer — never touch `org.settings.foo` directly.
-- Migrations are forward-only and additive. `00001`–`00023` exist; add `00024+` for new V1 changes. Don't consolidate.
+- Migrations are forward-only and additive. `00001`–`00026` exist; add `00027+` for new V1 changes. Don't consolidate.
 - **Check applied migrations against the repo before trusting the DB.** Two files (`00012`,
   `00013`) sat unapplied on prod for weeks without erroring, because `candidates.ts` reads
   are deliberately failure-tolerant — the roster rendered fine and simply showed no

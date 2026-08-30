@@ -184,8 +184,23 @@ autocapture, and applicants are never `identify()`d.
   - App re-verified against the migrated schema: `/apply/archimedes/6`, `/candidates`,
     `/review`, `/settings/jobs/6` all 200 with zero runtime errors.
 
-- [ ] Send me the **actual question list** you want for the V1 Archimedes cycle: shared questions + per-team questions. Even a rough Google Doc works — I'll convert it to the JSON schema. If you want me to draft it from the V1 background doc + last year's CSVs, say so.
-- [ ] Tell me your **auto-reject rules** in plain English (e.g., "if 'Are you 18+' = No → reject"). I'll wire them into the question schema.
+- [x] ~~Send me the **actual question list**~~ — supplied 2026-08-29 and built as the
+      **2026 Fall Recruitment** posting (`job_posting` id **7**, org `archimedes`), seeded by
+      migration `00024`. Shared: major, expected graduation year (flagged `blinded`), and
+      "Why are you interested in Archimedes?". Per-team: "Why are you interested in
+      {team}?" as a `per_team` question, so it is asked once for **each** team the applicant
+      picks. Team-scoped: Astra asks U.S. citizen/permanent resident; Infinitum asks 18+.
+      Terra and Juvo add nothing beyond the shared set, as specified.
+      The VT email requirement is enforced as `settings.application.email_domain = 'vt.edu'`
+      on the org rather than as a second question — see docs/CLAUDE.md for why.
+- [x] ~~Tell me your **auto-reject rules**~~ — supplied 2026-08-29. Both eligibility gates
+      auto-reject on "No" (`reject_if: { op: 'eq', value: 'No' }`), and under the per-team
+      model that denies **only that team's application**: answering "No" to the Astra
+      citizenship question leaves the same person's Terra and Juvo applications pending.
+  - ⚠️ Still worth your attention: auto-reject runs **client-side** at submit, so a crafted
+    request can bypass it. Low severity (the whole submit path already trusts the client,
+    and the fallback is that a human reviews them), but it is on the Phase 2 list to move
+    server-side before the cycle opens.
 
 ### Before Phase 3 (Review)
 

@@ -113,8 +113,9 @@ Auth guard in `src/hooks.server.ts` redirects unauthenticated users from `/priva
 - Aggregation across pipeline tables lives in `src/lib/utils/candidates.ts` — the roster
   and candidate timeline both read from there rather than joining inline
 - Pure logic modules take no DB or DOM dependency so they can run on either side:
-  `src/lib/utils/formSchema.ts` (question `team_scope` visibility, `reject_if` auto-reject
-  evaluation) and `src/lib/utils/review.ts` (vote tallying, thresholds, weighted scoring,
+  `src/lib/utils/formSchema.ts` (question `team_scope` visibility, `per_team` expansion,
+  `reject_if` auto-reject evaluation, and `splitSubmissionByTeam()` — the per-team
+  application split) and `src/lib/utils/review.ts` (vote tallying, thresholds, weighted scoring,
   blinded redaction). Keep them side-effect free — the plan is to reuse them server-side.
 - Server-side client created in `src/hooks.server.ts` (uses `createServerClient` with cookie auth)
 - In server files, access Supabase via `event.locals.supabase`
@@ -124,7 +125,7 @@ Auth guard in `src/hooks.server.ts` redirects unauthenticated users from `/priva
   `platform_admins`, `platform_settings`, `platform_activity_log`, plus the V1 additions
   `teams`, `application_drafts`, `job_reviewers`, `decisions`, `org_invites`,
   `org_invite_redemptions`
-- Migrations are forward-only and additive (`supabase/migrations/00001`–`00023`)
+- Migrations are forward-only and additive (`supabase/migrations/00001`–`00026`)
 - RLS helpers: `is_org_member()`, `has_org_role()`, `has_app_role()`
 - Org settings render through the shared `OrgSettingsPanel.svelte` on both the org page and
   the admin panel. It takes the org as a **prop** — never resolve an org from a slug inside

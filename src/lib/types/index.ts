@@ -119,8 +119,22 @@ export interface Applicant {
 	org_id: number | null;
 	// V1: returning-member manual override (soft preference for scheduler)
 	prior_team_id: number | null;
-	// V1: teams the applicant chose at the start of the form
+	// V1: teams the applicant chose at the start of the form.
+	//
+	// Since migration 00024 an application is per-team, so this holds exactly
+	// one slug and mirrors `team_id`. It is kept (rather than dropped) because
+	// pre-00024 rows legitimately carry several slugs, and because the public
+	// form can still write it on orgs that have no `teams` configured.
 	selected_team_slugs: string[];
+	// V1: the single team this application is for. Null only for orgs that
+	// define no teams, or for pre-00024 rows that were never backfilled.
+	team_id: number | null;
+	// V1: groups the sibling rows created by one submit. Two rows sharing this
+	// are the same person applying to two teams in one sitting. Deliberately
+	// NOT surfaced as "applied to Astra + Terra" anywhere in the reviewer UI —
+	// each application is judged on its own — but it makes the split auditable
+	// and lets a resubmit be detected instead of silently duplicating.
+	submission_group: string | null;
 }
 
 // V1: Save-and-resume draft. Created when applicant first enters the form;
@@ -191,7 +205,23 @@ export interface Interview {
 	type: 'individual' | 'group';
 	comments: Record<string, unknown> | null;
 	job: number | null;
+	/** The applicant's EMAIL, not an id. Kept for the scheduler, .ics and email log. */
 	applicant: string | null;
+	/**
+	 * V1 (migration 00025): FK to the specific application this interview is for.
+	 * One email can now own several applications (one per team), so joining on
+	 * `applicant` alone would attribute every sibling's interviews to all of
+	 * them. Prefer this; fall back to the email only when it is null (legacy
+	 * rows whose mapping was ambiguous).
+	 *
+	 * Optional, not just nullable: most interview selects list explicit columns
+	 * and don't ask for this one, so a fetched row legitimately has the key
+	 * ABSENT rather than null — as do the synthetic interviews the scheduling
+	 * algorithms build to preview a proposed schedule, which aren't DB rows at
+	 * all. Readers must treat undefined and null alike and fall back to the
+	 * email join, which `candidates.ts` does.
+	 */
+	applicant_id?: number | null;
 	interviewer: string | null;
 	org_id: number | null;
 	source?: string;
@@ -210,7 +240,14 @@ export interface FormStep {
 }
 
 // V1: scope a question to all teams ('shared') or a subset by slug.
-export type TeamScope = 'shared' | { teams: string[] };
+//
+// `{ per_team: true }` is the third mode: the question is asked ONCE PER TEAM
+// the applicant selected, rather than once overall. It exists so an org can
+// write "Why are you interested in {team}?" a single time and have every
+// applicant answer it separately for each team they apply to. The form expands
+// it into one question per selected team (see expandStep in formSchema.ts);
+// `{team}` in the title/subtitle is replaced with that team's name.
+export type TeamScope = 'shared' | { teams: string[] } | { per_team: true };
 
 // V1: auto-reject rule. Evaluated server-side on submit.
 export type RejectRule =
@@ -259,6 +296,15 @@ export interface FormQuestion {
 	team_scope?: TeamScope;
 	reject_if?: RejectRule;
 	blinded?: boolean;
+
+	// Set by expandSteps() on the copies it makes of a `{ per_team: true }`
+	// question — never authored by hand, never stored in job_posting.questions.
+	// `id` on a copy is unique per team so the form can key its inputs, while
+	// `base_id` is what the answer is finally stored under on the per-team
+	// application row. Carrying the origin explicitly beats parsing it back out
+	// of the id, which breaks the moment an author uses '__' in their own id.
+	base_id?: string;
+	per_team_slug?: string;
 }
 
 // Admin panel types

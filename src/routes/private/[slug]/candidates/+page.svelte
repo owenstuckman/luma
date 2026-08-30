@@ -5,16 +5,22 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { getOrgBySlug, getActiveRoles, bulkUpdateApplicantStatus } from '$lib/utils/supabase';
+	import {
+		getOrgBySlug,
+		getActiveRoles,
+		getTeams,
+		bulkUpdateApplicantStatus
+	} from '$lib/utils/supabase';
 	import { getCandidates, STAGE_COLORS, STAGE_LABELS, STAGE_ORDER } from '$lib/utils/candidates';
 	import type { CandidateRow, CandidateStage } from '$lib/utils/candidates';
 	import Sidebar from '$lib/components/recruiter/Sidebar.svelte';
 	import Navbar from '$lib/components/recruiter/Navbar.svelte';
 	import CandidateList from '$lib/components/recruiter/CandidateList.svelte';
-	import type { JobPosting } from '$lib/types';
+	import type { JobPosting, Team } from '$lib/types';
 
 	let candidates: CandidateRow[] = [];
 	let jobs: JobPosting[] = [];
+	let teams: Team[] = [];
 	let jobFilter: number | 'all' = 'all';
 	let orgId: number | null = null;
 	let loading = true;
@@ -51,7 +57,11 @@
 		orgId = id;
 
 		try {
-			[candidates, jobs] = await Promise.all([getCandidates(id), getActiveRoles(id)]);
+			[candidates, jobs, teams] = await Promise.all([
+				getCandidates(id),
+				getActiveRoles(id),
+				getTeams(id)
+			]);
 		} catch (e: unknown) {
 			loadError = e instanceof Error ? e.message : 'Failed to load candidates.';
 		}
@@ -90,7 +100,7 @@
 			'Name',
 			'Email',
 			'Job',
-			'Teams',
+			'Team',
 			'Stage',
 			'Status',
 			'Interviews',
@@ -105,7 +115,7 @@
 				cell(c.name),
 				cell(c.email),
 				cell(c.job_name),
-				cell(c.team_names.join('; ')),
+				cell(c.team.legacy_multi ? `Legacy: ${c.team.all_names.join(' + ')}` : (c.team.name ?? '')),
 				cell(STAGE_LABELS[c.stage]),
 				cell(c.status),
 				c.interview_count,
@@ -174,6 +184,7 @@
 		<CandidateList
 			bind:this={list}
 			candidates={visible}
+			{teams}
 			{loading}
 			bind:selectMode
 			bind:selectedIds

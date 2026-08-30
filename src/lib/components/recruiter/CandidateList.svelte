@@ -12,6 +12,8 @@
 		type CandidateRow,
 		type CandidateStage
 	} from '$lib/utils/candidates';
+	import { selectedTeamSlug } from '$lib/stores/teamFilter';
+	import type { Team } from '$lib/types';
 
 	export let candidates: CandidateRow[] = [];
 	export let loading = false;
@@ -19,6 +21,8 @@
 	export let selectedIds: Set<number> = new Set();
 	export let showJob = false;
 	export let showTeams = true;
+	/** Teams to offer in the team filter. Empty hides the filter entirely. */
+	export let teams: Team[] = [];
 	export let view: 'cards' | 'table' = 'cards';
 	export let pageSize = 50;
 	export let emptyMessage = 'No candidates found.';
@@ -31,7 +35,18 @@
 	let sortBy: 'date' | 'name' | 'status' | 'stage' | 'rating' = 'date';
 	let currentPage = 0;
 
+	// An application belongs to ONE team, so the team filter is a straight
+	// equality test on that team. A legacy combined row (pre-00024, several
+	// slugs, never split) still matches any team it named — hiding it from the
+	// team that must review it would be worse than showing it.
+	function matchesTeam(a: CandidateRow, slug: string | null): boolean {
+		if (!slug) return true;
+		if (a.team.slug === slug) return true;
+		return a.team.legacy_multi && a.team.all_slugs.includes(slug);
+	}
+
 	$: filtered = candidates
+		.filter((a) => matchesTeam(a, $selectedTeamSlug))
 		.filter((a) => statusFilter === 'all' || a.status === statusFilter)
 		.filter((a) => stageFilter === 'all' || a.stage === stageFilter)
 		.filter((a) => {
@@ -53,6 +68,7 @@
 		statusFilter;
 		stageFilter;
 		sortBy;
+		$selectedTeamSlug;
 		currentPage = 0;
 	}
 
@@ -119,6 +135,14 @@
 			<option value={stage}>{STAGE_LABELS[stage]}</option>
 		{/each}
 	</select>
+	{#if teams.length > 0}
+		<select bind:value={$selectedTeamSlug} class="form-control" style="max-width: 160px;">
+			<option value={null}>All Teams</option>
+			{#each teams as team (team.id)}
+				<option value={team.slug}>{team.name}</option>
+			{/each}
+		</select>
+	{/if}
 	<select bind:value={statusFilter} class="form-control" style="max-width: 150px;">
 		<option value="all">All Statuses</option>
 		<option value="pending">Pending</option>
@@ -184,7 +208,7 @@
 					{#if selectMode}<th class="col-check"></th>{/if}
 					<th>Name</th>
 					{#if showJob}<th>Job</th>{/if}
-					{#if showTeams}<th>Teams</th>{/if}
+					{#if showTeams}<th>Team</th>{/if}
 					<th>Stage</th>
 					<th>Status</th>
 					<th>Interviews</th>
@@ -214,7 +238,20 @@
 						</td>
 						{#if showJob}<td class="cell-sub">{c.job_name ?? '—'}</td>{/if}
 						{#if showTeams}
-							<td class="cell-sub">{c.team_names.length > 0 ? c.team_names.join(', ') : '—'}</td>
+							<td>
+								{#if c.team.legacy_multi}
+									<span
+										class="pill pill-warning"
+										title="Submitted before applications were split per team"
+									>
+										Legacy · {c.team.all_names.join(', ')}
+									</span>
+								{:else if c.team.name}
+									<span class="pill pill-neutral">{c.team.name}</span>
+								{:else}
+									<span class="cell-sub">—</span>
+								{/if}
+							</td>
 						{/if}
 						<td>
 							<span class="stage-pill" style="background-color: {STAGE_COLORS[c.stage]};">
@@ -282,8 +319,17 @@
 				{#if showJob && c.job_name}
 					<p class="cell-sub">{c.job_name}</p>
 				{/if}
-				{#if showTeams && c.team_names.length > 0}
-					<p class="cell-sub">{c.team_names.join(', ')}</p>
+				{#if showTeams && c.team.legacy_multi}
+					<p class="cell-sub">
+						<span
+							class="pill pill-warning"
+							title="Submitted before applications were split per team"
+						>
+							Legacy · {c.team.all_names.join(', ')}
+						</span>
+					</p>
+				{:else if showTeams && c.team.name}
+					<p class="cell-sub"><span class="pill pill-neutral">{c.team.name}</span></p>
 				{/if}
 				<div class="card-foot">
 					<span class="stage-pill" style="background-color: {STAGE_COLORS[c.stage]};">
