@@ -26,6 +26,22 @@ setInterval(() => {
 	}
 }, 60_000);
 
+/**
+ * Compare paths without caring about the trailing slash.
+ *
+ * The root layout sets `trailingSlash = 'always'`, so every real request to the
+ * login form arrives as `/auth/`, not `/auth`. An exact `=== '/auth'` match
+ * therefore never fired and the login rate limit was dead code in production.
+ */
+function pathIs(path: string, route: string): boolean {
+	return path === route || path === route + '/';
+}
+
+/** True for `/private` itself and anything under it — but not `/privateXYZ`. */
+function pathUnder(path: string, route: string): boolean {
+	return path === route || path === route + '/' || path.startsWith(route + '/');
+}
+
 const rateLimiter: Handle = async ({ event, resolve }) => {
 	const { method } = event.request;
 	const path = event.url.pathname;
@@ -34,7 +50,7 @@ const rateLimiter: Handle = async ({ event, resolve }) => {
 	// for everything else. getClientAddress() can throw in some dev setups (e.g. WSL).
 	const isLimited =
 		method === 'POST' &&
-		(path === '/auth' || path.startsWith('/apply/') || path.startsWith('/api/email-webhook'));
+		(pathIs(path, '/auth') || path.startsWith('/apply/') || path.startsWith('/api/email-webhook'));
 	if (!isLimited) return resolve(event);
 
 	let ip: string;
@@ -44,7 +60,7 @@ const rateLimiter: Handle = async ({ event, resolve }) => {
 		ip = 'unknown';
 	}
 
-	if (path === '/auth') {
+	if (pathIs(path, '/auth')) {
 		if (!checkRateLimit(`auth:${ip}`, 10, 15 * 60 * 1000)) {
 			error(429, 'Too many login attempts. Please wait 15 minutes before trying again.');
 		}
@@ -124,11 +140,11 @@ const authGuard: Handle = async ({ event, resolve }) => {
 	event.locals.session = session;
 	event.locals.user = user;
 
-	if (!event.locals.session && event.url.pathname.startsWith('/private')) {
+	if (!event.locals.session && pathUnder(event.url.pathname, '/private')) {
 		redirect(303, '/auth');
 	}
 
-	if (event.locals.session && event.url.pathname === '/auth') {
+	if (event.locals.session && pathIs(event.url.pathname, '/auth')) {
 		redirect(303, '/private');
 	}
 

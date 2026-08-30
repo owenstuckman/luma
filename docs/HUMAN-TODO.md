@@ -245,3 +245,22 @@ autocapture, and applicants are never `identify()`d.
 - [ ] Watch PostHog daily for the first week — drop-offs in the apply funnel are the first thing to fix.
 - [ ] Check Resend → Logs for failed sends, and query `email_log` for `status = 'failed'` rows. Bounces arrive via the webhook at `/api/email-webhook`.
 - [ ] Be ready to manually un-reject if auto-reject rules fire wrong.
+
+---
+
+## Supabase dashboard — auth settings (found in the 2026-08-30 auth audit)
+
+These are console toggles; none of them can be fixed from the repo.
+
+- [ ] **Confirm custom SMTP is configured** (Auth → Settings → SMTP Settings). Nothing in the
+      repo configures SMTP for Supabase _Auth_ — `RESEND_API_KEY` is only wired into the
+      `notify-interviews` Edge Function, which is a completely separate send path. If Auth is
+      still on Supabase's built-in mailer it is capped at roughly 2–4 emails/hour and is
+      documented as not for production use. Signup confirmation, magic link and password
+      reset all ride on it, and they fail **silently** the same way the PostHog env vars did.
+      This is the single highest-risk item before the cycle opens.
+- [ ] **Enable leaked-password protection** (Auth → Policies). Currently off, confirmed via
+      `get_advisors`. Combined with the 6-character floor, compromised passwords are accepted.
+- [ ] **Confirm the "Confirm email" toggle** matches what the signup action assumes. The action
+      always shows "Check your email" regardless; if confirmation were disabled, users would
+      already hold a session while being told to go check their inbox.

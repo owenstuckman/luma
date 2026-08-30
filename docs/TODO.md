@@ -800,3 +800,70 @@ doesn't get missed here. Kept as a pointer only:
 - ⏳ **Open:** Phase 3.5 owner-grant policy, Phase 4 slot-link expiry, Phase 5 per-outcome
   email toggles, adding `vitest`, and whether to move auto-reject + blinding server-side
   before launch. See **`HUMAN-TODO.md` → Decisions I need from you**.
+
+---
+
+## Phase 2.7 — Auth hardening (2026-08-30)
+
+Four parallel audits covered password login + route guard, the email flows, invite
+redemption + `/register`, and the role/RLS model. Everything below was verified by
+execution against production inside rolled-back transactions, not inferred from policy text.
+
+### Fixed — migration `00027_owner_escalation_guards.sql`
+
+An **org admin could make themselves owner**, by three separate routes:
+
+1. `update org_members set role='owner' where user_id = auth.uid()`. `members_update_admin`
+   had a `USING` clause and **no `WITH CHECK`** — `USING` limits which rows you may touch,
+   never the values you write. The same gap let an admin demote the real owner to `viewer`,
+   or `DELETE` the owner's membership row outright.
+2. `update_member_role(org, self, 'owner')` — the RPC refused to edit a row that already
+   _was_ owner, but never refused to write `'owner'` **into** a row.
+3. `update organizations set owner_id = auth.uid()` — same missing `WITH CHECK` on
+   `orgs_update_admin`.
+
+A `recruiter` was correctly blocked on all three; the boundary only leaked at `admin`.
+`owner_id` is now immutable from the client via column-level grants (transfer still works
+through the platform-admin RPC). `interviewer_availability`'s "own availability" policy also
+gained the `is_org_member(org_id)` check it was missing — without it any authenticated user
+could inject availability rows into any org and corrupt auto-scheduling.
+
+### Fixed — app layer
+
+- **The login rate limiter was dead code in production.** `trailingSlash = 'always'` means the
+  form posts to `/auth/`, and the limiter tested `path === '/auth'`. 15 rapid bad logins all
+  returned 200. Now normalised via `pathIs()`; verified the 11th request returns 429. The same
+  bug silently disabled the authenticated-user bounce off `/auth`.
+- **Open redirect** in the `login` and `signup` actions — `?redirect=` flowed unvalidated into
+  `redirect(303, …)`. A victim could be sent `/auth?redirect=https://evil.example`, log in on
+  the genuine page, and be handed straight to an attacker's "session expired" phish. Now
+  filtered by `safeRedirect()` (same-origin relative paths only, `//` and `/\` rejected).
+- **Magic link lost the invite context** — it hardcoded `next=/private` while signup correctly
+  threaded `redirect` through, so anyone arriving from an invite who chose magic link over a
+  password was stranded after confirming. Now threaded the same way signup does.
+- `/private` guard tightened to a real path-segment boundary (`/privateXYZ` no longer matches).
+
+### Still open
+
+- [ ] **Blinded review redaction is client-side only.** `redactApplicant()` strips answers from
+      an already-fetched row; `applicants_select_org` returns the full row to any org member, so
+      a blinded reviewer can read the real answers straight off the REST endpoint. Already
+      tracked in Phase 3 — this audit confirms it is live, not theoretical.
+- [ ] **Rate limiting is per-instance and per-IP only.** The in-memory `Map` gives each
+      serverless instance its own bucket, so a cold instance is a fresh allowance. More
+      importantly there is no **per-email-address** limit on password reset / magic link, and
+      neither requires owning the address — the app can be used to send ~10 emails per 15 min
+      to an arbitrary third party. Wants a shared store (Redis/Upstash) plus an address-keyed
+      limit, and probably a CAPTCHA on those two forms.
+- [ ] **`/auth/reset` has no recovery-session guard**, and `updatePassword` never checks that
+      the session came from a recovery flow. Visiting it directly yields Supabase's generic
+      "Auth session missing" rather than "your reset link expired, request a new one."
+- [ ] **`role` vs `roles[]` is unresolved.** `has_org_role()` reads only the singular `role`;
+      `has_app_role()` reads `roles[] OR role` and currently backs only `decisions`. Org 2 has
+      an admin whose `roles` is `['admin']`, so `has_app_role(2,'interviewer')` is false for
+      them. Decide which column is authoritative **before** Phase 3 adds more `roles[]` gates,
+      or admins will be under-granted on interviewer-only features.
+- [ ] `/admin` has no SSR gate — it renders and relies on RLS + RPC self-checks to return
+      nothing. No data leaks, but there is no defense in depth.
+- [ ] `/register` creates the org and the owner membership as two unguarded client inserts; a
+      failure between them leaves an org with no owner row.
