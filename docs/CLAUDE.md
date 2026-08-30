@@ -97,12 +97,12 @@ there.
 - **Applicant identity constraints** (migrations `00025` + `00026`) — the split was impossible to store
   until three pre-existing pieces of schema were fixed, and the reasons are worth keeping:
   - `applicants` had **`UNIQUE (email)`** and **`UNIQUE (name)`**, both now dropped. The
-    email one blocked the split outright and, more broadly, made an address usable *once
-    across the whole platform* — no reapplying next cycle, no two orgs sharing a candidate.
+    email one blocked the split outright and, more broadly, made an address usable _once
+    across the whole platform_ — no reapplying next cycle, no two orgs sharing a candidate.
     The name one was a live bug on its own: two applicants called "John Smith" could never
     both exist, and at 400+ applicants per cycle that is close to certain.
   - Replaced by **`applicants_job_email_team_uniq`** — `UNIQUE (job, email, team_id)
-    **NULLS NOT DISTINCT**`. The NULLS clause is load-bearing, not cosmetic: `team_id` is
+**NULLS NOT DISTINCT**`. The NULLS clause is load-bearing, not cosmetic: `team_id` is
     null for orgs with no teams and `job` is nullable, and under the default NULLS DISTINCT
     every such row compares unequal to every other, so the same form could be submitted
     unlimited times. A `23505` from this index means "already applied" — `sendApplications()`

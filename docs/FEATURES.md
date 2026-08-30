@@ -56,7 +56,7 @@ Authoritative feature inventory for LUMA V1. Status legend:
 | Auto-reject rules per question                                           | 🔧     | Per-team: denies only that team's application |
 | **One application per person / team / posting**                          | ✅     | `applicants_job_email_team_uniq` (`00025`)    |
 | **Duplicate submission surfaced as readable copy**                       | ✅     | `23505` → "you have already applied"          |
-| **Interviews keyed to the application, not the email**                    | ✅     | `interviews.applicant_id` (`00026`)           |
+| **Interviews keyed to the application, not the email**                   | ✅     | `interviews.applicant_id` (`00026`)           |
 | Save & resume partial application                                        | 🆕     | DB-backed draft + magic link                  |
 | File upload question type                                                | ⏭️     | Supabase Storage buckets exist; defer V1.1    |
 | Video link question                                                      | ✅     | Use existing URL input                        |

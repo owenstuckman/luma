@@ -664,7 +664,7 @@ don't want to mark them in the same manner, ie showing all the teams they did fo
       replaced by that team's name. This is what makes "Why are you interested in {team}?"
       a distinct answer per application, authored once instead of copy-pasted per team.
 - [x] **Ids expand, then collapse.** The form renders unique ids (`why_team::astra`) so it
-      can key inputs; the split writes the answer back under the *authored* id (`why_team`)
+      can key inputs; the split writes the answer back under the _authored_ id (`why_team`)
       on the row that team owns. Every Astra application therefore stores its essay under
       the same key, and `reject_if` rules — written against authored ids — keep working
       without knowing expansion happened.
@@ -682,7 +682,7 @@ don't want to mark them in the same manner, ie showing all the teams they did fo
 ### Two legacy constraints that had to go (`00025_applicant_uniqueness.sql`)
 
 - [x] **`applicants_email_key UNIQUE (email)`** — globally unique email meant one
-      application per person *for all time*, across teams, jobs and cycles. It hard-blocked
+      application per person _for all time_, across teams, jobs and cycles. It hard-blocked
       the second row of every split.
 - [x] **`applicants_name_key UNIQUE (name)`** — **a live bug, unrelated to this work.** Two
       applicants who share a name could never both exist, in any org, ever. A second "John
@@ -694,7 +694,7 @@ don't want to mark them in the same manner, ie showing all the teams they did fo
       (`team_id IS NULL`) gets no dedup at all, since NULLs compare distinct.
 - [x] **`CREATE INDEX IF NOT EXISTS` silently kept the WRONG index.** The first live
       version of this index was created on raw `email`, and the statement above — same
-      index *name*, different definition — did nothing at all, because `IF NOT EXISTS`
+      index _name_, different definition — did nothing at all, because `IF NOT EXISTS`
       matches on the name only. `SPLIT-TEST@vt.edu` then inserted happily alongside
       `split-test@vt.edu`. **`IF NOT EXISTS` makes a migration re-runnable; it does not
       make it corrective.** To change an existing index's definition you must drop it
@@ -767,14 +767,14 @@ during parallel development; its effects are fully and correctly represented by 
 deleted, because a ledger row is an accurate record of something that really ran.
 
 **So the `ls supabase/migrations/` vs `list_migrations` drift check now expects prod to have
-exactly one more row than the repo has files, and that row is this one.** Any *other*
+exactly one more row than the repo has files, and that row is this one.** Any _other_
 mismatch is real drift.
 
 ### Open question for the owner
 
 **Which interview rounds are shared across a candidate's teams?** `docs/CLAUDE.md` describes
 a shared R1 followed by per-team R2/R3. If R1 really is one interview for the whole person,
-then fanning R1 across sibling applications is *correct* and only R2/R3 must be per-team —
+then fanning R1 across sibling applications is _correct_ and only R2/R3 must be per-team —
 which is a different rule from "every interview belongs to one application". This is a
 recruitment-process decision, not a code one, so it is recorded rather than guessed.
 
