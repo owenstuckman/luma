@@ -554,7 +554,7 @@
 				type="text"
 				class="form-control"
 				bind:value={emailFromAddress}
-				placeholder="e.g. noreply@archimedesvt.org"
+				placeholder="e.g. noreply@yourorg.org"
 			/>
 			<p class="field-hint">Shown as the sender. Must be a verified Resend domain.</p>
 		</div>
@@ -565,7 +565,7 @@
 				type="email"
 				class="form-control"
 				bind:value={emailReplyTo}
-				placeholder="e.g. recruiting@archimedesvt.org"
+				placeholder="e.g. recruiting@yourorg.org"
 			/>
 			<p class="field-hint">Where applicants reply. Included in the email body.</p>
 		</div>

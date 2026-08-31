@@ -1,8 +1,19 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 
-	type AuthMode = 'login' | 'signup' | 'forgot' | 'magic';
-	let mode: AuthMode = 'login';
+	// Note there is no 'signup' mode: signing up posts from the login form via
+	// `formaction="?/signup"`. A 'signup' member used to exist and the bottom
+	// button set it, which rendered a completely blank form — the if-chain below
+	// has no branch for it.
+	type AuthMode = 'login' | 'forgot' | 'magic';
+
+	// Seeded from the URL so a server-side rejection can send the person back to
+	// the form they were actually using. Without this, a signup refused for a weak
+	// password bounced them to the LOGIN form still showing a password error,
+	// which reads as "your password is wrong" rather than "pick a better one".
+	const MODES: AuthMode[] = ['login', 'forgot', 'magic'];
+	const initialMode = $page.url.searchParams.get('mode') as AuthMode | null;
+	let mode: AuthMode = initialMode && MODES.includes(initialMode) ? initialMode : 'login';
 	let statusMessage = '';
 	let statusError = false;
 
@@ -149,10 +160,9 @@
 				Don't have an account?&nbsp;
 			</p>
 			<button
-				type="button"
+				formaction="?/signup"
 				class="link-btn"
-				style="color: white; text-decoration: underline;"
-				on:click={() => (mode = 'signup')}>Sign up</button
+				style="color: white; text-decoration: underline;">Sign up</button
 			>
 		</div>
 	</form>

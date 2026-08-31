@@ -269,3 +269,24 @@ Resend and no EmailJS package was ever installed. Keeping Resend meant zero rewr
 - Video/artifact upload as a _required_ field (URL link is fine)
 - Self-hosted Docker path (Dockerfile stays in repo, untested)
 - Migration consolidation
+
+## Auth conventions (2026-08-31)
+
+- **`role` is authoritative for org permissions**, via `has_org_role()`. `roles[]` carries
+  APP roles (`has_app_role()` — interviewer, advisor). Migration `00030` makes every writer
+  keep `role` present inside `roles[]`, swapping the stale org role while preserving app
+  roles. Being an org admin does NOT imply the interviewer app role; that is intentional.
+- **Password policy lives in `src/lib/utils/password.ts`** and is enforced server-side in
+  both the `signup` and `updatePassword` actions. `minlength` on the input is advisory —
+  the actions are reachable by posting directly.
+- **Outbound auth emails are rate limited on the RECIPIENT**, not the requester
+  (`src/lib/server/rateLimit.ts`), because nothing proves the submitter owns the address.
+  Both limited actions report success regardless, so the response can't enumerate accounts.
+  Keep that property if you touch them.
+- **`/auth` path checks must tolerate the trailing slash.** `trailingSlash = 'always'` means
+  the form posts to `/auth/`; an exact `=== '/auth'` silently disables whatever it guards.
+  Use the `pathIs()` / `pathUnder()` helpers in `hooks.server.ts`.
+- **There is no `signup` auth mode.** Signing up posts from the login form via
+  `formaction="?/signup"`. A `'signup'` member used to exist with no branch to render it.
+- **Org creation goes through `register_organization()`**, never direct inserts — it is the
+  only path that creates the org and its owner row in one transaction.

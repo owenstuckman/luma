@@ -153,7 +153,7 @@ yellow text plus a 3px yellow left rule on the current page.
 | ------------------- | ----------------------------------------------------- |
 | `/private/[slug]/*` | `.layout` grid + recruiter `Navbar` / `Sidebar`       |
 | `/admin`            | `.admin-layout` grid + its own sidebar and header bar |
-| `/apply/*`          | `.layout` grid + applicant `Navbar` / `Sidebar`       |
+| `/apply/*`          | `.layout` grid + its own inline navbar (per-org logo) |
 | Public pages        | Centered `.card` on a plain background                |
 
 Content areas cap at `$content-max` (1100px) so pages don't sprawl on wide monitors.
@@ -186,7 +186,10 @@ If you need a variant, add a **second** class next to the shared one
 - **Vite's file watcher does not fire on `/mnt/c` paths from WSL.** CSS edits look inert
   until you restart the dev server. If a change seems to have no effect, check the Svelte
   scope hash (`s-xxxxx`) in devtools — unchanged means you're looking at a stale build.
-- `src/lib/components/applicant/Sidebar.svelte` is **dead code**, imported nowhere. The
+- `src/lib/components/applicant/` now contains only `AvailabilityGrid.svelte`. The old
+  `Navbar` / `Sidebar` / `Footer` / `NextButton` / `Warning` were deleted on 2026-08-31 —
+  orphans of the removed `/applicant/*` step routes, imported nowhere, and the `Navbar`
+  hardcoded "2025-2026 Archimedes Application" for every org. The
   applicant sidebar that renders is inline in `apply/[slug]/[job_id]/+page.svelte`. Check
   what's actually mounted before styling a component.
 

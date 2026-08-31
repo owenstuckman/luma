@@ -3,28 +3,7 @@ import { type Handle, redirect, error } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 
-// In-memory rate limiter: tracks hit counts per IP per window
-const rateLimitWindows = new Map<string, { count: number; resetAt: number }>();
-
-function checkRateLimit(ip: string, limit: number, windowMs: number): boolean {
-	const now = Date.now();
-	const entry = rateLimitWindows.get(ip);
-	if (!entry || now > entry.resetAt) {
-		rateLimitWindows.set(ip, { count: 1, resetAt: now + windowMs });
-		return true;
-	}
-	if (entry.count >= limit) return false;
-	entry.count++;
-	return true;
-}
-
-// Periodically clean up expired entries to prevent memory growth
-setInterval(() => {
-	const now = Date.now();
-	for (const [key, entry] of rateLimitWindows) {
-		if (now > entry.resetAt) rateLimitWindows.delete(key);
-	}
-}, 60_000);
+import { consume as checkRateLimit } from '$lib/server/rateLimit';
 
 /**
  * Compare paths without caring about the trailing slash.
@@ -61,8 +40,14 @@ const rateLimiter: Handle = async ({ event, resolve }) => {
 	}
 
 	if (pathIs(path, '/auth')) {
-		if (!checkRateLimit(`auth:${ip}`, 10, 15 * 60 * 1000)) {
-			error(429, 'Too many login attempts. Please wait 15 minutes before trying again.');
+		// One bucket per form action rather than one for the whole route. Sharing
+		// it meant a burst of failed logins also locked that IP out of requesting
+		// a password reset — the exact thing someone who just failed to log in is
+		// most likely to need next. `?/login`, `?/resetPassword`, … identify the
+		// action; an unnamed post falls back to a shared 'default' bucket.
+		const action = event.url.search.replace(/^\?\//, '').split('&')[0] || 'default';
+		if (!checkRateLimit(`auth:${action}:${ip}`, 10, 15 * 60 * 1000)) {
+			error(429, 'Too many attempts. Please wait 15 minutes before trying again.');
 		}
 	} else if (path.startsWith('/apply/')) {
 		if (!checkRateLimit(`apply:${ip}`, 5, 10 * 60 * 1000)) {

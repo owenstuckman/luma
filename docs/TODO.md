@@ -621,10 +621,11 @@ restarted, which makes a working fix look broken. Check the Svelte scope hash
 
 **Follow-ups, none blocking:**
 
-- `Footer.svelte` and `NextButton.svelte` carry identical `.footer-buttons` rules. That is a
-  component-consolidation question, not a design-system one.
-- The applicant `Navbar` has a duplicated `id="dropdownYear"` and a stray `data-bs-toggle`.
-  Pre-existing markup bugs, spotted during the pass and deliberately not touched.
+- ✅ Resolved 2026-08-31 — the duplicated `.footer-buttons` rules and the applicant
+  `Navbar`'s duplicate `id="dropdownYear"` are gone: those five components
+  (`Navbar`/`Sidebar`/`Footer`/`NextButton`/`Warning`) were dead code from the removed
+  `/applicant/*` routes and were deleted. `Navbar` also hardcoded "2025-2026 Archimedes
+  Application", which would have shipped Archimedes branding to any other org that reused it.
 - `review/candidate` still uses Bootstrap `.card` (capped at 500px) as its container rather
   than `.panel`. Moving it would change that page's width — a layout decision, not a
   cleanup.
@@ -849,21 +850,85 @@ could inject availability rows into any org and corrupt auto-scheduling.
       an already-fetched row; `applicants_select_org` returns the full row to any org member, so
       a blinded reviewer can read the real answers straight off the REST endpoint. Already
       tracked in Phase 3 — this audit confirms it is live, not theoretical.
-- [ ] **Rate limiting is per-instance and per-IP only.** The in-memory `Map` gives each
-      serverless instance its own bucket, so a cold instance is a fresh allowance. More
-      importantly there is no **per-email-address** limit on password reset / magic link, and
-      neither requires owning the address — the app can be used to send ~10 emails per 15 min
-      to an arbitrary third party. Wants a shared store (Redis/Upstash) plus an address-keyed
-      limit, and probably a CAPTCHA on those two forms.
-- [ ] **`/auth/reset` has no recovery-session guard**, and `updatePassword` never checks that
-      the session came from a recovery flow. Visiting it directly yields Supabase's generic
-      "Auth session missing" rather than "your reset link expired, request a new one."
-- [ ] **`role` vs `roles[]` is unresolved.** `has_org_role()` reads only the singular `role`;
-      `has_app_role()` reads `roles[] OR role` and currently backs only `decisions`. Org 2 has
-      an admin whose `roles` is `['admin']`, so `has_app_role(2,'interviewer')` is false for
-      them. Decide which column is authoritative **before** Phase 3 adds more `roles[]` gates,
-      or admins will be under-granted on interviewer-only features.
-- [ ] `/admin` has no SSR gate — it renders and relies on RLS + RPC self-checks to return
-      nothing. No data leaks, but there is no defense in depth.
-- [ ] `/register` creates the org and the owner membership as two unguarded client inserts; a
-      failure between them leaves an org with no owner row.
+- ✅ **Per-address email limit** (`src/lib/server/rateLimit.ts`, 2026-08-31) — 4/hour keyed on
+  the RECIPIENT, since nothing proves the submitter owns the address. Reports success
+  either way so it can't be used to enumerate addresses. Verified: 6 attempts produced
+  exactly 4 `/recover` calls to Supabase. The `/auth` IP bucket is also split per form
+  action now — a burst of failed logins used to lock that IP out of password reset.
+  ⚠️ Still per-instance: on Vercel each function instance keeps its own Map, so this is a
+  speed bump. Durable limiting needs a shared store (Redis/Upstash). Deliberately NOT
+  DB-backed: the server uses the anon key, so any RPC it can call the public can call
+  too — which would let anyone burn a victim's reset budget and lock them out.
+- ✅ **`/auth/reset` recovery guard** (2026-08-31) — a `+page.server.ts` load reports whether a
+  session exists; no session renders "This link has expired" with a way back, instead of a
+  form that fails with Supabase's opaque "Auth session missing". `updatePassword` now
+  refuses without a session, requires a confirmation field, and enforces the password
+  policy server-side.
+- ✅ **`role` vs `roles[]`** (migration 00030) — `role` is authoritative for ORG permissions
+  (`has_org_role`); `roles[]` carries APP roles (`has_app_role`, e.g. interviewer/advisor).
+  `update_member_role` and `invite_member_by_email` now keep `role` present in `roles[]`,
+  swapping the stale org role while preserving app roles — promoting a recruiter who is
+  also an interviewer yields `{admin, interviewer}`. An admin is NOT automatically an
+  interviewer; that was never drift, just a distinct concept.
+- ✅ **`/admin` SSR gate** (2026-08-31) — `+page.server.ts` redirects logged-out to
+  `/auth?redirect=/admin` and non-platform-admins to `/private`, keeping "couldn't check"
+  distinct from "not an admin". No data leak existed; this is defense in depth.
+- ✅ **`/register` is atomic** (migration 00030) — one `register_organization()` RPC instead of
+  two client inserts, so a failure can no longer leave an org with no owner row and a
+  permanently taken slug. It also enforces slug format, length, and a reserved-word list
+  (`admin`, `auth`, `api`, …) server-side. Not callable by `anon`.
+- ✅ **Password policy** (`src/lib/utils/password.ts`) — 10 char minimum plus a small
+  credential-stuffing blocklist, enforced server-side on both signup and reset so it
+  survives JS being disabled. Length over composition rules on purpose.
+- ✅ **Dead `signup` auth mode removed** — the bottom "Sign up" button set `mode='signup'`,
+  which had no branch in the if-chain and rendered a completely blank form. It now submits
+  `?/signup` like the top button. `mode` is also seeded from the URL so a failed reset or
+  magic-link returns to the form it came from.
+
+### Still open
+
+- [ ] **Blinded review redaction is client-side only** — `redactApplicant()` strips answers
+      from an already-fetched row while `applicants_select_org` returns the full row to any org
+      member, so a blinded reviewer can read the real answers straight off the REST endpoint.
+      NOT addressed in this pass: it is a review-pipeline change (needs a filtered view or
+      RPC), not an auth one, and doing it carelessly breaks the review UI. Tracked in Phase 3.
+- [ ] **Durable rate limiting** — see the per-instance caveat above.
+- [ ] **Leaked-password protection** is still off; it is a dashboard toggle. The local policy
+      above is a stand-in, not a substitute — it cannot know a password appeared in a breach.
+
+---
+
+## Phase 2.8 — Signup outage + auth email (2026-08-31)
+
+**Signups were returning HTTP 500 and no account was created**, which is why no email ever
+arrived. Reproduced against prod and fixed in `00029_fix_signup_interviewer_trigger.sql`.
+
+`trigger_add_account` (AFTER INSERT on `auth.users`) blindly did
+`INSERT INTO interviewers (uuid, email)`. `interviewers.email` is UNIQUE, so any address
+already present raised 23505, aborting the whole signup transaction — GoTrue returned 500,
+the user row rolled back, and the confirmation email was never attempted. Seven signups
+failed this way between 08-30 and 08-31.
+
+Rows get orphaned because `interviewers_uuid_fkey` is `ON DELETE SET DEFAULT` with a NULL
+default: **deleting an account permanently banned that email from ever signing up again.**
+Two such orphans existed (`fapursley06@vt.edu`, `newfapursley06@vt.edu`).
+
+The trigger now upserts and ADOPTS an unclaimed row (`ON CONFLICT (email) DO UPDATE … WHERE
+uuid IS NULL`), which is also the right behaviour when an admin pre-creates an interviewer
+before that person has an account. It also normalises the address to lowercase, skips
+phone-only signups, and finally sets `search_path` (it was a SECURITY DEFINER function
+without one). `interviewers_name_key` was dropped too — the same "two people called John
+Smith" bug that 00025 removed from `applicants`, latent only because the trigger leaves
+`name` NULL.
+
+### Separately: this project has NEVER sent an auth email
+
+`confirmation_sent_at` is NULL for every user ever created, and every user is confirmed
+~0.1s after signup. That is Supabase's **"Confirm email" toggle being OFF** (auto-confirm),
+not an SMTP fault — no confirmation mail is expected, generated, or sent.
+
+- [ ] **Decide whether email confirmation should be ON.** Off means anyone can register with
+      an address they don't control. On means the built-in mailer's ~2-4/hour cap becomes a
+      hard blocker at recruiting volume, so it needs custom SMTP first (see `HUMAN-TODO.md`).
+- The signup action no longer claims "Check your email" unconditionally — it branches on
+  whether `signUp` returned a session, so the message is truthful under either setting.

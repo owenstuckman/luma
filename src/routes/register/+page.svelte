@@ -73,38 +73,30 @@
 			return;
 		}
 
-		// Create org
-		const { data: orgData, error: orgError } = await supabase
-			.from('organizations')
-			.insert({ name: orgName, slug: orgSlug, owner_id: userData.user.id })
-			.select()
-			.single();
+		// One transaction (migration 00030). This used to be two separate client
+		// inserts, so a failure between them left an org with no owner row — a
+		// slug taken forever by an org nobody could administer. The RPC also
+		// enforces the slug format and the reserved-word list server-side.
+		const { data: result, error: rpcError } = await supabase.rpc('register_organization', {
+			org_name: orgName,
+			org_slug: orgSlug
+		});
 
-		if (orgError) {
-			if (orgError.message?.includes('duplicate') || orgError.code === '23505') {
-				error = 'This URL slug is already taken. Please choose a different name.';
-			} else {
-				error = orgError.message;
-			}
+		if (rpcError) {
+			error = rpcError.message;
+			submitting = false;
+			return;
+		}
+		if (result?.error) {
+			error = result.error;
 			submitting = false;
 			return;
 		}
 
-		// Add creator as owner
-		const { error: memberError } = await supabase
-			.from('org_members')
-			.insert({ org_id: orgData.id, user_id: userData.user.id, role: 'owner' });
+		setOrgGroup(result.org_id, orgName);
+		capture(EVENTS.ORG_CREATED, { org_id: result.org_id, org_slug: result.slug });
 
-		if (memberError) {
-			error = memberError.message;
-			submitting = false;
-			return;
-		}
-
-		setOrgGroup(orgData.id, orgName);
-		capture(EVENTS.ORG_CREATED, { org_id: orgData.id, org_slug: orgSlug });
-
-		goto(`/private/${orgSlug}/dashboard`);
+		goto(`/private/${result.slug}/dashboard`);
 	}
 </script>
 
