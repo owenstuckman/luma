@@ -87,6 +87,27 @@ there.
   - `src/lib/utils/formSchema.ts` → `splitSubmissionByTeam()` performs the split, and it is
     pure, so the same function can run server-side when the submit path is hardened.
 - Applicant selects 1-N teams up front. Form dynamically renders shared questions + per-team questions for selected teams only.
+- **How many teams, and ranking** — `job_posting.questions.team_selection`
+  (`{ min?, max?, ranked? }`, migration `00028`). Per-job config, not hardcoded per org: an
+  absent block means the original behaviour, any number of teams and no ranking. Archimedes'
+  2026 cycle uses `{ min: 1, max: 2, ranked: true }`.
+  - When `ranked`, the applicant's **selection order is the preference order** and they can
+    reorder before submitting. The position is stored per application as `applicants.team_rank`
+    (1 = first choice, null when unranked). It is **advisory** — it never gates review; it
+    just tells a team whether they were the applicant's first pick.
+  - Note the deliberate asymmetry in `splitSubmissionByTeam()`: rows are still emitted in the
+    org's configured `teams.display_order` so the sequence is stable and explainable, while
+    `team_rank` comes from the applicant's own order. Don't "fix" one to match the other.
+  - At the cap, clicking an unpicked team is **refused with a message** rather than silently
+    swapping out an earlier pick — quietly rewriting someone's choices is how they end up
+    applying somewhere they didn't mean to.
+- **Word limits** — `maxWords` on any question (`maxLength` still guards raw characters).
+  Enforced in the form, never by truncating: a live counter, the box turns invalid, and
+  advancing past the step is blocked, with a final re-check at submit for anyone who jumped
+  to review via an edit link. `countWords()` splits on whitespace, matching what Word and
+  Google Docs report, because that is the number the applicant is checking against.
+  Both `maxWords` and `team_selection` are editable in the question builder at
+  `/private/[slug]/settings/jobs/[job_id]` — don't hand-edit the JSON.
 - Questions are JSON-schema-driven (`job_posting.questions` → `QuestionRenderer.svelte`). Already exists — extend it, don't rebuild it.
 - Add to schema: `team_scope: 'shared' | { teams: string[] } | { per_team: true }`, `reject_if: <rule>`, `blinded: boolean`.
   - `{ per_team: true }` asks the question **once per team the applicant picked**, with

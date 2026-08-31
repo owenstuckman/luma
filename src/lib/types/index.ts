@@ -135,6 +135,12 @@ export interface Applicant {
 	// each application is judged on its own — but it makes the split auditable
 	// and lets a resubmit be detected instead of silently duplicating.
 	submission_group: string | null;
+	// V1: where this team sat in the applicant's ranking — 1 is their first
+	// choice. Null when the job doesn't ask them to rank (the default) or for
+	// rows created before ranking existed. Advisory only: it never changes how
+	// an application is reviewed, it just tells the team whether they were the
+	// applicant's first pick.
+	team_rank: number | null;
 }
 
 // V1: Save-and-resume draft. Created when applicant first enters the form;
@@ -231,6 +237,28 @@ export interface Interview {
 // Question engine types
 export interface QuestionSchema {
 	steps: FormStep[];
+	/** How many teams an applicant may pick, and whether they rank them. */
+	team_selection?: TeamSelectionConfig;
+}
+
+/**
+ * Per-job rules for the team picker.
+ *
+ * Absent means the historical behaviour: pick any number of teams, unranked.
+ * Archimedes' 2026 cycle sets `{ max: 2, ranked: true }` — top two choices, in
+ * order of preference.
+ */
+export interface TeamSelectionConfig {
+	/** Fewest teams the applicant must pick. Defaults to 1. */
+	min?: number;
+	/** Most they may pick. Omitted or 0 means unlimited. */
+	max?: number;
+	/**
+	 * When true the ORDER of selection is meaningful and is stored on each
+	 * application as `team_rank` (1 = first choice). The applicant can reorder
+	 * before submitting.
+	 */
+	ranked?: boolean;
 }
 
 export interface FormStep {
@@ -276,6 +304,13 @@ export interface FormQuestion {
 	options?: string[];
 	required?: boolean;
 	maxLength?: number;
+	/**
+	 * Word cap for free-text answers. Enforced in the form (the applicant sees a
+	 * live counter and cannot advance while over) rather than by truncating, so
+	 * nobody's essay is silently cut in half. `maxLength` still guards the raw
+	 * character length as a backstop against pasted novels.
+	 */
+	maxWords?: number;
 	placeholder?: string;
 	// For input_dual
 	label1?: string;

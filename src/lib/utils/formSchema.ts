@@ -12,7 +12,14 @@
 // Record<questionId, string>, where checkbox answers are comma-joined and
 // input_dual answers are "first | second".
 
-import type { FormQuestion, FormStep, QuestionSchema, RejectRule, Team } from '$lib/types';
+import type {
+	FormQuestion,
+	FormStep,
+	QuestionSchema,
+	RejectRule,
+	Team,
+	TeamSelectionConfig
+} from '$lib/types';
 
 /* ------------------------------------------------------------------ *
  * team_scope
@@ -102,6 +109,80 @@ export function visibleSteps(
 			questions: (step.questions ?? []).flatMap((q) => expandQuestion(q, selectedTeamSlugs, teams))
 		}))
 		.filter((step) => step.questions.length > 0);
+}
+
+/* ------------------------------------------------------------------ *
+ * Word limits
+ * ------------------------------------------------------------------ */
+
+/**
+ * Count words the way a person would: runs of non-whitespace.
+ *
+ * Deliberately not a locale-aware segmenter — an applicant checking their essay
+ * against a 250-word limit is comparing against what Word or Google Docs told
+ * them, and those count whitespace-delimited tokens too. Hyphenated words and
+ * contractions count once, which matches that expectation.
+ */
+export function countWords(text: string): number {
+	const trimmed = (text ?? '').trim();
+	if (!trimmed) return 0;
+	return trimmed.split(/\s+/).length;
+}
+
+/**
+ * How far over its word limit an answer is; 0 when it fits or has no limit.
+ * Used both for the live counter and to block advancing past the step.
+ */
+export function wordsOverLimit(q: FormQuestion, answer: string): number {
+	if (!q.maxWords || q.maxWords <= 0) return 0;
+	return Math.max(0, countWords(answer) - q.maxWords);
+}
+
+/**
+ * Every visible question whose answer busts its word limit.
+ *
+ * Takes the ALREADY-EXPANDED steps so a per-team question is checked once per
+ * team, and reports the expanded id — that is what the form's inputs are keyed
+ * by, so the caller can point at the offending box.
+ */
+export function findWordLimitViolations(
+	steps: FormStep[],
+	answers: Record<string, string>
+): { questionId: string; questionTitle: string; limit: number; count: number }[] {
+	const out: { questionId: string; questionTitle: string; limit: number; count: number }[] = [];
+	for (const step of steps) {
+		for (const q of step.questions ?? []) {
+			if (!q.maxWords || q.maxWords <= 0) continue;
+			const count = countWords(answers[q.id] ?? '');
+			if (count > q.maxWords) {
+				out.push({ questionId: q.id, questionTitle: q.title, limit: q.maxWords, count });
+			}
+		}
+	}
+	return out;
+}
+
+/* ------------------------------------------------------------------ *
+ * Team selection rules
+ * ------------------------------------------------------------------ */
+
+/**
+ * Normalised team-picker rules for a job.
+ *
+ * The absent case is the historical one — any number of teams, unranked — so a
+ * job authored before this existed keeps behaving exactly as it did.
+ */
+export function teamSelectionRules(schema: QuestionSchema | null | undefined): {
+	min: number;
+	max: number;
+	ranked: boolean;
+} {
+	const cfg: TeamSelectionConfig = schema?.team_selection ?? {};
+	const min = Math.max(1, cfg.min ?? 1);
+	// 0 / absent means unlimited; never let max sit below min.
+	const rawMax = cfg.max ?? 0;
+	const max = rawMax > 0 ? Math.max(min, rawMax) : Number.POSITIVE_INFINITY;
+	return { min, max, ranked: cfg.ranked === true };
 }
 
 /* ------------------------------------------------------------------ *
@@ -249,6 +330,11 @@ export interface TeamSubmission {
 	teamSlug: string | null;
 	teamId: number | null;
 	teamName: string | null;
+	/**
+	 * Where this team sat in the applicant's preference order — 1 is their first
+	 * choice. Null when the job doesn't ask for a ranking.
+	 */
+	teamRank: number | null;
 	/** Keyed by the AUTHORED question id — per-team suffixes are stripped. */
 	answers: Record<string, string>;
 }
@@ -275,10 +361,13 @@ export function splitSubmissionByTeam(
 	answers: Record<string, string>,
 	schema: QuestionSchema | null | undefined,
 	selectedTeamSlugs: string[],
-	teams: Team[] = []
+	teams: Team[] = [],
+	ranked = false
 ): TeamSubmission[] {
 	if (selectedTeamSlugs.length === 0) {
-		return [{ teamSlug: null, teamId: null, teamName: null, answers: { ...answers } }];
+		return [
+			{ teamSlug: null, teamId: null, teamName: null, teamRank: null, answers: { ...answers } }
+		];
 	}
 
 	// Emit in the org's configured order so the sibling rows are created in a
@@ -305,6 +394,11 @@ export function splitSubmissionByTeam(
 			teamSlug: slug,
 			teamId: team?.id ?? null,
 			teamName: team?.name ?? null,
+			// Rank comes from the APPLICANT's order, not the emission order above:
+			// rows are still created in the org's configured team order so the
+			// sequence is stable and explainable, but the preference recorded on
+			// each row is the one the applicant actually expressed.
+			teamRank: ranked ? selectedTeamSlugs.indexOf(slug) + 1 : null,
 			answers: scoped
 		};
 	});

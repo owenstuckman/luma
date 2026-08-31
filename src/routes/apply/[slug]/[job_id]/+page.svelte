@@ -8,7 +8,9 @@
 		visibleSteps,
 		evaluateRejectRules,
 		describeRejectMatch,
-		splitSubmissionByTeam
+		splitSubmissionByTeam,
+		teamSelectionRules,
+		findWordLimitViolations
 	} from '$lib/utils/formSchema';
 	import { readOrgSettings, emailMatchesDomain } from '$lib/types/orgSettings';
 	import type { Organization, JobPosting, FormStep, Team, QuestionSchema } from '$lib/types';
@@ -33,6 +35,13 @@
 	// separate question, and a separate answer, for each team.
 	$: steps = visibleSteps(schema, selectedTeamSlugs, teams) as FormStep[];
 	$: hasTeamStep = teams.length > 0;
+	// How many teams may be picked, and whether the order is a ranking. Absent
+	// config means the old behaviour: any number, unranked.
+	$: teamRules = teamSelectionRules(schema);
+	$: atTeamLimit = selectedTeamSlugs.length >= teamRules.max;
+	// Word-limit failures on the step the applicant is currently looking at.
+	let wordErrors: { questionId: string; questionTitle: string; limit: number; count: number }[] =
+		[];
 	let currentStep = 0;
 	let loading = true;
 	let error = '';
@@ -148,11 +157,60 @@
 	}
 
 	function toggleTeam(slug: string) {
-		selectedTeamSlugs = selectedTeamSlugs.includes(slug)
-			? selectedTeamSlugs.filter((s) => s !== slug)
-			: [...selectedTeamSlugs, slug];
-		teamError = '';
+		if (selectedTeamSlugs.includes(slug)) {
+			selectedTeamSlugs = selectedTeamSlugs.filter((s) => s !== slug);
+			teamError = '';
+		} else if (selectedTeamSlugs.length >= teamRules.max) {
+			// Refuse rather than silently dropping their earliest pick — quietly
+			// swapping a team out is how someone ends up applying somewhere they
+			// didn't mean to.
+			teamError = `You can pick up to ${teamRules.max} ${
+				teamRules.max === 1 ? 'team' : 'teams'
+			}. Deselect one first.`;
+			return;
+		} else {
+			// Appended, so selection order IS preference order when ranked.
+			selectedTeamSlugs = [...selectedTeamSlugs, slug];
+			teamError = '';
+		}
+		persistTeams();
+	}
+
+	/** Move a selected team up or down the preference order. */
+	function moveTeam(slug: string, delta: number) {
+		const from = selectedTeamSlugs.indexOf(slug);
+		const to = from + delta;
+		if (from < 0 || to < 0 || to >= selectedTeamSlugs.length) return;
+		const next = [...selectedTeamSlugs];
+		[next[from], next[to]] = [next[to], next[from]];
+		selectedTeamSlugs = next;
+		persistTeams();
+	}
+
+	function persistTeams() {
 		localStorage.setItem(`${storagePrefix}_teams`, selectedTeamSlugs.join(','));
+	}
+
+	/**
+	 * Answers keyed by the ids the FORM used (so `why_team::astra`), read back
+	 * out of localStorage. Shared by the word-limit check and by submit, so the
+	 * two can never disagree about what the applicant actually wrote.
+	 */
+	function collectAnswers(): Record<string, string> {
+		const answers: Record<string, string> = {};
+		for (const step of steps) {
+			for (const q of step.questions) {
+				const key = `${storagePrefix}_${q.id}`;
+				if (q.type === 'input_dual') {
+					const v1 = localStorage.getItem(`${key}_1`) || '';
+					const v2 = localStorage.getItem(`${key}_2`) || '';
+					answers[q.id] = `${v1} | ${v2}`;
+				} else {
+					answers[q.id] = localStorage.getItem(key) || '';
+				}
+			}
+		}
+		return answers;
 	}
 
 	function nextStep() {
@@ -163,18 +221,34 @@
 			localStorage.setItem(`${storagePrefix}_email`, email);
 		}
 		if (isTeamStep) {
-			if (selectedTeamSlugs.length === 0) {
-				teamError = 'Select at least one team to continue.';
+			if (selectedTeamSlugs.length < teamRules.min) {
+				teamError =
+					teamRules.min === 1
+						? 'Select at least one team to continue.'
+						: `Select at least ${teamRules.min} teams to continue.`;
 				return;
 			}
-			localStorage.setItem(`${storagePrefix}_teams`, selectedTeamSlugs.join(','));
+			persistTeams();
 		}
+		// Don't let someone carry an over-length essay forward to the review step
+		// and only discover it at submit, several clicks later.
+		if (currentFormStep && !checkWordLimits([currentFormStep])) return;
 		if (currentStep < totalSteps - 1) {
 			currentStep++;
 		}
 	}
 
+	/**
+	 * Returns true when every answer on these steps fits its word limit, and
+	 * populates `wordErrors` for the banner when it doesn't.
+	 */
+	function checkWordLimits(toCheck: FormStep[]): boolean {
+		wordErrors = findWordLimitViolations(toCheck, collectAnswers());
+		return wordErrors.length === 0;
+	}
+
 	function prevStep() {
+		wordErrors = [];
 		if (currentStep > 0) {
 			currentStep--;
 		}
@@ -189,18 +263,14 @@
 			// Answers are keyed by the ids the FORM used, so a per-team question shows
 			// up here as `why_team::astra`. splitSubmissionByTeam collapses those back
 			// to the authored id on the one application they belong to.
-			const formAnswers: Record<string, string> = {};
-			for (const step of steps) {
-				for (const q of step.questions) {
-					const key = `${storagePrefix}_${q.id}`;
-					if (q.type === 'input_dual') {
-						const v1 = localStorage.getItem(`${key}_1`) || '';
-						const v2 = localStorage.getItem(`${key}_2`) || '';
-						formAnswers[q.id] = `${v1} | ${v2}`;
-					} else {
-						formAnswers[q.id] = localStorage.getItem(key) || '';
-					}
-				}
+			const formAnswers = collectAnswers();
+
+			// Last line of defence: the per-step check above can be skipped by
+			// jumping straight to review from an edit link.
+			if (!checkWordLimits(steps)) {
+				submitError = 'One or more answers are over the word limit. Please trim them and resubmit.';
+				submitting = false;
+				return;
 			}
 
 			// Stored lowercased: interviews, drafts and the email log all join
@@ -210,7 +280,13 @@
 			const normalizedEmail = email.trim().toLowerCase();
 
 			// One submission per team, each becoming its own independent application.
-			const submissions = splitSubmissionByTeam(formAnswers, schema, selectedTeamSlugs, teams);
+			const submissions = splitSubmissionByTeam(
+				formAnswers,
+				schema,
+				selectedTeamSlugs,
+				teams,
+				teamRules.ranked
+			);
 
 			// Ties the sibling rows together for auditing. The fallback keeps a
 			// non-secure-context dev server (where crypto.randomUUID is absent) from
@@ -251,7 +327,10 @@
 					// so a deployment missing those migrations still accepts applications
 					// instead of 400-ing on an unknown column.
 					...(sub.teamId !== null ? { team_id: sub.teamId } : {}),
-					...(sub.teamSlug ? { selected_team_slugs: [sub.teamSlug] } : {})
+					...(sub.teamSlug ? { selected_team_slugs: [sub.teamSlug] } : {}),
+					// Omitted entirely when the job doesn't ask for a ranking, so a
+					// deployment without migration 00028 still accepts applications.
+					...(sub.teamRank !== null ? { team_rank: sub.teamRank } : {})
 				};
 			});
 
@@ -431,22 +510,30 @@
 				<!-- Team picker: drives which questions the rest of the form shows -->
 				<h4 class="text-center">Which teams are you applying to?</h4>
 				<p class="muted review-hint">
-					Select one or more. Later steps only ask questions relevant to the teams you pick, and
+					{#if teamRules.max === Number.POSITIVE_INFINITY}
+						Select one or more.
+					{:else}
+						Pick up to <strong>{teamRules.max}</strong>.
+					{/if}
+					Later steps only ask questions relevant to the teams you pick, and
 					<strong>each team you choose is submitted as its own separate application</strong> — so you
 					will be considered for each one independently.
 				</p>
 
 				<div class="team-grid">
 					{#each teams as team (team.id)}
+						{@const rank = selectedTeamSlugs.indexOf(team.slug)}
+						{@const chosen = rank !== -1}
 						<button
 							type="button"
 							class="team-card"
-							class:team-selected={selectedTeamSlugs.includes(team.slug)}
-							aria-pressed={selectedTeamSlugs.includes(team.slug)}
+							class:team-selected={chosen}
+							class:team-disabled={!chosen && atTeamLimit}
+							aria-pressed={chosen}
 							on:click={() => toggleTeam(team.slug)}
 						>
 							<span class="team-check" aria-hidden="true">
-								{selectedTeamSlugs.includes(team.slug) ? '✓' : ''}
+								{chosen ? (teamRules.ranked ? rank + 1 : '✓') : ''}
 							</span>
 							<span class="team-name">{team.name}</span>
 							{#if team.description}
@@ -455,6 +542,44 @@
 						</button>
 					{/each}
 				</div>
+
+				{#if teamRules.ranked && selectedTeamSlugs.length > 0}
+					<div class="rank-panel">
+						<h5 class="rank-title">Your ranking</h5>
+						<p class="muted rank-hint">
+							Order matters — put the team you most want to join first. Each application is still
+							reviewed on its own; the ranking just tells each team where they stood.
+						</p>
+						<ol class="rank-list">
+							{#each selectedTeamSlugs as slug, i (slug)}
+								{@const team = teams.find((t) => t.slug === slug)}
+								<li class="rank-row">
+									<span class="rank-pos">{i + 1}</span>
+									<span class="rank-name">{team?.name ?? slug}</span>
+									<span class="rank-label">
+										{i === 0 ? 'First choice' : i === 1 ? 'Second choice' : `Choice ${i + 1}`}
+									</span>
+									<span class="rank-moves">
+										<button
+											type="button"
+											class="rank-move"
+											disabled={i === 0}
+											aria-label="Move {team?.name ?? slug} up"
+											on:click={() => moveTeam(slug, -1)}>↑</button
+										>
+										<button
+											type="button"
+											class="rank-move"
+											disabled={i === selectedTeamSlugs.length - 1}
+											aria-label="Move {team?.name ?? slug} down"
+											on:click={() => moveTeam(slug, 1)}>↓</button
+										>
+									</span>
+								</li>
+							{/each}
+						</ol>
+					</div>
+				{/if}
 
 				{#if teamError}<p class="field-error">{teamError}</p>{/if}
 			{:else if isReviewStep}
@@ -553,6 +678,16 @@
 				{#each currentFormStep.questions as question (question.id)}
 					<QuestionRenderer {question} {storagePrefix} />
 				{/each}
+				{#if wordErrors.length > 0}
+					<div class="word-error-banner" role="alert">
+						{#each wordErrors as w (w.questionId)}
+							<p class="field-error">
+								<strong>{w.questionTitle}</strong> is {w.count} words — {w.limit} is the limit, so please
+								cut {w.count - w.limit}.
+							</p>
+						{/each}
+					</div>
+				{/if}
 			{/if}
 
 			<!-- Footer navigation -->
@@ -576,6 +711,95 @@
 
 <style lang="scss">
 	@use '../../../../styles/col.scss' as *;
+
+	/* Team picker at its cap: the unpicked cards stay visible (so the applicant
+	   can see what they passed over) but read as unavailable. */
+	.team-disabled {
+		opacity: 0.45;
+	}
+
+	.rank-panel {
+		margin-top: 18px;
+		padding: 14px 16px;
+		border: 1px solid $border;
+		border-radius: $radius;
+		background: $surface-sunken;
+	}
+
+	.rank-title {
+		margin: 0 0 4px;
+		font-size: 14px;
+	}
+
+	.rank-hint {
+		margin: 0 0 10px;
+		font-size: 12px;
+	}
+
+	.rank-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.rank-row {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 8px 10px;
+		border: 1px solid $border;
+		border-radius: $radius-sm;
+		background: $surface;
+	}
+
+	.rank-pos {
+		flex: 0 0 24px;
+		height: 24px;
+		display: grid;
+		place-items: center;
+		border-radius: 50%;
+		background: $yellow-primary;
+		color: $dark-primary;
+		font-size: 12px;
+		font-weight: 700;
+	}
+
+	.rank-name {
+		font-weight: 600;
+	}
+
+	.rank-label {
+		margin-left: auto;
+		font-size: 12px;
+		color: $text-muted;
+	}
+
+	.rank-moves {
+		display: flex;
+		gap: 4px;
+	}
+
+	.rank-move {
+		width: 26px;
+		height: 26px;
+		border: 1px solid $border;
+		border-radius: $radius-sm;
+		background: $surface;
+		cursor: pointer;
+		line-height: 1;
+	}
+
+	.rank-move:disabled {
+		opacity: 0.35;
+		cursor: default;
+	}
+
+	.word-error-banner {
+		margin-top: 12px;
+	}
 
 	.loading-screen {
 		display: flex;

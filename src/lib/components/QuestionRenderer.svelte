@@ -81,6 +81,8 @@
 		title={question.title}
 		subtitle={question.subtitle || ''}
 		id={question.id}
+		placeholder={question.placeholder || ''}
+		maxWords={question.maxWords || 0}
 		bind:value={stringVal}
 		on:change={handleStringChange}
 	/>

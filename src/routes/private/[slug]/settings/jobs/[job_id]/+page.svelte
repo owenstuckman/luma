@@ -55,6 +55,10 @@
 	let teams: Team[] = [];
 	/** The three team_scope modes, as a single explicit choice. */
 	let newQScopeMode: 'shared' | 'teams' | 'per_team' = 'shared';
+	// --- Job-level team picker rules (schema.team_selection) ---
+	// 0 = unlimited, which is also what an absent config means.
+	let teamMax = 0;
+	let teamRanked = false;
 	let newQTeamSlugs: string[] = [];
 	let newQRejectOp: '' | RejectRule['op'] = '';
 	let newQRejectValue = '';
@@ -312,6 +316,8 @@
 		jobName = jobData.name;
 		jobDescription = jobData.description || '';
 		steps = jobData.questions?.steps || [];
+		teamMax = jobData.questions?.team_selection?.max ?? 0;
+		teamRanked = jobData.questions?.team_selection?.ranked === true;
 		// Empty when migration 00015 isn't applied — the team-scope control then
 		// hides itself and questions stay shared, which is the correct default.
 		if (jobData.org_id) teams = await getTeams(jobData.org_id);
@@ -373,7 +379,20 @@
 			});
 			// The schema is written on its own so a stale tab can't clobber a rename
 			// made elsewhere — see updateJobQuestions in src/lib/utils/supabase.ts.
-			await updateJobQuestions(job.id, { steps });
+			// Omit `team_selection` entirely when it is at its defaults, so a job
+			// that never cared about team limits keeps a clean schema.
+			await updateJobQuestions(job.id, {
+				steps,
+				...(teamMax > 0 || teamRanked
+					? {
+							team_selection: {
+								min: 1,
+								...(teamMax > 0 ? { max: teamMax } : {}),
+								ranked: teamRanked
+							}
+						}
+					: {})
+			});
 			saveMessage = 'Saved!';
 			setTimeout(() => {
 				saveMessage = '';
@@ -478,6 +497,7 @@
 		if (!q.placeholder?.trim()) delete q.placeholder;
 		if (!q.required) delete q.required;
 		if (!q.maxLength) delete q.maxLength;
+		if (!q.maxWords) delete q.maxWords;
 
 		const scope = buildTeamScope();
 		if (scope) q.team_scope = scope;
@@ -609,6 +629,33 @@
 					<textarea id="job-desc" class="form-control" bind:value={jobDescription} rows="2"
 					></textarea>
 				</div>
+
+				{#if teams.length > 0}
+					<div class="field">
+						<label class="field-label" for="job-team-max">Teams an applicant may pick</label>
+						<input
+							id="job-team-max"
+							type="number"
+							min="0"
+							max={teams.length}
+							class="form-control team-max-input"
+							bind:value={teamMax}
+						/>
+						<p class="field-hint">
+							0 means no limit. Each team picked is still submitted as its own separate application.
+						</p>
+					</div>
+					<div class="field">
+						<label class="field-label toggle-label">
+							<input type="checkbox" bind:checked={teamRanked} />
+							Ask applicants to rank their choices
+						</label>
+						<p class="field-hint">
+							Applicants order the teams they picked; the position is stored on each application as
+							its rank. Advisory only — it never affects review.
+						</p>
+					</div>
+				{/if}
 			</div>
 
 			<!-- Form Steps -->
@@ -912,6 +959,19 @@
 										class="form-control"
 										bind:value={newQ.maxLength}
 									/>
+								</div>
+								<div class="field maxlen-field">
+									<label class="field-label" for="q-maxwords">Max words (optional)</label>
+									<input
+										id="q-maxwords"
+										type="number"
+										min="1"
+										class="form-control"
+										bind:value={newQ.maxWords}
+									/>
+									<p class="field-hint">
+										Applicants see a live counter and can't submit while over.
+									</p>
 								</div>
 							</div>
 
@@ -1347,6 +1407,17 @@
 
 <style lang="scss">
 	@use '../../../../../../styles/col.scss' as *;
+
+	.team-max-input {
+		max-width: 120px;
+	}
+
+	.toggle-label {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		cursor: pointer;
+	}
 
 	// Shared furniture (.page-head, .panel, .field/.field-label/.field-hint/
 	// .field-error, .pill, .chip, .alert-soft, .btn-icon, .empty-state,
