@@ -133,6 +133,7 @@
 		<AvailabilityGrid
 			startDate={question.startDate || new Date().toISOString().split('T')[0]}
 			endDate={question.endDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]}
+			days={question.days || []}
 			dayStart={question.dayStart || '09:00'}
 			dayEnd={question.dayEnd || '17:00'}
 			stepMinutes={question.stepMinutes || 30}

@@ -162,6 +162,43 @@ export function findWordLimitViolations(
 	return out;
 }
 
+/**
+ * Required questions the applicant has left blank.
+ *
+ * `required: true` was authored on questions from the start but never actually
+ * checked, so it read as documentation rather than a rule. It matters now that
+ * a job can ask for interview availability: an application with no availability
+ * on it cannot be scheduled, and the recruiter finds that out days later.
+ *
+ * An `availability` answer is a JSON array of ranges, so "blank" means an empty
+ * or absent array, not an empty string.
+ */
+export function findMissingRequired(
+	steps: FormStep[],
+	answers: Record<string, string>
+): { questionId: string; questionTitle: string }[] {
+	const out: { questionId: string; questionTitle: string }[] = [];
+	for (const step of steps) {
+		for (const q of step.questions ?? []) {
+			if (!q.required) continue;
+			const raw = (answers[q.id] ?? '').trim();
+			let empty = raw === '';
+			if (!empty && q.type === 'availability') {
+				try {
+					empty = !Array.isArray(JSON.parse(raw)) || JSON.parse(raw).length === 0;
+				} catch {
+					empty = true;
+				}
+			}
+			// input_dual answers are joined as "first | second"; both halves blank
+			// leaves just the separator behind.
+			if (!empty && q.type === 'input_dual') empty = raw.replace(/\|/g, '').trim() === '';
+			if (empty) out.push({ questionId: q.id, questionTitle: q.title });
+		}
+	}
+	return out;
+}
+
 /* ------------------------------------------------------------------ *
  * Team selection rules
  * ------------------------------------------------------------------ */

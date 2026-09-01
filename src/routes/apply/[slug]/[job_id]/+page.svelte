@@ -10,7 +10,8 @@
 		describeRejectMatch,
 		splitSubmissionByTeam,
 		teamSelectionRules,
-		findWordLimitViolations
+		findWordLimitViolations,
+		findMissingRequired
 	} from '$lib/utils/formSchema';
 	import { readOrgSettings, emailMatchesDomain } from '$lib/types/orgSettings';
 	import type { Organization, JobPosting, FormStep, Team, QuestionSchema } from '$lib/types';
@@ -42,6 +43,8 @@
 	// Word-limit failures on the step the applicant is currently looking at.
 	let wordErrors: { questionId: string; questionTitle: string; limit: number; count: number }[] =
 		[];
+	// Required questions left blank on that same step.
+	let missingRequired: { questionId: string; questionTitle: string }[] = [];
 	let currentStep = 0;
 	let loading = true;
 	let error = '';
@@ -187,6 +190,42 @@
 		persistTeams();
 	}
 
+	const REVIEW_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+	const REVIEW_MONTHS = [
+		'Jan',
+		'Feb',
+		'Mar',
+		'Apr',
+		'May',
+		'Jun',
+		'Jul',
+		'Aug',
+		'Sep',
+		'Oct',
+		'Nov',
+		'Dec'
+	];
+
+	/**
+	 * `2026-09-13` + `13:00`–`14:00` reads back as "Sun Sep 13, 1–2 PM".
+	 * The review step is the last chance to catch a wrong slot, and an ISO
+	 * timestamp is the hardest form in which to notice one.
+	 */
+	function formatAvailability(date: string, start: string, end: string): string {
+		const [y, m, d] = date.split('-').map(Number);
+		const dow = REVIEW_DAYS[new Date(y, m - 1, d).getDay()];
+		return `${dow} ${REVIEW_MONTHS[m - 1]} ${d}, ${clock(start)}–${clock(end)}`;
+	}
+
+	function clock(t: string): string {
+		const [h, min] = t.split(':').map(Number);
+		const suffix = h < 12 ? 'AM' : 'PM';
+		const hour12 = h % 12 === 0 ? 12 : h % 12;
+		return min === 0
+			? `${hour12} ${suffix}`
+			: `${hour12}:${String(min).padStart(2, '0')} ${suffix}`;
+	}
+
 	function persistTeams() {
 		localStorage.setItem(`${storagePrefix}_teams`, selectedTeamSlugs.join(','));
 	}
@@ -230,25 +269,31 @@
 			}
 			persistTeams();
 		}
-		// Don't let someone carry an over-length essay forward to the review step
-		// and only discover it at submit, several clicks later.
-		if (currentFormStep && !checkWordLimits([currentFormStep])) return;
+		// Don't let someone carry an over-length essay or a blank required answer
+		// forward to the review step and only discover it at submit, several
+		// clicks later.
+		if (currentFormStep && !checkStep([currentFormStep])) return;
 		if (currentStep < totalSteps - 1) {
 			currentStep++;
 		}
 	}
 
 	/**
-	 * Returns true when every answer on these steps fits its word limit, and
-	 * populates `wordErrors` for the banner when it doesn't.
+	 * Returns true when every answer on these steps fits its word limit and no
+	 * required question is blank, populating the banner state when it doesn't.
+	 * Both checks run in one pass so the applicant sees every problem on the
+	 * step at once instead of fixing them one reload at a time.
 	 */
-	function checkWordLimits(toCheck: FormStep[]): boolean {
-		wordErrors = findWordLimitViolations(toCheck, collectAnswers());
-		return wordErrors.length === 0;
+	function checkStep(toCheck: FormStep[]): boolean {
+		const answers = collectAnswers();
+		wordErrors = findWordLimitViolations(toCheck, answers);
+		missingRequired = findMissingRequired(toCheck, answers);
+		return wordErrors.length === 0 && missingRequired.length === 0;
 	}
 
 	function prevStep() {
 		wordErrors = [];
+		missingRequired = [];
 		if (currentStep > 0) {
 			currentStep--;
 		}
@@ -267,8 +312,11 @@
 
 			// Last line of defence: the per-step check above can be skipped by
 			// jumping straight to review from an edit link.
-			if (!checkWordLimits(steps)) {
-				submitError = 'One or more answers are over the word limit. Please trim them and resubmit.';
+			if (!checkStep(steps)) {
+				submitError =
+					missingRequired.length > 0
+						? `Please answer: ${missingRequired.map((m) => m.questionTitle).join(', ')}`
+						: 'One or more answers are over the word limit. Please trim them and resubmit.';
 				submitting = false;
 				return;
 			}
@@ -613,6 +661,35 @@
 					</div>
 				</div>
 
+				{#if hasTeamStep}
+					<!-- The picker is a step of its own, so without this card the one
+					     thing the applicant just ranked is the one thing the review
+					     page does not show back to them. -->
+					<div
+						class="card review-card"
+						on:click={() => (currentStep = 1)}
+						on:keydown={() => {}}
+						role="button"
+						tabindex="0"
+					>
+						<h5>Teams</h5>
+						{#each selectedTeamSlugs as slug, i (slug)}
+							<div class="review-field">
+								<span class="review-label">
+									{teamRules.ranked
+										? i === 0
+											? 'First choice'
+											: i === 1
+												? 'Second choice'
+												: `Choice ${i + 1}`
+										: 'Applying to'}
+								</span>
+								<span class="review-value">{teams.find((t) => t.slug === slug)?.name ?? slug}</span>
+							</div>
+						{/each}
+					</div>
+				{/if}
+
 				{#each steps as step, stepIndex}
 					<div
 						class="card review-card"
@@ -635,7 +712,7 @@
 										{#if raw}
 											{@const ranges = JSON.parse(raw)}
 											{#each ranges as r}
-												<span class="review-tag">{r.date} {r.start}–{r.end}</span>
+												<span class="review-tag">{formatAvailability(r.date, r.start, r.end)}</span>
 											{/each}
 										{:else}
 											<span class="review-empty">Not provided</span>
@@ -678,8 +755,11 @@
 				{#each currentFormStep.questions as question (question.id)}
 					<QuestionRenderer {question} {storagePrefix} />
 				{/each}
-				{#if wordErrors.length > 0}
+				{#if wordErrors.length > 0 || missingRequired.length > 0}
 					<div class="word-error-banner" role="alert">
+						{#each missingRequired as m (m.questionId)}
+							<p class="field-error"><strong>{m.questionTitle}</strong> is required.</p>
+						{/each}
 						{#each wordErrors as w (w.questionId)}
 							<p class="field-error">
 								<strong>{w.questionTitle}</strong> is {w.count} words — {w.limit} is the limit, so please

@@ -484,6 +484,25 @@
 		resetQuestionMeta();
 	}
 
+	/* ---------------- availability day list ---------------- */
+
+	// Editable inline rather than through a calendar widget: an interview window
+	// is a handful of dates typed once a cycle, and the native date input already
+	// gives a picker. Each row carries its own hours because that is the whole
+	// reason `days` exists — the Sunday block rarely matches the weekday evenings.
+	function addAvailabilityDay() {
+		const days = newQ.days ?? [];
+		const last = days[days.length - 1];
+		newQ.days = [
+			...days,
+			{ date: '', dayStart: last?.dayStart ?? '17:00', dayEnd: last?.dayEnd ?? '21:00' }
+		];
+	}
+
+	function removeAvailabilityDay(i: number) {
+		newQ.days = (newQ.days ?? []).filter((_, k) => k !== i);
+	}
+
 	function saveQuestion(stepIndex: number) {
 		if (newQInvalid) return;
 
@@ -508,6 +527,22 @@
 		else delete q.reject_if;
 
 		if (!q.blinded) delete q.blinded;
+
+		if (q.type === 'availability') {
+			// A row with no date would render as an "Invalid Date" column, so drop
+			// the half-finished ones rather than shipping them to applicants.
+			const days = (q.days ?? []).filter((d) => d.date);
+			if (days.length) q.days = days;
+			else delete q.days;
+			if (!q.stepMinutes) delete q.stepMinutes;
+		} else {
+			delete q.days;
+			delete q.stepMinutes;
+			delete q.startDate;
+			delete q.endDate;
+			delete q.dayStart;
+			delete q.dayEnd;
+		}
 
 		if (editingQuestionIndex !== null) {
 			steps[stepIndex].questions[editingQuestionIndex] = q;
@@ -987,6 +1022,70 @@
 									{#if newQOptionsError}
 										<p class="field-error">{newQOptionsError}</p>
 									{/if}
+								</div>
+							{/if}
+
+							{#if newQ.type === 'availability'}
+								<div class="field">
+									<label class="field-label" for="q-stepminutes">Block length (minutes)</label>
+									<input
+										id="q-stepminutes"
+										type="number"
+										min="5"
+										step="5"
+										class="form-control avail-step"
+										bind:value={newQ.stepMinutes}
+										placeholder="30"
+									/>
+									<p class="field-hint">
+										60 gives one-hour blocks. Leave blank for the 30-minute default.
+									</p>
+								</div>
+
+								<div class="field">
+									<span class="field-label">Days offered</span>
+									<p class="field-hint">
+										One row per day applicants can pick from. Days you leave out simply are not
+										shown, so a skipped Saturday needs no special handling — and each row keeps its
+										own hours, which is how a Sunday daytime block and weekday evenings live on the
+										same grid. With no rows at all the grid falls back to the next seven days, 9–5.
+									</p>
+									{#each newQ.days ?? [] as day, i}
+										<div class="avail-day-row">
+											<input
+												type="date"
+												class="form-control"
+												bind:value={day.date}
+												aria-label="Date for day {i + 1}"
+											/>
+											<input
+												type="time"
+												class="form-control"
+												bind:value={day.dayStart}
+												aria-label="Start time for day {i + 1}"
+											/>
+											<span class="avail-dash">to</span>
+											<input
+												type="time"
+												class="form-control"
+												bind:value={day.dayEnd}
+												aria-label="End time for day {i + 1}"
+											/>
+											<button
+												type="button"
+												class="btn btn-quaternary btn-sm"
+												on:click={() => removeAvailabilityDay(i)}
+												aria-label="Remove day {i + 1}">Remove</button
+											>
+										</div>
+									{/each}
+									<button
+										type="button"
+										class="btn btn-quaternary btn-sm"
+										on:click={addAvailabilityDay}
+									>
+										+ Add day
+									</button>
 								</div>
 							{/if}
 
@@ -1487,6 +1586,27 @@
 	}
 	.mono-input {
 		font-family: monospace;
+	}
+	.avail-step {
+		width: 150px;
+	}
+	.avail-day-row {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-bottom: 8px;
+		flex-wrap: wrap;
+
+		input[type='date'] {
+			width: 170px;
+		}
+		input[type='time'] {
+			width: 130px;
+		}
+	}
+	.avail-dash {
+		color: $text-muted;
+		font-size: 0.85rem;
 	}
 	.check-label {
 		display: flex !important;

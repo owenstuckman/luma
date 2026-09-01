@@ -11,8 +11,22 @@
 
 	const dispatch = createEventDispatcher();
 
+	// "Other" opens a free-text box. That box used to be bound to nothing, so
+	// anything typed in it was discarded on the way to the answer — the
+	// applicant saw their words on screen and we stored the bare word "Other".
+	// Seeded from an already-stored "Other: ..." so a resumed draft keeps it.
+	let otherText = $state(
+		typeof selected === 'string' && selected.startsWith('Other: ') ? selected.slice(7) : ''
+	);
+	const isOther = $derived(selected === 'Other' || String(selected).startsWith('Other: '));
+
 	function selectOption(option: string) {
-		selected = option;
+		selected = option === 'Other' && otherText.trim() ? `Other: ${otherText.trim()}` : option;
+		dispatch('change', selected);
+	}
+
+	function updateOther() {
+		selected = otherText.trim() ? `Other: ${otherText.trim()}` : 'Other';
 		dispatch('change', selected);
 	}
 </script>
@@ -46,7 +60,14 @@
 			{/each}
 		</ul>
 	</div>
-	{#if selected === 'Other'}
-		<input style="margin-top: 10px;" type="text" class="form-control" placeholder="Other" />
+	{#if isOther}
+		<input
+			style="margin-top: 10px;"
+			type="text"
+			class="form-control"
+			placeholder="Please specify"
+			bind:value={otherText}
+			oninput={updateOther}
+		/>
 	{/if}
 </div>

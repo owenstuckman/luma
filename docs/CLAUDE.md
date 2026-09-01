@@ -108,6 +108,23 @@ there.
   Google Docs report, because that is the number the applicant is checking against.
   Both `maxWords` and `team_selection` are editable in the question builder at
   `/private/[slug]/settings/jobs/[job_id]` — don't hand-edit the JSON.
+- **Required questions are enforced.** `required: true` was authored on questions from the
+  start but never actually checked, so it read as documentation. `findMissingRequired()` in
+  `formSchema.ts` now blocks the step and re-checks at submit, next to the word-limit check
+  and sharing its banner. It matters most for `availability`: an application with no
+  availability on it cannot be scheduled, and the recruiter finds that out days later.
+  "Blank" for an availability answer means an empty or absent range array, not `''`.
+- **Interview availability** — an `availability` question renders `AvailabilityGrid`. Prefer
+  `days: [{ date, dayStart, dayEnd }]` over `startDate`/`endDate`: a plain span cannot skip
+  a day, and cannot give Sunday different hours from the weekday evenings around it.
+  Archimedes' 2026 cycle (migration `00031`) offers Sep 9/10/11/14 5–9 PM and Sep 13
+  10 AM–5 PM in `stepMinutes: 60` blocks, with Saturday the 12th simply absent from the list.
+  - Rows span every day's window put together; cells outside a given day's own hours render
+    **hatched and inert** rather than being omitted, so the columns stay aligned. Painting,
+    keyboard toggling and draft restore all go through `isOffered()` — a slot that is no
+    longer offered is dropped from a restored draft rather than shown as unclearable.
+  - Both the day list and the block length are editable in the question builder at
+    `/private/[slug]/settings/jobs/[job_id]` — don't hand-edit the JSON for next cycle.
 - Questions are JSON-schema-driven (`job_posting.questions` → `QuestionRenderer.svelte`). Already exists — extend it, don't rebuild it.
 - Add to schema: `team_scope: 'shared' | { teams: string[] } | { per_team: true }`, `reject_if: <rule>`, `blinded: boolean`.
   - `{ per_team: true }` asks the question **once per team the applicant picked**, with

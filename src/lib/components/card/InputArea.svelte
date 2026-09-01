@@ -21,7 +21,15 @@
 
 <div class="card">
 	<h5>{title}</h5>
-	{#if subtitle}<p class="field-hint">{subtitle}</p>{/if}
+	<!-- The live counter below the box is the enforcement; this states the cap
+	     up front, before anyone has written 400 words to discover it. -->
+	{#if subtitle || maxWords > 0}
+		<p class="field-hint">
+			{subtitle}{#if subtitle && maxWords > 0}&nbsp;{/if}{#if maxWords > 0}<span class="limit-note"
+					>{maxWords} words max.</span
+				>{/if}
+		</p>
+	{/if}
 	<div class="mb-3">
 		<textarea
 			class="form-control"
@@ -49,6 +57,10 @@
 		font-size: 0.8rem;
 		color: $text-muted;
 		text-align: right;
+	}
+
+	.limit-note {
+		font-weight: 600;
 	}
 
 	.word-count-over {

@@ -288,6 +288,15 @@ export type RejectRule =
 	| { op: 'lt'; value: number }
 	| { op: 'gt'; value: number };
 
+/** One offered day on an `availability` question. `date` is `YYYY-MM-DD`. */
+export interface AvailabilityDay {
+	date: string;
+	dayStart?: string;
+	dayEnd?: string;
+	/** Optional heading override; defaults to a "Wed Sep 9" label. */
+	label?: string;
+}
+
 export interface FormQuestion {
 	id: string;
 	type:
@@ -327,6 +336,13 @@ export interface FormQuestion {
 	dayStart?: string;
 	dayEnd?: string;
 	stepMinutes?: number;
+	/**
+	 * Explicit day list, for a schedule that a `startDate`/`endDate` span cannot
+	 * describe: skipped days, or different hours on different days (a Sunday
+	 * block plus weekday evenings, say). When present it wins over the span, and
+	 * each entry may override `dayStart`/`dayEnd` for that day alone.
+	 */
+	days?: AvailabilityDay[];
 	// V1: per-team visibility, auto-reject, blinded-review
 	team_scope?: TeamScope;
 	reject_if?: RejectRule;
