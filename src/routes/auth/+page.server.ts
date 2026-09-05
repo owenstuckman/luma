@@ -100,8 +100,14 @@ export const actions: Actions = {
 			);
 		}
 
+		// Via /auth/confirm, NOT straight to /auth/reset. The recovery link comes
+		// back carrying a PKCE `code` (or a `token_hash`, with custom templates),
+		// and something has to trade that for a session before the reset form can
+		// do anything. /auth/reset only ever checked whether a session already
+		// existed, so pointing the email there produced a guaranteed "This link
+		// has expired" no matter how fresh the link was.
 		const { error } = await supabase.auth.resetPasswordForEmail(email, {
-			redirectTo: `${url.origin}/auth/reset`
+			redirectTo: `${url.origin}/auth/confirm?next=${encodeURIComponent('/auth/reset')}`
 		});
 		if (error) {
 			console.error(error);

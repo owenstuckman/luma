@@ -74,6 +74,13 @@ org admins configure their own org again. See `TODO.md` Phase 3.5.)_
 
 - [x] **Sending address** — `noreply@archimedesvt.org` (confirmed).
 
+> 🔑 **Supabase Auth dashboard changes — written up separately for hand-off.**
+> See **[SUPABASE-AUTH-HANDOFF.md](SUPABASE-AUTH-HANDOFF.md)**. Covers the Site URL and
+> redirect allow list (magic links currently point at `localhost:3000`), custom SMTP via
+> Resend (the built-in mailer sent only 3 emails in 24h, from a domain we don't own), the
+> email templates, and leaked-password protection. Diagnosed 2026-09-05 from the auth logs;
+> the matching code changes are written and verified but still need deploying.
+
 > 📧 **Resend setup — needed before Phase 5 (Decisions) and before any real email sends.**
 >
 > - [ ] **Resend API key** — resend.com → API Keys → create. Set it as a Supabase Edge
