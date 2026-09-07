@@ -91,20 +91,20 @@ Authoritative feature inventory for LUMA V1. Status legend:
 
 ## Scheduling
 
-| Feature                                                        | Status | Notes                                               |
-| -------------------------------------------------------------- | ------ | --------------------------------------------------- |
-| Interviewer availability collection                            | 🔧     | `/private/[slug]/availability` exists               |
-| Scheduling algorithms: greedy / round-robin / balanced / batch | ✅     | All four in `src/lib/scheduling/algorithms/`        |
-| Algorithm picker per job                                       | 🔧     | Registry exists; verify admin UI exposes it         |
-| Configurable buffer time (default 5min)                        | 🆕     | Setting at job or org level                         |
-| Exclude advisors from R1 pool                                  | 🆕     | Auto-flag based on role                             |
-| `prior_team` manual override                                   | 🆕     | Field on applicant; soft preference in scheduler    |
-| Round 2: per-team auto-scheduling                              | 🆕     | Triggered from candidate page                       |
-| Round 2: Calendly-style candidate-picks-slot link              | 🆕     | New flow; tokenized URL                             |
-| Round 3: "Schedule Follow-Up" button                           | 🆕     | Reuses R2 UI, sets `metadata.round = 3`             |
-| Schedule view (full + per-user)                                | ✅     | `/schedule/full`, `/schedule/my`                    |
-| Schedule notification batch                                    | 🔧     | `/schedule/notify` exists; verify Resend send works |
-| Interview violation tracking                                   | ✅     | Migration 00011                                     |
+| Feature                                                        | Status | Notes                                                                                              |
+| -------------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------- |
+| Interviewer availability collection                            | ✅     | Job-scoped: `/availability` builds its grid from the posting's own availability question (`00032`) |
+| Scheduling algorithms: greedy / round-robin / balanced / batch | ✅     | All four in `src/lib/scheduling/algorithms/`                                                       |
+| Algorithm picker per job                                       | 🔧     | Registry exists; verify admin UI exposes it                                                        |
+| Configurable buffer time (default 5min)                        | 🆕     | Setting at job or org level                                                                        |
+| Exclude advisors from R1 pool                                  | 🆕     | Auto-flag based on role                                                                            |
+| `prior_team` manual override                                   | 🆕     | Field on applicant; soft preference in scheduler                                                   |
+| Round 2: per-team auto-scheduling                              | 🆕     | Triggered from candidate page                                                                      |
+| Round 2: Calendly-style candidate-picks-slot link              | 🆕     | New flow; tokenized URL                                                                            |
+| Round 3: "Schedule Follow-Up" button                           | 🆕     | Reuses R2 UI, sets `metadata.round = 3`                                                            |
+| Schedule view (full + per-user)                                | ✅     | `/schedule/full`, `/schedule/my`                                                                   |
+| Schedule notification batch                                    | 🔧     | `/schedule/notify` exists; verify Resend send works                                                |
+| Interview violation tracking                                   | ✅     | Migration 00011                                                                                    |
 
 ## Decisions & Selection
 

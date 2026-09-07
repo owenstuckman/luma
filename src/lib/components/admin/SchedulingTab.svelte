@@ -164,8 +164,10 @@
 						? extractApplicantAttributes(a.recruitInfo, activeAttrRules)
 						: undefined
 			}));
+			// Job-scoped, for the same reason as the org-side scheduling page:
+			// availability belongs to the posting whose windows it was offered for.
 			const [iaRows, orgMembersForSched] = await Promise.all([
-				getInterviewerAvailability(schedOrgId),
+				getInterviewerAvailability(schedOrgId, schedJobId),
 				getOrgMembersWithEmail(schedOrgId)
 			]);
 			const memberMetaMap = new Map(

@@ -13,6 +13,7 @@
 // input_dual answers are "first | second".
 
 import type {
+	AvailabilityDay,
 	FormQuestion,
 	FormStep,
 	QuestionSchema,
@@ -439,4 +440,89 @@ export function splitSubmissionByTeam(
 			answers: scoped
 		};
 	});
+}
+
+/* ------------------------------------------------------------------ *
+ * Interview availability windows
+ * ------------------------------------------------------------------ */
+
+/**
+ * The windows a job actually offers, read off its `availability` question.
+ *
+ * Recruiters and applicants have to be asked about the SAME hours or the
+ * scheduler has nothing to intersect. Rather than configure the interview
+ * window twice, both sides read it from here: the job's availability question
+ * is the single source of truth, and the recruiter grid is built from whatever
+ * the applicants were shown.
+ */
+export interface AvailabilityWindows {
+	questionId: string;
+	title: string;
+	/** Explicit offered days. Empty when the question uses a plain date span. */
+	days: AvailabilityDay[];
+	/** Fallback span, used only when `days` is empty. */
+	startDate?: string;
+	endDate?: string;
+	dayStart: string;
+	dayEnd: string;
+	stepMinutes: number;
+}
+
+/**
+ * Find the interview-availability question on a job, if it has one.
+ *
+ * Returns the FIRST `availability` question in the schema. A job with two of
+ * them is a configuration mistake rather than a case to support — there is only
+ * one interview window to agree on.
+ */
+export function findAvailabilityWindows(
+	schema: QuestionSchema | null | undefined
+): AvailabilityWindows | null {
+	for (const step of schema?.steps ?? []) {
+		for (const q of step.questions ?? []) {
+			if (q.type !== 'availability') continue;
+			return {
+				questionId: q.id,
+				title: q.title,
+				days: q.days ?? [],
+				startDate: q.startDate,
+				endDate: q.endDate,
+				dayStart: q.dayStart ?? '09:00',
+				dayEnd: q.dayEnd ?? '17:00',
+				stepMinutes: q.stepMinutes ?? 30
+			};
+		}
+	}
+	return null;
+}
+
+/**
+ * Drop anything a recruiter offered that the job never put on the table.
+ *
+ * The grid already refuses to paint a blocked cell, but a saved row can outlive
+ * the schema it was made against — an admin edits the interview dates in
+ * Settings → Jobs and yesterday's answers now point at hours nobody is
+ * interviewing in. Filtering on read keeps a stale row from being handed to the
+ * scheduler as if it were real.
+ */
+export function clampRangesToWindows(
+	ranges: { date: string; start: string; end: string }[],
+	windows: AvailabilityWindows | null
+): { date: string; start: string; end: string }[] {
+	if (!windows || windows.days.length === 0) return ranges;
+
+	const byDate = new Map(windows.days.map((d) => [d.date, d]));
+	const out: { date: string; start: string; end: string }[] = [];
+
+	for (const r of ranges) {
+		const day = byDate.get(r.date);
+		if (!day) continue;
+		const from = day.dayStart ?? windows.dayStart;
+		const to = day.dayEnd ?? windows.dayEnd;
+		const start = r.start < from ? from : r.start;
+		const end = r.end > to ? to : r.end;
+		if (start < end) out.push({ date: r.date, start, end });
+	}
+
+	return out;
 }

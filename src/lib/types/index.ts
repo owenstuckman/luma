@@ -421,6 +421,11 @@ export interface InterviewerAvailability {
 	id: number;
 	created_at: string;
 	org_id: number;
+	/**
+	 * The posting these hours were offered for (migration 00032). Null on the
+	 * pre-00032 rows, which belong to no posting.
+	 */
+	job_id: number | null;
 	user_id: string;
 	email: string;
 	date: string;

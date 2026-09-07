@@ -928,14 +928,28 @@ export const clearAutoScheduledInterviews = async (orgId: number, jobId?: number
 	if (error) throw new Error(error.message);
 };
 
+/**
+ * Every interviewer's availability for an org.
+ *
+ * Pass `jobId` when scheduling a specific posting — availability is recorded
+ * against the job whose windows it was offered for, and mixing postings would
+ * hand the scheduler hours that were never on the table for this one. Rows with
+ * a null `job_id` predate migration 00032 and are deliberately excluded from a
+ * job-scoped read; they belong to no posting and their dates are historical.
+ */
 export const getInterviewerAvailability = async (
-	orgId: number
+	orgId: number,
+	jobId?: number | null
 ): Promise<InterviewerAvailability[]> => {
-	const { data, error } = await supabase
+	let query = supabase
 		.from('interviewer_availability')
 		.select('*')
 		.eq('org_id', orgId)
 		.order('date', { ascending: true });
+
+	if (jobId) query = query.eq('job_id', jobId);
+
+	const { data, error } = await query;
 
 	if (error) {
 		console.error('Error fetching interviewer availability:', error);
@@ -945,17 +959,22 @@ export const getInterviewerAvailability = async (
 };
 
 export const getMyInterviewerAvailability = async (
-	orgId: number
+	orgId: number,
+	jobId?: number | null
 ): Promise<InterviewerAvailability[]> => {
 	const { data: userData } = await supabase.auth.getUser();
 	if (!userData?.user) return [];
 
-	const { data, error } = await supabase
+	let query = supabase
 		.from('interviewer_availability')
 		.select('*')
 		.eq('org_id', orgId)
 		.eq('user_id', userData.user.id)
 		.order('date', { ascending: true });
+
+	query = jobId ? query.eq('job_id', jobId) : query.is('job_id', null);
+
+	const { data, error } = await query;
 
 	if (error) {
 		console.error('Error fetching my availability:', error);
@@ -964,25 +983,35 @@ export const getMyInterviewerAvailability = async (
 	return data as InterviewerAvailability[];
 };
 
+/**
+ * Replace this user's availability for one job.
+ *
+ * Scoped to `jobId` on BOTH the delete and the insert: saving availability for
+ * one posting must not wipe what the same person offered for another running
+ * alongside it. A null `jobId` targets the legacy org-wide rows.
+ */
 export const saveInterviewerAvailability = async (
 	orgId: number,
-	ranges: { date: string; start_time: string; end_time: string; timezone: string }[]
+	ranges: { date: string; start_time: string; end_time: string; timezone: string }[],
+	jobId?: number | null
 ) => {
 	const { data: userData } = await supabase.auth.getUser();
 	if (!userData?.user) throw new Error('Not authenticated');
 
-	// Delete existing availability for this user in this org
-	await supabase
+	let del = supabase
 		.from('interviewer_availability')
 		.delete()
 		.eq('org_id', orgId)
 		.eq('user_id', userData.user.id);
+	del = jobId ? del.eq('job_id', jobId) : del.is('job_id', null);
+	await del;
 
 	if (ranges.length === 0) return [];
 
 	const rows = ranges.map((r) => ({
 		org_id: orgId,
 		user_id: userData.user.id,
+		job_id: jobId ?? null,
 		email: userData.user.email || '',
 		date: r.date,
 		start_time: r.start_time,

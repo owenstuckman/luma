@@ -198,8 +198,12 @@
 						: undefined
 			}));
 
+			// Scoped to the posting being scheduled. Availability is recorded
+			// against the job whose interview windows it was offered for, so an
+			// unscoped read would feed the scheduler hours belonging to another
+			// posting — or the pre-00032 rows, which belong to none.
 			const [iaRows, orgMembersForSched] = await Promise.all([
-				getInterviewerAvailability(org.id),
+				getInterviewerAvailability(org.id, schedJobId),
 				getOrgMembersWithEmail(org.id)
 			]);
 			const memberMetaMap = new Map(
