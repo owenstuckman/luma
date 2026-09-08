@@ -94,7 +94,7 @@ Authoritative feature inventory for LUMA V1. Status legend:
 | Feature                                                        | Status | Notes                                                                                              |
 | -------------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------- |
 | Interviewer availability collection                            | ✅     | Job-scoped: `/availability` builds its grid from the posting's own availability question (`00032`) |
-| Scheduling algorithms: greedy / round-robin / balanced / batch | ✅     | All four in `src/lib/scheduling/algorithms/`                                                       |
+| Scheduling algorithms: greedy / round-robin / balanced / batch | ✅     | All four in `src/lib/scheduling/algorithms/`; all take a room list and never double-book one       |
 | Algorithm picker per job                                       | 🔧     | Registry exists; verify admin UI exposes it                                                        |
 | Configurable buffer time (default 5min)                        | 🆕     | Setting at job or org level                                                                        |
 | Exclude advisors from R1 pool                                  | 🆕     | Auto-flag based on role                                                                            |

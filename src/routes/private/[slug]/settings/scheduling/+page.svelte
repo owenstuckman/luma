@@ -23,6 +23,7 @@
 		AttributeMatchRule
 	} from '$lib/scheduling/types';
 	import type { Organization, JobPosting, Interview, Applicant, OrgMember } from '$lib/types';
+	import { parseRoomList } from '$lib/scheduling/utils';
 	import Sidebar from '$lib/components/recruiter/Sidebar.svelte';
 	import Navbar from '$lib/components/recruiter/Navbar.svelte';
 	import EmailGeneratorModal from '$lib/components/recruiter/EmailGeneratorModal.svelte';
@@ -42,6 +43,13 @@
 		interviewType: 'individual',
 		location: ''
 	};
+	/**
+	 * Rooms for the non-batch algorithms. Kept as raw text so a booking list can
+	 * be pasted in whatever shape it arrives; `parseRoomList` does the cleaning.
+	 */
+	let simpleRoomsText = '';
+	$: simpleRooms = parseRoomList(simpleRoomsText);
+	$: batchRooms = parseRoomList(batchRoomsText);
 	let schedPreview: SchedulerOutput | null = null;
 	let schedPreviewing = false;
 	let schedApplying = false;
@@ -125,7 +133,29 @@
 				const existing = await getSchedulingConfig(org.id);
 				if (existing) {
 					schedAlgorithmId = existing.algorithm_id;
-					schedConfig = { ...schedConfig, ...(existing.config as Record<string, unknown>) };
+					const cfg = (existing.config as Record<string, unknown>) ?? {};
+					schedConfig = { ...schedConfig, ...cfg };
+
+					// Restore the fields that live in their own `let`s rather than in
+					// schedConfig. Without this the saved row loaded but the form did
+					// not: rooms, rounds and session windows all reset to defaults on
+					// every page load, so a configuration could be saved and then
+					// silently lost the next time anyone opened the page.
+					const savedRooms = Array.isArray(cfg.rooms) ? (cfg.rooms as unknown[]).join('\n') : '';
+					if (schedAlgorithmId === 'batch-scheduler') {
+						if (savedRooms) batchRoomsText = savedRooms;
+						if (Array.isArray(cfg.rounds) && cfg.rounds.length)
+							batchRounds = cfg.rounds as BatchRound[];
+						if (Array.isArray(cfg.sessionWindows))
+							batchSessions = cfg.sessionWindows as BatchSessionWindow[];
+						if (typeof cfg.slotStepMinutes === 'number') batchSlotStep = cfg.slotStepMinutes;
+						if (typeof cfg.blockBreakMinutes === 'number') batchBlockBreak = cfg.blockBreakMinutes;
+						if (typeof cfg.requireAllRounds === 'boolean') batchRequireAll = cfg.requireAllRounds;
+						if (typeof cfg.relaxedFallback === 'boolean')
+							batchRelaxedFallback = cfg.relaxedFallback;
+					} else {
+						simpleRoomsText = typeof cfg.roomsText === 'string' ? cfg.roomsText : savedRooms;
+					}
 				}
 			} catch (e: any) {
 				console.error('Error loading scheduling data:', e);
@@ -252,10 +282,7 @@
 			const config =
 				schedAlgorithmId === 'batch-scheduler'
 					? {
-							rooms: batchRoomsText
-								.split('\n')
-								.map((r) => r.trim())
-								.filter(Boolean),
+							rooms: batchRooms,
 							rounds: batchRounds,
 							sessionWindows: batchSessions,
 							slotStepMinutes: batchSlotStep,
@@ -276,7 +303,11 @@
 							maxInterviewsPerInterviewer: Number(schedConfig.maxInterviewsPerInterviewer) || 0,
 							interviewType: (schedConfig.interviewType as 'individual' | 'group') || 'individual',
 							location: String(schedConfig.location || ''),
-							...schedConfig
+							...schedConfig,
+							// After the spread: `rooms` is owned by the textarea, not by
+							// whatever was loaded into schedConfig from the saved row.
+							rooms: simpleRooms,
+							roomsText: simpleRoomsText
 						};
 
 			const input: SchedulerInput = {
@@ -497,15 +528,24 @@
 
 					<!-- Rooms -->
 					<div class="field">
-						<label class="field-label">Rooms (one per line)</label>
+						<label class="field-label" for="batch-rooms">Rooms</label>
 						<textarea
+							id="batch-rooms"
 							class="form-control"
 							bind:value={batchRoomsText}
 							rows="4"
-							placeholder="MCB230&#10;MCB231&#10;MCB232"></textarea>
-						<span class="field-hint hint-block"
-							>{batchRoomsText.split('\n').filter((r) => r.trim()).length} room(s) configured</span
-						>
+							placeholder="Paste your room bookings — one per line, or comma separated.&#10;&#10;MCB 238 @ 5-9PM&#10;MCB 308 @ 5-9PM&#10;MCB 316 @ 5-9PM"
+						></textarea>
+						<span class="field-hint hint-block">
+							{#if batchRooms.length === 0}
+								No rooms yet — the batch scheduler cannot place anyone without them.
+							{:else}
+								<strong>{batchRooms.length} room{batchRooms.length === 1 ? '' : 's'}</strong>:
+								{batchRooms.slice(0, 8).join(', ')}{batchRooms.length > 8
+									? ` +${batchRooms.length - 8} more`
+									: ''}
+							{/if}
+						</span>
 					</div>
 
 					<!-- Session windows -->
@@ -780,13 +820,27 @@
 								<option value="group">Group</option>
 							</select>
 						</div>
-						<div class="field">
-							<label class="field-label">Location</label>
-							<input
+						<div class="field field-wide">
+							<label class="field-label" for="simple-rooms">Rooms</label>
+							<textarea
+								id="simple-rooms"
 								class="form-control"
-								bind:value={schedConfig.location}
-								placeholder="e.g. Room 101, Zoom, etc."
-							/>
+								bind:value={simpleRoomsText}
+								rows="4"
+								placeholder="Paste your room bookings — one per line, or comma separated.&#10;&#10;MCB 238 @ 5-9PM&#10;MCB 308 @ 5-9PM&#10;MCB 316 @ 5-9PM"
+							></textarea>
+							<span class="field-hint hint-block">
+								{#if simpleRooms.length === 0}
+									No rooms yet — every interview will be labelled "{schedConfig.location ||
+										'no location'}". Paste a list and interviews are spread across rooms instead,
+									never two at once in the same one.
+								{:else}
+									<strong>{simpleRooms.length} room{simpleRooms.length === 1 ? '' : 's'}</strong>:
+									{simpleRooms.slice(0, 8).join(', ')}{simpleRooms.length > 8
+										? ` +${simpleRooms.length - 8} more`
+										: ''}
+								{/if}
+							</span>
 						</div>
 					</div>
 				</div>
@@ -1066,6 +1120,9 @@
 		line-height: 1.4;
 	}
 
+	.field-wide {
+		grid-column: 1 / -1;
+	}
 	.config-grid {
 		display: grid;
 		grid-template-columns: 1fr 1fr;

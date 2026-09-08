@@ -4,7 +4,15 @@ import type {
 	SchedulerOutput,
 	ProposedInterview
 } from '../types';
-import { findOverlappingSlots, findFirstAvailableSlot, toISO } from '../utils';
+import {
+	findOverlappingSlots,
+	findFirstAvailableSlot,
+	findFreeRoom,
+	roomsFromConfig,
+	toISO,
+	toMinutes
+} from '../utils';
+import type { RoomBooking } from '../utils';
 
 export const greedyFirstAvailable: SchedulingAlgorithm = {
 	id: 'greedy-first-available',
@@ -22,6 +30,15 @@ export const greedyFirstAvailable: SchedulingAlgorithm = {
 			warnings.push('No interviewers with availability found.');
 			return { interviews: proposed, unmatched: applicants.map((a) => a.email), warnings };
 		}
+
+		// Rooms, when configured, are a hard capacity limit: two interviews cannot
+		// share one. An empty list means the older single-`location` behaviour,
+		// where every interview is stamped with the same place and nothing is
+		// tracked.
+		const rooms = roomsFromConfig(config);
+		const booked: RoomBooking[] = [];
+		const roomFor = (date: string, start: string, end: string) =>
+			findFreeRoom(rooms, date, toMinutes(start), toMinutes(end), booked);
 
 		// Count existing assignments per interviewer
 		const assignmentCount = new Map<string, number>();
@@ -57,16 +74,26 @@ export const greedyFirstAvailable: SchedulingAlgorithm = {
 					config.slotDurationMinutes,
 					config.breakBetweenMinutes,
 					existingInterviews,
-					proposed
+					proposed,
+					rooms.length > 0 ? (d, s, e) => roomFor(d, s, e) !== null : undefined
 				);
 
 				if (slot) {
+					const room = roomFor(slot.date, slot.start, slot.end);
+					if (rooms.length > 0 && room) {
+						booked.push({
+							room,
+							date: slot.date,
+							startMins: toMinutes(slot.start),
+							endMins: toMinutes(slot.end)
+						});
+					}
 					proposed.push({
 						startTime: toISO(slot.date, slot.start),
 						endTime: toISO(slot.date, slot.end),
 						applicant: applicant.email,
 						interviewer: interviewer.email,
-						location: config.location,
+						location: room ?? config.location,
 						type: config.interviewType,
 						jobId: applicant.jobId
 					});

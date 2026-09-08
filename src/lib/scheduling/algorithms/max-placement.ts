@@ -4,7 +4,15 @@ import type {
 	SchedulerOutput,
 	ProposedInterview
 } from '../types';
-import { findOverlappingSlots, toISO, toMinutes, fromMinutes } from '../utils';
+import {
+	findOverlappingSlots,
+	findFreeRoom,
+	roomsFromConfig,
+	toISO,
+	toMinutes,
+	fromMinutes
+} from '../utils';
+import type { RoomBooking } from '../utils';
 
 /**
  * Recursive backtracking scheduler that maximizes the number of placed applicants.
@@ -252,22 +260,64 @@ export const maxPlacement: SchedulingAlgorithm = {
 			);
 		}
 
-		// Convert best assignments to ProposedInterview[]
-		const proposed: ProposedInterview[] = bestAssignments.map(({ applicantIdx, slot }) => {
+		// Convert best assignments to ProposedInterview[], handing out rooms as we
+		// go. Rooms are assigned AFTER the search rather than inside it: the DFS
+		// optimises for interviewer/applicant overlap, and threading a third
+		// resource through every branch would change the search space for a
+		// constraint that is not the binding one here (there are far more
+		// room-hours than interviewer-hours). The cost of that shortcut is that a
+		// placement can survive the search and then find no free room; such a
+		// placement is DROPPED and reported rather than double-booked.
+		const rooms = roomsFromConfig(config);
+		const booked: RoomBooking[] = [];
+		const roomless: string[] = [];
+
+		// Chronological, so rooms fill in the order the day actually runs.
+		const ordered = [...bestAssignments].sort((a, b) =>
+			a.slot.date === b.slot.date
+				? a.slot.startMins - b.slot.startMins
+				: a.slot.date.localeCompare(b.slot.date)
+		);
+
+		const proposed: ProposedInterview[] = [];
+		for (const { applicantIdx, slot } of ordered) {
 			const applicant = applicants[applicantIdx];
 			const interviewer = interviewers[slot.interviewerIdx];
-			return {
+
+			let location = config.location;
+			if (rooms.length > 0) {
+				const room = findFreeRoom(rooms, slot.date, slot.startMins, slot.endMins, booked);
+				if (!room) {
+					roomless.push(applicant.email);
+					continue;
+				}
+				booked.push({
+					room,
+					date: slot.date,
+					startMins: slot.startMins,
+					endMins: slot.endMins
+				});
+				location = room;
+			}
+
+			proposed.push({
 				startTime: toISO(slot.date, fromMinutes(slot.startMins)),
 				endTime: toISO(slot.date, fromMinutes(slot.endMins)),
 				applicant: applicant.email,
 				interviewer: interviewer.email,
-				location: config.location,
+				location,
 				type: config.interviewType,
 				jobId: applicant.jobId
-			};
-		});
+			});
+		}
 
-		const placedEmails = new Set(bestAssignments.map((a) => applicants[a.applicantIdx].email));
+		if (roomless.length > 0) {
+			warnings.push(
+				`${roomless.length} placement(s) were dropped because every room was already occupied at their time. Add more rooms or widen the session windows.`
+			);
+		}
+
+		const placedEmails = new Set(proposed.map((p) => p.applicant));
 		const unmatched = applicants.filter((a) => !placedEmails.has(a.email)).map((a) => a.email);
 
 		if (unmatched.length > 0) {

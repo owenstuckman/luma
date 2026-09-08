@@ -101,7 +101,14 @@ export function findFirstAvailableSlot(
 	durationMins: number,
 	breakMins: number,
 	existing: { startTime: string; endTime: string; interviewer: string; applicant: string }[],
-	proposed: ProposedInterview[]
+	proposed: ProposedInterview[],
+	/**
+	 * Optional extra test a slot must pass — used to reject a time when every
+	 * room is already occupied. Without it the caller could only discard the
+	 * whole (applicant, interviewer) pairing on a room clash; with it the search
+	 * simply moves on to the next quarter hour and keeps looking.
+	 */
+	slotUsable?: (date: string, start: string, end: string) => boolean
 ): { date: string; start: string; end: string } | null {
 	for (const overlap of overlaps) {
 		let cursor = toMinutes(overlap.start);
@@ -130,7 +137,11 @@ export function findFirstAvailableSlot(
 				breakMins
 			);
 
-			if (!interviewerBusy && !applicantBusy) {
+			if (
+				!interviewerBusy &&
+				!applicantBusy &&
+				(!slotUsable || slotUsable(overlap.date, startStr, endStr))
+			) {
 				return { date: overlap.date, start: startStr, end: endStr };
 			}
 
@@ -272,4 +283,99 @@ export function interviewerFreeAt(
 		if (startMins < slot.endMins && endMins > slot.startMins) return false;
 	}
 	return true;
+}
+
+// ── Rooms ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Turn whatever someone pasted into a clean room list.
+ *
+ * Room bookings arrive from wherever the university's room system spat them
+ * out, and asking a recruiter to reformat a 66-line booking list by hand before
+ * scheduling is how mistakes get made. So this accepts the shapes that actually
+ * show up:
+ *
+ *   MCB 238 @ 5-9PM          → "MCB 238"   (a trailing time annotation is dropped)
+ *   - MCB 230                → "MCB 230"   (bullets and "1." numbering are stripped)
+ *   MCB 230, MCB 231         → two rooms   (commas, semicolons and tabs all split)
+ *   September 9th:           → dropped     (a line ending in ':' is a heading)
+ *
+ * Duplicates are removed case-insensitively, keeping the first spelling seen,
+ * so pasting several days at once yields each room once.
+ *
+ * The deliberate trade-off is that a room whose name contains a comma or an '@'
+ * cannot be expressed. No real room here does, and silently mangling the common
+ * case to protect a hypothetical one is the worse bargain.
+ */
+export function parseRoomList(raw: string | null | undefined): string[] {
+	if (!raw) return [];
+
+	const out: string[] = [];
+	const seen = new Set<string>();
+
+	for (const line of raw.split(/[\n;,\t]+/)) {
+		let room = line.trim();
+		if (!room) continue;
+
+		// "September 9th:" and friends — a heading, not a room.
+		if (room.endsWith(':')) continue;
+
+		room = room.replace(/^[-*•\u2013\u2014]\s*/, ''); // bullets
+		room = room.replace(/^\d+[.)]\s+/, ''); // "1. " / "1) "
+		room = room.split('@')[0]; // "MCB 238 @ 5-9PM"
+		room = room.replace(/\s+/g, ' ').trim();
+		if (!room) continue;
+
+		const key = room.toLowerCase();
+		if (seen.has(key)) continue;
+		seen.add(key);
+		out.push(room);
+	}
+
+	return out;
+}
+
+/** A room held for one interview, in minutes-from-midnight on one date. */
+export interface RoomBooking {
+	room: string;
+	date: string;
+	startMins: number;
+	endMins: number;
+}
+
+/**
+ * First room with nothing in it for this window, or null when all are busy.
+ *
+ * Two interviews cannot share a room, so a null here is a real capacity limit
+ * rather than a reason to place the interview anyway — callers must treat it as
+ * "this time does not work" and keep searching.
+ */
+export function findFreeRoom(
+	rooms: string[],
+	date: string,
+	startMins: number,
+	endMins: number,
+	booked: RoomBooking[]
+): string | null {
+	for (const room of rooms) {
+		const clash = booked.some(
+			(b) => b.room === room && b.date === date && startMins < b.endMins && endMins > b.startMins
+		);
+		if (!clash) return room;
+	}
+	return null;
+}
+
+/**
+ * The rooms a run should use, from either the multi-room list or the older
+ * single `location` box. Returns [] when neither is set, which callers read as
+ * "no room tracking — fall back to config.location", preserving the behaviour
+ * of every schedule built before rooms existed.
+ */
+export function roomsFromConfig(config: { rooms?: unknown; location?: unknown }): string[] {
+	if (Array.isArray(config.rooms)) {
+		return config.rooms.map((r) => String(r).trim()).filter(Boolean);
+	}
+	if (typeof config.rooms === 'string') return parseRoomList(config.rooms);
+	return [];
 }

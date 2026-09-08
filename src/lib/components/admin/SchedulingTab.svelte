@@ -10,6 +10,7 @@
 		getSchedulingConfig,
 		getOrgMembersWithEmail
 	} from '$lib/utils/supabase';
+	import { parseRoomList } from '$lib/scheduling/utils';
 	import { algorithms, getAlgorithm } from '$lib/scheduling/registry';
 	import type {
 		SchedulerInput,
@@ -50,6 +51,13 @@
 		interviewType: 'individual',
 		location: ''
 	});
+	/**
+	 * Rooms for the non-batch algorithms. Raw text so a booking list can be
+	 * pasted in whatever shape it arrives; `parseRoomList` does the cleaning.
+	 */
+	let simpleRoomsText = $state('');
+	const simpleRooms = $derived(parseRoomList(simpleRoomsText));
+
 	let schedPreview = $state<SchedulerOutput | null>(null);
 	let schedPreviewing = $state(false);
 	let schedApplying = $state(false);
@@ -59,6 +67,7 @@
 	let schedEmailLoading = $state(false);
 
 	let batchRoomsText = $state('MCB230\nMCB231\nMCB232');
+	const batchRooms = $derived(parseRoomList(batchRoomsText));
 	let batchRounds = $state<BatchRound[]>([
 		{
 			id: 'r1',
@@ -212,10 +221,7 @@
 			const config =
 				schedAlgorithmId === 'batch-scheduler'
 					? {
-							rooms: batchRoomsText
-								.split('\n')
-								.map((r) => r.trim())
-								.filter(Boolean),
+							rooms: batchRooms,
 							rounds: batchRounds,
 							sessionWindows: batchSessions,
 							slotStepMinutes: batchSlotStep,
@@ -236,7 +242,10 @@
 							maxInterviewsPerInterviewer: Number(schedConfig.maxInterviewsPerInterviewer) || 0,
 							interviewType: (schedConfig.interviewType as 'individual' | 'group') || 'individual',
 							location: String(schedConfig.location || ''),
-							...schedConfig
+							...schedConfig,
+							// After the spread: `rooms` is owned by the textarea.
+							rooms: simpleRooms,
+							roomsText: simpleRoomsText
 						};
 			schedPreview = algorithm.run({
 				applicants: schedulerApplicants,
@@ -444,14 +453,18 @@
 
 		{#if schedAlgorithmId === 'batch-scheduler'}
 			<div class="field">
-				<label class="field-label">Rooms (one per line)</label>
+				<label class="field-label" for="admin-batch-rooms">Rooms</label>
 				<textarea
+					id="admin-batch-rooms"
 					class="form-control"
 					bind:value={batchRoomsText}
 					rows="4"
-					placeholder="MCB230&#10;MCB231&#10;MCB232"></textarea>
+					placeholder="Paste your room bookings — one per line, or comma separated.&#10;&#10;MCB 238 @ 5-9PM&#10;MCB 308 @ 5-9PM&#10;MCB 316 @ 5-9PM"
+				></textarea>
 				<span class="form-hint"
-					>{batchRoomsText.split('\n').filter((r) => r.trim()).length} room(s) configured</span
+					>{batchRooms.length} room{batchRooms.length === 1 ? '' : 's'}: {batchRooms
+						.slice(0, 8)
+						.join(', ')}{batchRooms.length > 8 ? ` +${batchRooms.length - 8} more` : ''}</span
 				>
 			</div>
 
@@ -714,13 +727,27 @@
 						<option value="group">Group</option>
 					</select>
 				</div>
-				<div class="field">
-					<label class="field-label">Location</label>
-					<input
+				<div class="field field-wide">
+					<label class="field-label" for="admin-simple-rooms">Rooms</label>
+					<textarea
+						id="admin-simple-rooms"
 						class="form-control"
-						bind:value={schedConfig.location}
-						placeholder="e.g. Room 101, Zoom, etc."
-					/>
+						bind:value={simpleRoomsText}
+						rows="4"
+						placeholder="Paste your room bookings — one per line, or comma separated.&#10;&#10;MCB 238 @ 5-9PM&#10;MCB 308 @ 5-9PM&#10;MCB 316 @ 5-9PM"
+					></textarea>
+					<span class="field-hint hint-block">
+						{#if simpleRooms.length === 0}
+							No rooms yet — every interview will be labelled "{schedConfig.location ||
+								'no location'}". Paste a list and interviews are spread across rooms instead, never
+							two at once in the same one.
+						{:else}
+							<strong>{simpleRooms.length} room{simpleRooms.length === 1 ? '' : 's'}</strong>:
+							{simpleRooms.slice(0, 8).join(', ')}{simpleRooms.length > 8
+								? ` +${simpleRooms.length - 8} more`
+								: ''}
+						{/if}
+					</span>
 				</div>
 			</div>
 		{/if}
@@ -873,6 +900,9 @@
 		color: $text-muted;
 		margin-top: 4px;
 		display: block;
+	}
+	.field-wide {
+		grid-column: 1 / -1;
 	}
 	.config-grid {
 		display: grid;
