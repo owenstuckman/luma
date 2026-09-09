@@ -31,6 +31,7 @@
 			.select('*')
 			.eq('org_id', orgData.id)
 			.eq('active_flg', true)
+			.eq('applications_closed', false)
 			.order('created_at', { ascending: false });
 
 		jobs = jobData || [];

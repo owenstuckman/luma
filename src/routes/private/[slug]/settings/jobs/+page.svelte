@@ -7,7 +7,8 @@
 		getAllJobPostings,
 		createJobPosting,
 		deleteJobPosting,
-		toggleJobPostingActive
+		toggleJobPostingActive,
+		setApplicationsClosed
 	} from '$lib/utils/supabase';
 	import Sidebar from '$lib/components/recruiter/Sidebar.svelte';
 	import Navbar from '$lib/components/recruiter/Navbar.svelte';
@@ -79,6 +80,23 @@
 			await loadJobs();
 		} catch (err) {
 			console.error('Toggle failed:', err);
+		}
+	}
+
+	async function handleIntake(job: JobPosting) {
+		const closing = !job.applications_closed;
+		if (
+			closing &&
+			!confirm(
+				`Stop accepting new applications for "${job.name}"?\n\nThe posting stays available to recruiters — review, scheduling and availability are unaffected. Anyone opening the apply link will be told applications have closed.`
+			)
+		)
+			return;
+		try {
+			await setApplicationsClosed(job.id, closing);
+			await loadJobs();
+		} catch (err) {
+			console.error('Intake toggle failed:', err);
 		}
 	}
 
@@ -168,6 +186,9 @@
 								>
 									{job.active_flg ? 'Active' : 'Inactive'}
 								</span>
+								{#if job.applications_closed}
+									<span class="pill pill-neutral">Applications closed</span>
+								{/if}
 							</div>
 							{#if job.description}
 								<p class="job-row-desc">{job.description}</p>
@@ -181,6 +202,9 @@
 							<a href="/private/{slug}/settings/jobs/{job.id}" class="btn btn-tertiary btn-sm">
 								Edit Form
 							</a>
+							<button class="btn btn-quaternary btn-sm" on:click={() => handleIntake(job)}>
+								{job.applications_closed ? 'Reopen applications' : 'Close applications'}
+							</button>
 							<button class="btn btn-quaternary btn-sm" on:click={() => handleToggle(job)}>
 								{job.active_flg ? 'Deactivate' : 'Activate'}
 							</button>

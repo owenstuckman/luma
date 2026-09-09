@@ -100,6 +100,13 @@ export interface JobPosting {
 	metadata: Record<string, unknown> | null;
 	schedule: Record<string, unknown>;
 	active_flg: boolean;
+	/**
+	 * Intake switch, separate from `active_flg` on purpose. `active_flg` controls
+	 * whether the posting shows up in the RECRUITER job pickers; this controls
+	 * whether the public apply routes accept a submission. Closing one must not
+	 * do the other (migration 00034).
+	 */
+	applications_closed: boolean;
 	description: string | null;
 	org_id: number | null;
 }

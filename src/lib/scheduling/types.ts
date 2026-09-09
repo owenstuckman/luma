@@ -128,6 +128,13 @@ export interface BatchSchedulerConfig {
 	requireAllRounds: boolean; // if true, unmatched in any round = remove all assignments
 	relaxedFallback?: boolean; // if true, run a second pass for unmatched applicants with soft constraints
 	relaxedAvailabilityPenalty?: number; // score penalty per availability violation (default 10)
+	/**
+	 * Days to concentrate relaxed placements on. A relaxed placement overrides
+	 * what the candidate said they were free for, so it is better to gather them
+	 * on one day with spare capacity — easier to sanity-check, and easier to ask
+	 * that group "can you make this?" — than to scatter them across the week.
+	 */
+	relaxedDates?: string[];
 	attributeMatching?: {
 		enabled: boolean;
 		rules: AttributeMatchRule[];

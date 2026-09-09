@@ -16,7 +16,6 @@ import {
 	generateRoomSlots,
 	applicantAvailableAt,
 	applicantHasConflict,
-	interviewerFreeAt,
 	type RoomSlot
 } from '../utils';
 
@@ -243,6 +242,8 @@ export const batchScheduler: SchedulingAlgorithm = {
 		const requireAll = cfg.requireAllRounds ?? false;
 		const relaxedFallback = cfg.relaxedFallback ?? false;
 		const relaxedPenalty = cfg.relaxedAvailabilityPenalty ?? 10;
+		/** Days to concentrate relaxed (availability-overriding) placements on. */
+		const relaxedDates: string[] = Array.isArray(cfg.relaxedDates) ? cfg.relaxedDates : [];
 		const attributeRules = cfg.attributeMatching?.enabled
 			? (cfg.attributeMatching.rules ?? [])
 			: [];
@@ -300,18 +301,27 @@ export const batchScheduler: SchedulingAlgorithm = {
 		};
 
 		/** Staff who are both free and willing (available) at this time. */
+		/**
+		 * Sessions each interviewer is already running, so staffing can spread.
+		 * Picking in array order meant whoever sorted first absorbed every early
+		 * slot — one person ended up on 58 interviews while another had 3.
+		 */
+		const ivLoad = new Map<string, number>();
+		for (const iv of interviewers) ivLoad.set(iv.email, 0);
+
 		function staffFor(slot: RoomSlot, needed: number): string[] {
-			const picked: string[] = [];
-			for (const iv of interviewers) {
-				if (picked.length >= needed) break;
+			const eligible = interviewers.filter((iv) => {
 				const willing =
 					!iv.availability.length ||
 					applicantAvailableAt(iv.availability, slot.date, slot.startMins, slot.endMins);
-				if (!willing) continue;
-				if (!ivFree(iv.email, slot.date, slot.startMins, slot.endMins)) continue;
-				picked.push(iv.email);
-			}
-			return picked;
+				return willing && ivFree(iv.email, slot.date, slot.startMins, slot.endMins);
+			});
+			// Least-loaded first; email as a tiebreak so a run is reproducible.
+			eligible.sort((a, b) => {
+				const d = (ivLoad.get(a.email) ?? 0) - (ivLoad.get(b.email) ?? 0);
+				return d !== 0 ? d : a.email.localeCompare(b.email);
+			});
+			return eligible.slice(0, needed).map((iv) => iv.email);
 		}
 
 		/**
@@ -336,6 +346,7 @@ export const batchScheduler: SchedulingAlgorithm = {
 			book(roomBookings, slot.room, b);
 			for (const e of staff) book(ivBookings, e, b);
 			openedSlots.add(slot.id);
+			for (const e of staff) ivLoad.set(e, (ivLoad.get(e) ?? 0) + 1);
 			if (staff.length < slot.round.interviewersPerRoom) {
 				warnings.push(
 					`${slot.room} ${slot.date} ${slot.startTime}: wanted ${slot.round.interviewersPerRoom} interviewer(s), found ${staff.length}.`
@@ -440,6 +451,15 @@ export const batchScheduler: SchedulingAlgorithm = {
 			let usable = roundSlots.filter(slotUsable);
 			if (usable.length === 0) return false;
 
+			// A relaxed placement overrides what the candidate said they could do,
+			// so put those on the day with the most slack rather than scattering
+			// them. `relaxedDates` names that day (or days); if none of them can
+			// take this person, fall through to the normal search.
+			if (relaxed && relaxedDates.length > 0) {
+				const preferred = usable.filter((s0) => relaxedDates.includes(s0.date));
+				if (preferred.length > 0) usable = preferred;
+			}
+
 			// Lookahead: don't commit to a slot the next round cannot follow. Without
 			// this the group round grabs whatever is free, and the individual that
 			// should sit right after it gets pushed to another day because the rooms
@@ -498,7 +518,11 @@ export const batchScheduler: SchedulingAlgorithm = {
 			for (let r = 0; r < cfg.rounds.length; r++) {
 				const round = cfg.rounds[r];
 				if (assignedPerRound.get(round.id)?.has(applicant.email)) continue;
-				place(applicant, round, slotsByRound.get(round.id)!, false, cfg.rounds[r + 1]);
+				// Stop at the first round that won't fit. Placing later rounds anyway
+				// strands them: the relaxed pass would then move the earlier round to
+				// a different day and the block would already be split. Leaving the
+				// whole block for the relaxed pass keeps it together.
+				if (!place(applicant, round, slotsByRound.get(round.id)!, false, cfg.rounds[r + 1])) break;
 			}
 		}
 

@@ -227,6 +227,29 @@ export const deleteJobPosting = async (id: number) => {
 	}
 };
 
+/**
+ * Open or close INTAKE for a posting, leaving `active_flg` alone.
+ *
+ * Deliberately separate from toggleJobPostingActive: `active_flg` is what the
+ * recruiter job pickers filter on, so using it to stop applications would empty
+ * the job list on /availability, /review, /candidates and Settings → Scheduling
+ * (migration 00034).
+ */
+export const setApplicationsClosed = async (id: number, closed: boolean) => {
+	const { data, error } = await supabase
+		.from('job_posting')
+		.update({ applications_closed: closed })
+		.eq('id', id)
+		.select()
+		.single();
+
+	if (error) {
+		console.error('Error changing intake state:', error);
+		throw new Error(error.message);
+	}
+	return data;
+};
+
 export const toggleJobPostingActive = async (id: number, active: boolean) => {
 	const { data, error } = await supabase
 		.from('job_posting')

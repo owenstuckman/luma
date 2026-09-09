@@ -48,6 +48,8 @@
 	let currentStep = 0;
 	let loading = true;
 	let error = '';
+	/** Intake is closed for this posting — distinct from "not found" (00034). */
+	let closed = false;
 	let maintenanceMode = false;
 	let submitting = false;
 	let submitError = '';
@@ -108,6 +110,16 @@
 			loading = false;
 			return;
 		}
+		// Closed is NOT an error: the posting exists and the applicant followed a
+		// link we gave them. Say so plainly rather than showing "not found",
+		// which reads like they mistyped something.
+		if (jobData.applications_closed) {
+			job = jobData;
+			closed = true;
+			loading = false;
+			return;
+		}
+
 		job = jobData;
 		schema = jobData.questions ?? null;
 
@@ -441,6 +453,17 @@
 			<h2>Applications Closed</h2>
 			<p class="muted">
 				Applications are currently closed for maintenance. Please check back later.
+			</p>
+			<a href="/"><button class="btn btn-primary">Back to Home</button></a>
+		</div>
+	</div>
+{:else if closed}
+	<div class="loading-screen">
+		<div class="error-card">
+			<h2>Applications are closed</h2>
+			<p class="muted">
+				{job?.name ?? 'This posting'} is no longer accepting applications. If you already submitted one,
+				it is still being reviewed and nothing further is needed from you.
 			</p>
 			<a href="/"><button class="btn btn-primary">Back to Home</button></a>
 		</div>
