@@ -3,7 +3,11 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { supabase } from '$lib/utils/supabase';
-	import { getInterviewsByInterviewer, getCurrentUserEmail } from '$lib/utils/supabase';
+	import {
+		getInterviewsByInterviewer,
+		getCurrentUserEmail,
+		getOrgMembersWithEmail
+	} from '$lib/utils/supabase';
 	import Sidebar from '$lib/components/recruiter/Sidebar.svelte';
 	import Navbar from '$lib/components/recruiter/Navbar.svelte';
 	import { selectedJob } from '$lib/stores/jobFilter';
@@ -15,6 +19,14 @@
 		createViewMonthGrid
 	} from '@schedule-x/calendar';
 	import '@schedule-x/theme-default/dist/index.css';
+	import {
+		getMyTransfers,
+		requestTransfer,
+		respondToTransfer,
+		cancelTransfer,
+		describeTransfer
+	} from '$lib/utils/transfers';
+	import type { InterviewTransfer, TransferKind } from '$lib/utils/transfers';
 	import type { Interview } from '$lib/types';
 
 	let orgId: number | null = null;
@@ -23,6 +35,100 @@
 	let loading = true;
 	let userEmail = '';
 	let errorMsg = '';
+
+	// ── Transfers ────────────────────────────────────────────────────────────
+	let transfers: InterviewTransfer[] = [];
+	let members: { email: string; name: string | null }[] = [];
+	let applicantNames: Record<string, string> = {};
+	let busy = false;
+	let actionError = '';
+	let actionOk = '';
+
+	/** The interview being handed off, when the dialog is open. */
+	let transferFor: Interview | null = null;
+	let toEmail = '';
+	let transferKind: TransferKind = 'handoff';
+	let swapWith: number | null = null;
+	let note = '';
+
+	$: incoming = transfers.filter(
+		(t) => t.status === 'pending' && t.to_email.toLowerCase() === userEmail.toLowerCase()
+	);
+	$: outgoing = transfers.filter(
+		(t) => t.status === 'pending' && t.from_email.toLowerCase() === userEmail.toLowerCase()
+	);
+	$: pendingByInterview = new Set(
+		transfers.filter((t) => t.status === 'pending').map((t) => t.interview_id)
+	);
+	/** What the chosen recipient could offer back, for a swap. */
+	$: theirInterviews = interviewsByEmail[toEmail.toLowerCase()] ?? [];
+
+	let interviewsByEmail: Record<string, Interview[]> = {};
+
+	const label = (iv: Interview | undefined) =>
+		iv
+			? `${new Date(iv.start_time).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} ${new Date(iv.start_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} · ${iv.location} · ${applicantNames[iv.applicant ?? ''] ?? iv.applicant}`
+			: 'that interview';
+
+	const byId = (id: number | null) =>
+		id === null
+			? undefined
+			: [...interviews, ...Object.values(interviewsByEmail).flat()].find((x) => x.id === id);
+
+	function openTransfer(iv: Interview) {
+		transferFor = iv;
+		toEmail = '';
+		transferKind = 'handoff';
+		swapWith = null;
+		note = '';
+		actionError = '';
+	}
+
+	async function submitTransfer() {
+		if (!transferFor || !toEmail) return;
+		busy = true;
+		actionError = '';
+		const res = await requestTransfer({
+			interviewId: transferFor.id,
+			recipientEmail: toEmail,
+			kind: transferKind,
+			counterpartInterviewId: transferKind === 'swap' ? swapWith : null,
+			note: note.trim() || null
+		});
+		busy = false;
+		if (res.error) {
+			actionError = res.error;
+			return;
+		}
+		actionOk = `Request sent to ${toEmail}. It moves only once they accept.`;
+		transferFor = null;
+		await reload();
+	}
+
+	async function answer(t: InterviewTransfer, accept: boolean) {
+		busy = true;
+		actionError = '';
+		const res = await respondToTransfer(t.id, accept);
+		busy = false;
+		if (res.error) {
+			actionError = res.error;
+			return;
+		}
+		actionOk = accept ? 'Accepted — the interview is now yours.' : 'Request declined.';
+		await reload();
+	}
+
+	async function withdraw(t: InterviewTransfer) {
+		busy = true;
+		const res = await cancelTransfer(t.id);
+		busy = false;
+		if (res.error) {
+			actionError = res.error;
+			return;
+		}
+		actionOk = 'Request withdrawn.';
+		await reload();
+	}
 
 	$: slug = $page.params.slug;
 
@@ -105,9 +211,65 @@
 			return;
 		}
 
-		interviews = await getInterviewsByInterviewer(orgId!, userEmail);
+		await reload();
 		loading = false;
 	});
+
+	/**
+	 * Refetch everything the transfer UI depends on. Called after any action so
+	 * the calendar, the inbox and the "who could I swap with" list can never
+	 * disagree with each other.
+	 */
+	async function reload() {
+		if (!orgId) return;
+		interviews = await getInterviewsByInterviewer(orgId, userEmail);
+		transfers = await getMyTransfers(orgId);
+
+		// Teammates, from ORG MEMBERSHIP — which is what the RPC validates against.
+		// Sourcing this from `interviewers` looked equivalent and wasn't: that table
+		// held 31 rows against 45 members, so real teammates (adamy, with a dozen
+		// interviews) were missing from the picker while the server would happily
+		// have accepted them.
+		const orgMembers = await getOrgMembersWithEmail(orgId);
+		const names = new Map<string, string>();
+		const { data: named } = await supabase
+			.from('interviewers')
+			.select('name,email')
+			.eq('org_id', orgId);
+		for (const n of named ?? []) if (n.email && n.name) names.set(n.email.toLowerCase(), n.name);
+
+		members = orgMembers
+			.filter((m) => m.email && m.email.toLowerCase() !== userEmail.toLowerCase())
+			.map((m) => ({ email: m.email, name: names.get(m.email.toLowerCase()) ?? null }))
+			.sort((a, b) => (a.name ?? a.email).localeCompare(b.name ?? b.email));
+
+		// Everyone else's interviews, so a swap can name a specific slot and so
+		// pending requests can be described in full rather than by bare id.
+		const { data: all } = await supabase
+			.from('interviews')
+			.select('*')
+			.eq('org_id', orgId)
+			.order('start_time');
+		const grouped: Record<string, Interview[]> = {};
+		for (const iv of (all ?? []) as Interview[]) {
+			const k = (iv.interviewer ?? '').toLowerCase();
+			(grouped[k] = grouped[k] ?? []).push(iv);
+		}
+		interviewsByEmail = grouped;
+
+		// Applicant names, so a row reads "Ellie Kwon" not an address.
+		const emails = [...new Set((all ?? []).map((iv) => iv.applicant).filter(Boolean))] as string[];
+		if (emails.length) {
+			const { data: apps } = await supabase
+				.from('applicants')
+				.select('email,name')
+				.eq('org_id', orgId)
+				.in('email', emails);
+			const map: Record<string, string> = {};
+			for (const a of apps ?? []) map[a.email] = a.name;
+			applicantNames = map;
+		}
+	}
 </script>
 
 <div class="layout">
@@ -123,10 +285,108 @@
 			<p class="muted placeholder">Loading schedule...</p>
 		{:else if errorMsg}
 			<p class="muted placeholder">{errorMsg}</p>
-		{:else if calendarApp}
-			<div class="calendar-wrap">
-				<ScheduleXCalendar {calendarApp} />
+		{:else}
+			{#if actionOk}<p class="alert-soft alert-success">{actionOk}</p>{/if}
+			{#if actionError}<p class="alert-soft alert-error">{actionError}</p>{/if}
+
+			<!-- Waiting on YOU: nothing moves until one of these is answered. -->
+			{#if incoming.length > 0}
+				<div class="panel inbox">
+					<div class="panel-head">
+						<h6 class="panel-title">Requests for you ({incoming.length})</h6>
+					</div>
+					{#each incoming as t (t.id)}
+						{@const iv = byId(t.interview_id)}
+						{@const mine = byId(t.counterpart_interview_id)}
+						<div class="req-row">
+							<div class="req-body">
+								<span class="req-who">{describeTransfer(t, userEmail)}</span>
+								<span class="req-detail">{label(iv)}</span>
+								{#if t.kind === 'swap'}
+									<span class="req-detail swap-line">
+										<i class="fi fi-br-exchange"></i> in exchange for yours: {label(mine)}
+									</span>
+								{/if}
+								{#if t.note}<span class="req-note">"{t.note}"</span>{/if}
+							</div>
+							<div class="req-actions">
+								<button
+									class="btn btn-tertiary btn-sm"
+									disabled={busy}
+									on:click={() => answer(t, true)}
+								>
+									Accept
+								</button>
+								<button
+									class="btn btn-quaternary btn-sm"
+									disabled={busy}
+									on:click={() => answer(t, false)}
+								>
+									Decline
+								</button>
+							</div>
+						</div>
+					{/each}
+				</div>
+			{/if}
+
+			{#if outgoing.length > 0}
+				<div class="panel inbox">
+					<div class="panel-head">
+						<h6 class="panel-title">Awaiting a reply ({outgoing.length})</h6>
+					</div>
+					{#each outgoing as t (t.id)}
+						{@const iv = byId(t.interview_id)}
+						<div class="req-row">
+							<div class="req-body">
+								<span class="req-who">{describeTransfer(t, userEmail)}</span>
+								<span class="req-detail">{label(iv)}</span>
+								<span class="req-note">Still yours until they accept.</span>
+							</div>
+							<div class="req-actions">
+								<button
+									class="btn btn-quaternary btn-sm"
+									disabled={busy}
+									on:click={() => withdraw(t)}
+								>
+									Withdraw
+								</button>
+							</div>
+						</div>
+					{/each}
+				</div>
+			{/if}
+
+			<div class="panel">
+				<div class="panel-head">
+					<h6 class="panel-title">My interviews ({interviews.length})</h6>
+				</div>
+				{#if interviews.length === 0}
+					<p class="muted placeholder">Nothing assigned to you yet.</p>
+				{:else}
+					{#each interviews as iv (iv.id)}
+						<div class="iv-row">
+							<div class="iv-body">
+								<span class="iv-when">{label(iv)}</span>
+								<span class="pill pill-neutral">{iv.type}</span>
+							</div>
+							{#if pendingByInterview.has(iv.id)}
+								<span class="pill pill-warning">Transfer pending</span>
+							{:else}
+								<button class="btn btn-quaternary btn-sm" on:click={() => openTransfer(iv)}>
+									Hand off / Swap
+								</button>
+							{/if}
+						</div>
+					{/each}
+				{/if}
 			</div>
+
+			{#if calendarApp}
+				<div class="calendar-wrap">
+					<ScheduleXCalendar {calendarApp} />
+				</div>
+			{/if}
 		{/if}
 	</div>
 
@@ -134,8 +394,174 @@
 	<Sidebar currentStep={2} collapse="uncollapse" />
 </div>
 
+{#if transferFor}
+	<div
+		class="modal-backdrop-luma"
+		on:click={() => (transferFor = null)}
+		on:keydown={() => {}}
+		role="button"
+		tabindex="-1"
+	>
+		<div
+			class="modal-panel"
+			on:click|stopPropagation={() => {}}
+			on:keydown={() => {}}
+			role="dialog"
+			tabindex="-1"
+		>
+			<div class="modal-head">
+				<h5 class="modal-title">Hand off or swap</h5>
+				<button class="btn-icon close-btn" on:click={() => (transferFor = null)}>&times;</button>
+			</div>
+
+			<p class="dialog-sub">{label(transferFor)}</p>
+
+			<div class="field">
+				<label class="field-label" for="to-email">Give it to</label>
+				<select id="to-email" class="form-select" bind:value={toEmail}>
+					<option value="">Choose a teammate...</option>
+					{#each members as m (m.email)}
+						<option value={m.email}>{m.name || m.email}</option>
+					{/each}
+				</select>
+			</div>
+
+			<div class="field">
+				<span class="field-label">Type</span>
+				<label class="radio-row">
+					<input type="radio" bind:group={transferKind} value="handoff" />
+					<span><strong>Hand off</strong> — they take it, you get nothing back</span>
+				</label>
+				<label class="radio-row">
+					<input type="radio" bind:group={transferKind} value="swap" />
+					<span><strong>Swap</strong> — you take one of theirs in exchange</span>
+				</label>
+			</div>
+
+			{#if transferKind === 'swap'}
+				<div class="field">
+					<label class="field-label" for="swap-with">Their interview you'll take</label>
+					{#if !toEmail}
+						<p class="muted note">Choose a teammate first.</p>
+					{:else if theirInterviews.length === 0}
+						<p class="muted note">They have no interviews to swap.</p>
+					{:else}
+						<select id="swap-with" class="form-select" bind:value={swapWith}>
+							<option value={null}>Choose one...</option>
+							{#each theirInterviews as x (x.id)}
+								<option value={x.id}>{label(x)}</option>
+							{/each}
+						</select>
+					{/if}
+				</div>
+			{/if}
+
+			<div class="field">
+				<label class="field-label" for="tnote">Note (optional)</label>
+				<textarea
+					id="tnote"
+					class="form-control"
+					rows="2"
+					bind:value={note}
+					placeholder="Anything they should know..."></textarea>
+			</div>
+
+			{#if actionError}<p class="alert-soft alert-error">{actionError}</p>{/if}
+
+			<div class="modal-actions">
+				<span class="progress-note">Nothing changes until they accept.</span>
+				<button class="btn btn-quaternary" on:click={() => (transferFor = null)}>Cancel</button>
+				<button
+					class="btn btn-tertiary"
+					disabled={busy || !toEmail || (transferKind === 'swap' && !swapWith)}
+					on:click={submitTransfer}
+				>
+					{busy ? 'Sending...' : 'Send request'}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
 <style lang="scss">
 	@use '../../../../../styles/col.scss' as *;
+
+	.inbox {
+		margin-bottom: 14px;
+	}
+	.req-row,
+	.iv-row {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 12px;
+		padding: 10px 12px;
+		border-top: 1px solid $border;
+		flex-wrap: wrap;
+	}
+	.req-body,
+	.iv-body {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+	.iv-body {
+		flex-direction: row;
+		align-items: center;
+		gap: 8px;
+	}
+	.req-who {
+		font-size: 13px;
+		font-weight: 700;
+		color: $text;
+	}
+	.req-detail,
+	.iv-when {
+		font-size: 12px;
+		color: $text-muted;
+	}
+	.swap-line {
+		color: $yellow-primary;
+	}
+	.req-note {
+		font-size: 12px;
+		font-style: italic;
+		color: $text-muted;
+	}
+	.req-actions {
+		display: flex;
+		gap: 6px;
+	}
+	.dialog-sub {
+		font-size: 13px;
+		color: $text-muted;
+		margin: 0 0 12px;
+	}
+	.radio-row {
+		display: flex;
+		align-items: flex-start;
+		gap: 8px;
+		font-size: 13px;
+		color: $text;
+		margin: 5px 0;
+		cursor: pointer;
+	}
+	.radio-row input {
+		margin-top: 3px;
+	}
+	.note {
+		font-size: 12px;
+		margin: 0;
+	}
+	.close-btn {
+		font-size: 24px;
+		line-height: 1;
+	}
+	.progress-note {
+		font-size: 12px;
+		color: $text-muted;
+		margin-right: auto;
+	}
 
 	.placeholder {
 		padding: 20px;
