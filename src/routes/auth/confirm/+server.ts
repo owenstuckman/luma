@@ -44,7 +44,13 @@ export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 	 * `next` is preserved for now, because it's needed in the error case.
 	 */
 	const redirectTo = new URL(url);
-	redirectTo.pathname = next;
+	// Split the path from any query string the caller passed. Assigning a value
+	// like "/private/x/evaluate?interview=3562" straight to `.pathname` percent-
+	// encodes the "?" into "%3F", producing a 404 on a link that looked right —
+	// so a deep link with parameters has to be applied in two pieces.
+	const [nextPath, nextQuery] = next.split('?');
+	redirectTo.pathname = nextPath;
+	if (nextQuery) redirectTo.search = nextQuery;
 	for (const p of ['token_hash', 'type', 'code', 'error', 'error_code', 'error_description']) {
 		redirectTo.searchParams.delete(p);
 	}

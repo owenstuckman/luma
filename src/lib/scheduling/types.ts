@@ -96,6 +96,16 @@ export interface BatchSessionWindow {
 	date: string; // YYYY-MM-DD
 	startTime: string; // HH:mm
 	endTime: string; // HH:mm
+	/**
+	 * Rooms booked for THIS window only. Real bookings are per-day — a room is
+	 * reserved Friday but not Wednesday, and two rooms on the same evening can
+	 * start half an hour apart — so a single list shared across every window
+	 * would schedule interviews into rooms nobody reserved.
+	 *
+	 * Empty or omitted falls back to the config-level `rooms`, which keeps every
+	 * schedule built before per-window rooms existed working unchanged.
+	 */
+	rooms?: string[];
 }
 
 export interface AttributeMatchRule {

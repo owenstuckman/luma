@@ -4,6 +4,7 @@ import type {
 	SchedulerOutput,
 	ProposedInterview,
 	UnmatchedApplicant,
+	BatchRound,
 	BatchSchedulerConfig,
 	BatchRoundStat,
 	SuggestedSlot,
@@ -212,7 +213,10 @@ export const batchScheduler: SchedulingAlgorithm = {
 		const { applicants, interviewers, existingInterviews } = input;
 
 		// ── Validate config ────────────────────────────────────────────────────
-		if (!cfg.rooms?.length) {
+		// Rooms may be set per session window instead of globally, so the config is
+		// only roomless when NEITHER carries any.
+		const anyWindowRooms = (cfg.sessionWindows ?? []).some((w) => (w.rooms?.length ?? 0) > 0);
+		if (!cfg.rooms?.length && !anyWindowRooms) {
 			return {
 				interviews: [],
 				unmatched: applicants.map((a) => a.email),
@@ -264,153 +268,249 @@ export const batchScheduler: SchedulingAlgorithm = {
 			relaxedPerRound.set(round.id, new Set());
 		}
 
-		// ── Assign interviewers to slots ───────────────────────────────────────
-		for (const slot of allSlots) {
-			const needed = slot.round.interviewersPerRoom;
-			const available = interviewers.filter((iv) => {
-				if (!iv.availability.length) return true;
-				return applicantAvailableAt(iv.availability, slot.date, slot.startMins, slot.endMins);
-			});
+		// ── Occupancy, shared across every round ───────────────────────────────
+		//
+		// Rounds used to be laid out independently, so the group and individual
+		// passes each believed they had the whole room list to themselves and
+		// happily booked MCB 207 for both at 17:00. Interviewers were worse:
+		// every generated slot was pre-assigned staff up front, and when nobody
+		// was free a round-robin fallback assigned them anyway — putting one
+		// person in two rooms at once. Both are now tracked here and consulted
+		// before any placement.
+		interface Booking {
+			date: string;
+			startMins: number;
+			endMins: number;
+		}
+		const roomBookings = new Map<string, Booking[]>();
+		const ivBookings = new Map<string, Booking[]>();
+		/** Slots that have become real sessions — room and staff already held. */
+		const openedSlots = new Set<string>();
 
+		const clashes = (list: Booking[] | undefined, date: string, s0: number, e0: number) =>
+			(list ?? []).some((b) => b.date === date && s0 < b.endMins && e0 > b.startMins);
+		const roomFree = (room: string, date: string, s0: number, e0: number) =>
+			!clashes(roomBookings.get(room), date, s0, e0);
+		const ivFree = (email: string, date: string, s0: number, e0: number) =>
+			!clashes(ivBookings.get(email), date, s0, e0);
+		const book = (map: Map<string, Booking[]>, key: string, b: Booking) => {
+			const l = map.get(key) ?? [];
+			l.push(b);
+			map.set(key, l);
+		};
+
+		/** Staff who are both free and willing (available) at this time. */
+		function staffFor(slot: RoomSlot, needed: number): string[] {
 			const picked: string[] = [];
-			for (const iv of available) {
+			for (const iv of interviewers) {
 				if (picked.length >= needed) break;
-				if (interviewerFreeAt(iv.email, slot.date, slot.startMins, slot.endMins, allSlots)) {
-					picked.push(iv.email);
-				}
+				const willing =
+					!iv.availability.length ||
+					applicantAvailableAt(iv.availability, slot.date, slot.startMins, slot.endMins);
+				if (!willing) continue;
+				if (!ivFree(iv.email, slot.date, slot.startMins, slot.endMins)) continue;
+				picked.push(iv.email);
 			}
+			return picked;
+		}
 
-			if (picked.length < needed && interviewers.length > 0) {
-				const slotIndex = allSlots.indexOf(slot);
-				for (let i = picked.length; i < needed; i++) {
-					const iv = interviewers[(slotIndex + i) % interviewers.length];
-					if (!picked.includes(iv.email)) picked.push(iv.email);
-				}
-			}
+		/**
+		 * Can this slot take one more applicant? A slot already running is only
+		 * capacity-limited; a fresh one must also find a free room and enough
+		 * free staff, and opening it holds both.
+		 */
+		function slotUsable(slot: RoomSlot): boolean {
+			if (slot.assignedApplicants.length >= slot.round.groupSize) return false;
+			if (openedSlots.has(slot.id)) return true;
+			if (!roomFree(slot.room, slot.date, slot.startMins, slot.endMins)) return false;
+			return (
+				staffFor(slot, slot.round.interviewersPerRoom).length >= slot.round.interviewersPerRoom
+			);
+		}
 
-			slot.assignedInterviewers = picked;
-
-			if (picked.length < needed) {
+		function openSlot(slot: RoomSlot) {
+			if (openedSlots.has(slot.id)) return;
+			const staff = staffFor(slot, slot.round.interviewersPerRoom);
+			slot.assignedInterviewers = staff;
+			const b = { date: slot.date, startMins: slot.startMins, endMins: slot.endMins };
+			book(roomBookings, slot.room, b);
+			for (const e of staff) book(ivBookings, e, b);
+			openedSlots.add(slot.id);
+			if (staff.length < slot.round.interviewersPerRoom) {
 				warnings.push(
-					`Slot ${slot.id}: needed ${needed} interviewer(s), only ${picked.length} available.`
+					`${slot.room} ${slot.date} ${slot.startTime}: wanted ${slot.round.interviewersPerRoom} interviewer(s), found ${staff.length}.`
 				);
 			}
 		}
 
-		// ── Fill slots with applicants (strict pass) ───────────────────────────
+		function emit(
+			applicant: SchedulerInput['applicants'][number],
+			slot: RoomSlot,
+			violations: ScheduleViolation[]
+		) {
+			openSlot(slot);
+			slot.assignedApplicants.push(applicant.email);
+			for (const ivEmail of slot.assignedInterviewers) {
+				proposed.push({
+					startTime: toISO(slot.date, slot.startTime),
+					endTime: toISO(slot.date, slot.endTime),
+					applicant: applicant.email,
+					interviewer: ivEmail || 'tbd',
+					location: slot.room,
+					type: slot.round.type,
+					jobId: applicant.jobId,
+					violations: violations.length > 0 ? violations : undefined
+				});
+			}
+		}
+
+		const slotsByRound = new Map<string, RoomSlot[]>();
 		for (const round of cfg.rounds) {
-			const roundSlots = allSlots.filter((s) => s.round.id === round.id);
+			slotsByRound.set(
+				round.id,
+				allSlots.filter((s0) => s0.round.id === round.id)
+			);
+		}
 
-			// Sort applicants: high priority first, then most-constrained first
-			const sortedApplicants = [...applicants].sort((a, b) => {
-				const priorityDiff = (b.priority ?? 0) - (a.priority ?? 0);
-				if (priorityDiff !== 0) return priorityDiff;
-				const aCount = roundSlots.filter((s) =>
-					applicantAvailableAt(a.availability, s.date, s.startMins, s.endMins)
-				).length;
-				const bCount = roundSlots.filter((s) =>
-					applicantAvailableAt(b.availability, s.date, s.startMins, s.endMins)
-				).length;
-				return aCount - bCount;
-			});
+		/** Where an applicant's earlier round finished, so the next can follow it. */
+		const lastEnd = new Map<string, { date: string; endMins: number }>();
 
-			for (const applicant of sortedApplicants) {
-				if (assignedPerRound.get(round.id)?.has(applicant.email)) continue;
+		function place(
+			applicant: SchedulerInput['applicants'][number],
+			round: BatchRound,
+			roundSlots: RoomSlot[],
+			relaxed: boolean,
+			nextRound?: BatchRound
+		): boolean {
+			const prior = lastEnd.get(applicant.email);
 
-				const best = pickBestSlot(
-					applicant,
-					roundSlots,
-					round.groupSize,
-					interviewers,
-					attributeRules,
-					proposed,
-					existingInterviews,
-					false, // strict: no availability violations
-					0
-				);
+			// Chained: this round must follow the previous one on the SAME day,
+			// after its break. Sorted by start time so the FIRST usable slot is the
+			// tightest gap — that is what puts the group and individual back to
+			// back, and it spreads load as a side effect, because a block occupies
+			// a contiguous run instead of grabbing the earliest free slot anywhere.
+			if (prior) {
+				const chained = roundSlots
+					.filter(
+						(s0) =>
+							s0.date === prior.date && s0.startMins >= prior.endMins + round.breakBeforeMinutes
+					)
+					.sort((a, b) => a.startMins - b.startMins);
 
-				if (!best) continue;
-
-				best.slot.assignedApplicants.push(applicant.email);
-				assignedPerRound.get(round.id)!.add(applicant.email);
-
-				for (const ivEmail of best.slot.assignedInterviewers) {
-					proposed.push({
-						startTime: toISO(best.slot.date, best.slot.startTime),
-						endTime: toISO(best.slot.date, best.slot.endTime),
-						applicant: applicant.email,
-						interviewer: ivEmail || 'tbd',
-						location: best.slot.room,
-						type: round.type,
-						jobId: applicant.jobId,
-						violations: best.violations.length > 0 ? best.violations : undefined
-					});
+				for (const slot of chained) {
+					if (!slotUsable(slot)) continue;
+					const free = applicantAvailableAt(
+						applicant.availability,
+						slot.date,
+						slot.startMins,
+						slot.endMins
+					);
+					if (!free && !relaxed) continue;
+					if (
+						applicantHasConflict(
+							applicant.email,
+							slot.date,
+							slot.startMins,
+							slot.endMins,
+							proposed,
+							existingInterviews
+						)
+					)
+						continue;
+					emit(
+						applicant,
+						slot,
+						free
+							? []
+							: [
+									{
+										type: 'availability',
+										detail: 'Applicant unavailable at this time — relaxed placement, please confirm'
+									}
+								]
+					);
+					assignedPerRound.get(round.id)!.add(applicant.email);
+					if (!free) relaxedPerRound.get(round.id)!.add(applicant.email);
+					lastEnd.set(applicant.email, { date: slot.date, endMins: slot.endMins });
+					return true;
 				}
+			}
+
+			// Unchained: first round, or nothing adjacent was left.
+			let usable = roundSlots.filter(slotUsable);
+			if (usable.length === 0) return false;
+
+			// Lookahead: don't commit to a slot the next round cannot follow. Without
+			// this the group round grabs whatever is free, and the individual that
+			// should sit right after it gets pushed to another day because the rooms
+			// and staff behind that moment are already spoken for.
+			if (nextRound) {
+				const nextSlots = slotsByRound.get(nextRound.id) ?? [];
+				const withFollowOn = usable.filter((s0) =>
+					nextSlots.some(
+						(n) =>
+							n.date === s0.date &&
+							n.startMins >= s0.endMins + nextRound.breakBeforeMinutes &&
+							slotUsable(n) &&
+							applicantAvailableAt(applicant.availability, n.date, n.startMins, n.endMins)
+					)
+				);
+				if (withFollowOn.length > 0) usable = withFollowOn;
+			}
+			const best = pickBestSlot(
+				applicant,
+				usable,
+				round.groupSize,
+				interviewers,
+				attributeRules,
+				proposed,
+				existingInterviews,
+				relaxed,
+				relaxedPenalty
+			);
+			if (!best) return false;
+			emit(applicant, best.slot, best.violations);
+			assignedPerRound.get(round.id)!.add(applicant.email);
+			if (best.violations.length > 0) relaxedPerRound.get(round.id)!.add(applicant.email);
+			lastEnd.set(applicant.email, { date: best.slot.date, endMins: best.slot.endMins });
+			return true;
+		}
+
+		// ── Fill applicant by applicant, so each person's block stays together ──
+		//
+		// Round-major ordering placed every group session first and only then went
+		// looking for individuals, by which point the adjacent slots were gone and
+		// most candidates ended up with their two interviews on different days.
+		// Allocating one applicant's whole block before moving on keeps them
+		// together.
+		const orderedApplicants = [...applicants].sort((a, b) => {
+			const priorityDiff = (b.priority ?? 0) - (a.priority ?? 0);
+			if (priorityDiff !== 0) return priorityDiff;
+			// Most constrained first: fewest slots they could possibly attend.
+			const count = (x: typeof a) =>
+				allSlots.filter((s0) =>
+					applicantAvailableAt(x.availability, s0.date, s0.startMins, s0.endMins)
+				).length;
+			return count(a) - count(b);
+		});
+
+		for (const applicant of orderedApplicants) {
+			for (let r = 0; r < cfg.rounds.length; r++) {
+				const round = cfg.rounds[r];
+				if (assignedPerRound.get(round.id)?.has(applicant.email)) continue;
+				place(applicant, round, slotsByRound.get(round.id)!, false, cfg.rounds[r + 1]);
 			}
 		}
 
 		// ── Relaxed second pass ────────────────────────────────────────────────
 		let relaxedCount = 0;
-
 		if (relaxedFallback) {
-			for (const round of cfg.rounds) {
-				const roundSlots = allSlots.filter((s) => s.round.id === round.id);
-
-				// Only process applicants not yet assigned in this round
-				const unassigned = applicants.filter((a) => !assignedPerRound.get(round.id)?.has(a.email));
-
-				// Keep priority + constrained ordering for the relaxed pass
-				const sorted = [...unassigned].sort((a, b) => {
-					const priorityDiff = (b.priority ?? 0) - (a.priority ?? 0);
-					if (priorityDiff !== 0) return priorityDiff;
-					// In relaxed pass, sort by fewest non-full slots (most constrained first)
-					const aCount = roundSlots.filter(
-						(s) =>
-							s.assignedApplicants.length < round.groupSize &&
-							applicantAvailableAt(a.availability, s.date, s.startMins, s.endMins)
-					).length;
-					const bCount = roundSlots.filter(
-						(s) =>
-							s.assignedApplicants.length < round.groupSize &&
-							applicantAvailableAt(b.availability, s.date, s.startMins, s.endMins)
-					).length;
-					return aCount - bCount;
-				});
-
-				for (const applicant of sorted) {
+			for (const applicant of orderedApplicants) {
+				for (let r = 0; r < cfg.rounds.length; r++) {
+					const round = cfg.rounds[r];
 					if (assignedPerRound.get(round.id)?.has(applicant.email)) continue;
-
-					const best = pickBestSlot(
-						applicant,
-						roundSlots,
-						round.groupSize,
-						interviewers,
-						attributeRules,
-						proposed,
-						existingInterviews,
-						true, // relaxed: allow availability violations
-						relaxedPenalty
-					);
-
-					if (!best) continue;
-
-					best.slot.assignedApplicants.push(applicant.email);
-					assignedPerRound.get(round.id)!.add(applicant.email);
-					relaxedPerRound.get(round.id)!.add(applicant.email);
-					relaxedCount++;
-
-					for (const ivEmail of best.slot.assignedInterviewers) {
-						proposed.push({
-							startTime: toISO(best.slot.date, best.slot.startTime),
-							endTime: toISO(best.slot.date, best.slot.endTime),
-							applicant: applicant.email,
-							interviewer: ivEmail || 'tbd',
-							location: best.slot.room,
-							type: round.type,
-							jobId: applicant.jobId,
-							violations: best.violations.length > 0 ? best.violations : undefined
-						});
-					}
+					if (place(applicant, round, slotsByRound.get(round.id)!, true, cfg.rounds[r + 1]))
+						relaxedCount++;
 				}
 			}
 		}

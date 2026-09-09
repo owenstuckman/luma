@@ -79,6 +79,20 @@
 		}
 	];
 	let batchSessions: BatchSessionWindow[] = [];
+	/**
+	 * Raw room text per session window, parallel to `batchSessions`. Kept as text
+	 * so a booking list can be pasted in whatever shape it arrives; parsed on
+	 * save. Real bookings differ per day, so a single shared list would schedule
+	 * interviews into rooms that were never reserved that evening.
+	 */
+	let sessionRoomsText: string[] = [];
+	let newSessionRooms = '';
+	/**
+	 * Applications are split per team (00024), so someone who picked two teams
+	 * appears twice and would be scheduled twice. Round 1 interviews the person
+	 * once, so collapse to one row per candidate by default.
+	 */
+	let uniqueCandidatesOnly = true;
 	let newSessionDate = '';
 	let newSessionStart = '09:00';
 	let newSessionEnd = '17:00';
@@ -146,8 +160,12 @@
 						if (savedRooms) batchRoomsText = savedRooms;
 						if (Array.isArray(cfg.rounds) && cfg.rounds.length)
 							batchRounds = cfg.rounds as BatchRound[];
-						if (Array.isArray(cfg.sessionWindows))
+						if (Array.isArray(cfg.sessionWindows)) {
 							batchSessions = cfg.sessionWindows as BatchSessionWindow[];
+							sessionRoomsText = batchSessions.map((w) => (w.rooms ?? []).join('\n'));
+						}
+						if (typeof cfg.uniqueCandidatesOnly === 'boolean')
+							uniqueCandidatesOnly = cfg.uniqueCandidatesOnly;
 						if (typeof cfg.slotStepMinutes === 'number') batchSlotStep = cfg.slotStepMinutes;
 						if (typeof cfg.blockBreakMinutes === 'number') batchBlockBreak = cfg.blockBreakMinutes;
 						if (typeof cfg.requireAllRounds === 'boolean') batchRequireAll = cfg.requireAllRounds;
@@ -216,7 +234,15 @@
 			const activeAttrRules =
 				batchAttrEnabled && schedAlgorithmId === 'batch-scheduler' ? batchAttrRules : [];
 
-			const schedulerApplicants = filtered.map((a) => ({
+			// One row per person when requested: keep the first application seen for
+			// each address, so a two-team candidate is interviewed once.
+			const deduped = uniqueCandidatesOnly
+				? Array.from(
+						filtered.reduce((m, a) => (m.has(a.email) ? m : m.set(a.email, a)), new Map()).values()
+					)
+				: filtered;
+
+			const schedulerApplicants = deduped.map((a) => ({
 				email: a.email,
 				name: a.name,
 				jobId: a.job || 0,
@@ -284,7 +310,11 @@
 					? {
 							rooms: batchRooms,
 							rounds: batchRounds,
-							sessionWindows: batchSessions,
+							sessionWindows: batchSessions.map((w, i) => ({
+								...w,
+								rooms: parseRoomList(sessionRoomsText[i] ?? '')
+							})),
+							uniqueCandidatesOnly,
 							slotStepMinutes: batchSlotStep,
 							blockBreakMinutes: batchBlockBreak,
 							requireAllRounds: batchRequireAll,
@@ -431,12 +461,20 @@
 		if (!newSessionDate || !newSessionStart || !newSessionEnd) return;
 		batchSessions = [
 			...batchSessions,
-			{ date: newSessionDate, startTime: newSessionStart, endTime: newSessionEnd }
+			{
+				date: newSessionDate,
+				startTime: newSessionStart,
+				endTime: newSessionEnd,
+				rooms: parseRoomList(newSessionRooms)
+			}
 		];
+		sessionRoomsText = [...sessionRoomsText, newSessionRooms];
+		newSessionRooms = '';
 		newSessionDate = '';
 	}
 	function removeSession(i: number) {
 		batchSessions = batchSessions.filter((_, idx) => idx !== i);
+		sessionRoomsText = sessionRoomsText.filter((_, idx) => idx !== i);
 	}
 	function addAttrRule() {
 		if (!newRuleQId.trim() || !newRuleAttrKey.trim()) return;
@@ -548,14 +586,42 @@
 						</span>
 					</div>
 
+					<div class="field">
+						<label class="check-row">
+							<input type="checkbox" bind:checked={uniqueCandidatesOnly} />
+							<span>
+								<strong>One interview per candidate</strong> — applications are stored per team, so someone
+								who picked two teams appears twice. Leave this on for round 1 to schedule each person
+								once instead of once per team.
+							</span>
+						</label>
+					</div>
+
 					<!-- Session windows -->
 					<div class="field">
 						<label class="field-label">Session Windows</label>
 						{#each batchSessions as session, i}
-							<div class="session-row">
-								<span class="row-name">{session.date}</span>
-								<span class="row-sub">{session.startTime} – {session.endTime}</span>
-								<button class="btn btn-danger btn-sm" on:click={() => removeSession(i)}>×</button>
+							<div class="session-block">
+								<div class="session-row">
+									<span class="row-name">{session.date}</span>
+									<span class="row-sub">{session.startTime} – {session.endTime}</span>
+									<button class="btn btn-danger btn-sm" on:click={() => removeSession(i)}>×</button>
+								</div>
+								<textarea
+									class="form-control session-rooms"
+									rows="3"
+									bind:value={sessionRoomsText[i]}
+									placeholder="Rooms booked for this day — one per line or comma separated.&#10;MCB 238 @ 5-9PM"
+								></textarea>
+								<span class="field-hint hint-block">
+									{#if parseRoomList(sessionRoomsText[i] ?? '').length === 0}
+										No rooms for this day — falls back to the shared list above.
+									{:else}
+										{@const r = parseRoomList(sessionRoomsText[i] ?? '')}
+										<strong>{r.length} room{r.length === 1 ? '' : 's'}</strong>:
+										{r.slice(0, 6).join(', ')}{r.length > 6 ? ` +${r.length - 6} more` : ''}
+									{/if}
+								</span>
 							</div>
 						{/each}
 						{#if batchSessions.length === 0}
@@ -583,6 +649,12 @@
 							/>
 							<button class="btn btn-primary btn-sm" on:click={addSession}>Add</button>
 						</div>
+						<textarea
+							class="form-control session-rooms"
+							rows="2"
+							bind:value={newSessionRooms}
+							placeholder="Rooms for the day you're adding (optional — one per line or comma separated)"
+						></textarea>
 					</div>
 
 					<!-- Rounds -->
@@ -1178,6 +1250,29 @@
 		}
 	}
 
+	.session-block {
+		border: 1px solid $border;
+		border-radius: $radius-sm;
+		padding: 8px 10px;
+		margin-bottom: 8px;
+		background: $surface-sunken;
+	}
+	.session-rooms {
+		margin-top: 6px;
+		font-size: 12px;
+	}
+	.check-row {
+		display: flex;
+		align-items: flex-start;
+		gap: 8px;
+		font-size: 13px;
+		color: $text;
+		cursor: pointer;
+	}
+	.check-row input {
+		margin-top: 3px;
+		flex-shrink: 0;
+	}
 	.session-row {
 		display: flex;
 		align-items: center;

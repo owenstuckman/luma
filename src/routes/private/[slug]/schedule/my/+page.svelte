@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
 	import { supabase } from '$lib/utils/supabase';
 	import { getInterviewsByInterviewer, getCurrentUserEmail } from '$lib/utils/supabase';
 	import Sidebar from '$lib/components/recruiter/Sidebar.svelte';
@@ -70,7 +71,16 @@
 			views: [createViewWeek(), createViewDay(), createViewMonthGrid()],
 			events,
 			selectedDate: defaultDate,
-			dayBoundaries: { start: '07:00', end: '22:00' }
+			dayBoundaries: { start: '07:00', end: '22:00' },
+			callbacks: {
+				// Clicking an interview opens its evaluation form directly. The
+				// interviewer is standing in front of the candidate when they need
+				// it, so making them find the person again on /evaluate is a step
+				// too many.
+				onEventClick(calendarEvent: { id: string | number }) {
+					goto(`/private/${slug}/evaluate?interview=${calendarEvent.id}`);
+				}
+			}
 		});
 	}
 

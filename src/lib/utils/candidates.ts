@@ -10,6 +10,11 @@
 // table degrades that slice of the timeline instead of breaking the page.
 
 import { supabase } from '$lib/utils/supabase';
+import {
+	readEvaluation as readEvaluationPayload,
+	evaluationScore
+} from '$lib/utils/interviewForms';
+import type { Evaluation } from '$lib/utils/interviewForms';
 import type { Applicant, Decision, DecisionOutcome, Team } from '$lib/types';
 
 /** Where a candidate sits in the pipeline, derived from their data. */
@@ -164,19 +169,16 @@ function sortInterviews(list: InterviewLite[]): InterviewLite[] {
 	);
 }
 
-interface EvaluationPayload {
-	rating?: number;
-	recommendation?: string;
-	strengths?: string;
-	weaknesses?: string;
-	notes?: string;
-	evaluator?: string;
-	evaluatedAt?: string;
-}
-
-function readEvaluation(iv: InterviewLite): EvaluationPayload | null {
-	const raw = iv.comments?.evaluation;
-	return raw && typeof raw === 'object' ? (raw as EvaluationPayload) : null;
+/**
+ * Read an interview's evaluation, whichever form it was filled on.
+ *
+ * Three shapes coexist: the pre-2026 single 1-5 star rating, and the individual
+ * and group forms added for Fall 2026. `readEvaluationPayload` normalizes all
+ * three; `evaluationScore` puts them on one 1-10 scale so a roster mixing old
+ * and new interviews can still be sorted by score.
+ */
+function readEvaluation(iv: InterviewLite): Evaluation | null {
+	return readEvaluationPayload(iv.comments?.evaluation);
 }
 
 /**
@@ -256,8 +258,9 @@ export const getCandidates = async (
 			...(interviewsByApplicantId.get(a.id) ?? []),
 			...(legacyInterviewsByEmail.get(a.email.toLowerCase()) ?? [])
 		]);
+		// Normalised to 1-10 across both form generations — see evaluationScore().
 		const ratings = interviews
-			.map((iv) => readEvaluation(iv)?.rating)
+			.map((iv) => evaluationScore(readEvaluation(iv)))
 			.filter((r): r is number => typeof r === 'number' && r > 0);
 
 		const team = resolveApplicationTeam(a, teams);
@@ -426,9 +429,12 @@ export const getCandidateTimeline = async (
 				kind: 'evaluation',
 				at: evaluation.evaluatedAt ?? iv.start_time,
 				title: `Round ${round} evaluation submitted`,
-				detail: typeof evaluation.rating === 'number' ? `${evaluation.rating}/5` : undefined,
+				detail: (() => {
+					const score = evaluationScore(evaluation);
+					return score === null ? undefined : `${score.toFixed(1)}/10`;
+				})(),
 				actor: evaluation.evaluator ?? iv.interviewer ?? undefined,
-				tag: evaluation.recommendation
+				tag: evaluation.form === 'legacy' ? evaluation.recommendation : evaluation.form
 			});
 		}
 	});

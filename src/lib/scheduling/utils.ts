@@ -205,6 +205,10 @@ export function generateRoomSlots(
 	for (const window of sessionWindows) {
 		const windowStart = toMinutes(window.startTime);
 		const windowEnd = toMinutes(window.endTime);
+		// Per-window rooms win; the shared list is the fallback for configs that
+		// predate them.
+		const windowRooms = window.rooms && window.rooms.length > 0 ? window.rooms : rooms;
+		if (windowRooms.length === 0) continue;
 
 		for (const round of rounds) {
 			const duration = round.durationMinutes;
@@ -215,7 +219,7 @@ export function generateRoomSlots(
 				const startTime = fromMinutes(cursor);
 				const endTime = fromMinutes(cursor + duration);
 
-				for (const room of rooms) {
+				for (const room of windowRooms) {
 					slots.push({
 						id: `${window.date}-${room}-${round.id}-${slotIndex}`,
 						room,
