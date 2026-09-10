@@ -89,6 +89,13 @@ export interface BatchRound {
 	durationMinutes: number;
 	breakBeforeMinutes: number; // gap before this round starts (within a block)
 	groupSize: number; // applicants per slot (1 for individual)
+	/**
+	 * Fewest applicants a session may run with. A group interview assesses how
+	 * people behave in a group, so a "group" of one measures nothing — but the
+	 * scheduler will happily leave a straggler alone in a room unless told not
+	 * to. Omitted or 1 means no floor.
+	 */
+	minGroupSize?: number;
 	interviewersPerRoom: number; // interviewers assigned per slot
 }
 

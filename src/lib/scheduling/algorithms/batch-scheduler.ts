@@ -13,6 +13,7 @@ import type {
 } from '../types';
 import {
 	toISO,
+	toMinutes,
 	generateRoomSlots,
 	applicantAvailableAt,
 	applicantHasConflict,
@@ -302,12 +303,42 @@ export const batchScheduler: SchedulingAlgorithm = {
 
 		/** Staff who are both free and willing (available) at this time. */
 		/**
-		 * Sessions each interviewer is already running, so staffing can spread.
-		 * Picking in array order meant whoever sorted first absorbed every early
-		 * slot — one person ended up on 58 interviews while another had 3.
+		 * Minutes each interviewer is already booked for, and the minutes they
+		 * offered. Staffing goes to whoever has used the least of what they GAVE,
+		 * not whoever has the fewest sessions.
+		 *
+		 * Balancing raw session counts looks fair and isn't: it treats someone who
+		 * offered three hours the same as someone who offered twenty-three, so the
+		 * generous end of the team stays idle while the people who could barely
+		 * spare an evening get filled up. Utilisation asks the only question that
+		 * matters — how much of your time have we actually taken?
 		 */
-		const ivLoad = new Map<string, number>();
-		for (const iv of interviewers) ivLoad.set(iv.email, 0);
+		const ivBookedMins = new Map<string, number>();
+		const ivOfferedMins = new Map<string, number>();
+		for (const iv of interviewers) {
+			ivBookedMins.set(iv.email, 0);
+			// Capacity is the availability that INTERSECTS a session window, not
+			// everything they offered. Someone who gave four hours on a day that was
+			// later dropped, or an hour that runs past when the rooms are ours, has
+			// no usable capacity there — counting it makes them look under-used and
+			// starves the people who genuinely are.
+			const usable = iv.availability.length
+				? iv.availability.reduce((total, r) => {
+						const rs = toMinutes(r.start);
+						const re = toMinutes(r.end);
+						for (const w of cfg.sessionWindows ?? []) {
+							if (w.date !== r.date) continue;
+							const overlap =
+								Math.min(re, toMinutes(w.endTime)) - Math.max(rs, toMinutes(w.startTime));
+							if (overlap > 0) total += overlap;
+						}
+						return total;
+					}, 0)
+				: Number.MAX_SAFE_INTEGER;
+			ivOfferedMins.set(iv.email, Math.max(usable, 1));
+		}
+		const utilisation = (email: string) =>
+			(ivBookedMins.get(email) ?? 0) / (ivOfferedMins.get(email) ?? 1);
 
 		function staffFor(slot: RoomSlot, needed: number): string[] {
 			const eligible = interviewers.filter((iv) => {
@@ -316,9 +347,9 @@ export const batchScheduler: SchedulingAlgorithm = {
 					applicantAvailableAt(iv.availability, slot.date, slot.startMins, slot.endMins);
 				return willing && ivFree(iv.email, slot.date, slot.startMins, slot.endMins);
 			});
-			// Least-loaded first; email as a tiebreak so a run is reproducible.
+			// Least-utilised first; email as a tiebreak so a run is reproducible.
 			eligible.sort((a, b) => {
-				const d = (ivLoad.get(a.email) ?? 0) - (ivLoad.get(b.email) ?? 0);
+				const d = utilisation(a.email) - utilisation(b.email);
 				return d !== 0 ? d : a.email.localeCompare(b.email);
 			});
 			return eligible.slice(0, needed).map((iv) => iv.email);
@@ -329,7 +360,11 @@ export const batchScheduler: SchedulingAlgorithm = {
 		 * capacity-limited; a fresh one must also find a free room and enough
 		 * free staff, and opening it holds both.
 		 */
+		/** Sessions abandoned by the re-home pass; never reopen them. */
+		const blockedSlots = new Set<string>();
+
 		function slotUsable(slot: RoomSlot): boolean {
+			if (blockedSlots.has(slot.id)) return false;
 			if (slot.assignedApplicants.length >= slot.round.groupSize) return false;
 			if (openedSlots.has(slot.id)) return true;
 			if (!roomFree(slot.room, slot.date, slot.startMins, slot.endMins)) return false;
@@ -346,7 +381,8 @@ export const batchScheduler: SchedulingAlgorithm = {
 			book(roomBookings, slot.room, b);
 			for (const e of staff) book(ivBookings, e, b);
 			openedSlots.add(slot.id);
-			for (const e of staff) ivLoad.set(e, (ivLoad.get(e) ?? 0) + 1);
+			const mins = slot.endMins - slot.startMins;
+			for (const e of staff) ivBookedMins.set(e, (ivBookedMins.get(e) ?? 0) + mins);
 			if (staff.length < slot.round.interviewersPerRoom) {
 				warnings.push(
 					`${slot.room} ${slot.date} ${slot.startTime}: wanted ${slot.round.interviewersPerRoom} interviewer(s), found ${staff.length}.`
@@ -391,7 +427,13 @@ export const batchScheduler: SchedulingAlgorithm = {
 			round: BatchRound,
 			roundSlots: RoomSlot[],
 			relaxed: boolean,
-			nextRound?: BatchRound
+			nextRound?: BatchRound,
+			/**
+			 * Refuse the cross-day fallback. Used when repairing a session: moving
+			 * someone's group and then letting their individual land on another day
+			 * turns one weak group into a second trip across town, which is worse.
+			 */
+			sameDayOnly = false
 		): boolean {
 			const prior = lastEnd.get(applicant.email);
 
@@ -448,6 +490,7 @@ export const batchScheduler: SchedulingAlgorithm = {
 			}
 
 			// Unchained: first round, or nothing adjacent was left.
+			if (sameDayOnly && prior) return false;
 			let usable = roundSlots.filter(slotUsable);
 			if (usable.length === 0) return false;
 
@@ -458,6 +501,24 @@ export const batchScheduler: SchedulingAlgorithm = {
 			if (relaxed && relaxedDates.length > 0) {
 				const preferred = usable.filter((s0) => relaxedDates.includes(s0.date));
 				if (preferred.length > 0) usable = preferred;
+			}
+
+			// Consolidate: an already-running session with room is preferred over
+			// opening a fresh one. Without this every applicant starts a new session
+			// wherever it scores best, and the last few of a day end up sitting alone
+			// in a room — which is not a group interview at all.
+			if (round.groupSize > 1) {
+				// Only sessions this applicant can ACTUALLY attend. Preferring an open
+				// session regardless of availability forced people into times they had
+				// said no to — it traded a handful of lonely sessions for dozens of
+				// availability overrides, which is a far worse deal.
+				const joinable = usable.filter(
+					(s0) =>
+						openedSlots.has(s0.id) &&
+						s0.assignedApplicants.length > 0 &&
+						applicantAvailableAt(applicant.availability, s0.date, s0.startMins, s0.endMins)
+				);
+				if (joinable.length > 0) usable = joinable;
 			}
 
 			// Lookahead: don't commit to a slot the next round cannot follow. Without
@@ -535,6 +596,144 @@ export const batchScheduler: SchedulingAlgorithm = {
 					if (assignedPerRound.get(round.id)?.has(applicant.email)) continue;
 					if (place(applicant, round, slotsByRound.get(round.id)!, true, cfg.rounds[r + 1]))
 						relaxedCount++;
+				}
+			}
+		}
+
+		// ── Re-home under-filled group sessions ────────────────────────────────
+		//
+		// Consolidation stops most stragglers, but the last applicant of a day can
+		// still open a session nobody else can join. A group of one measures
+		// nothing, so that session is abandoned and its applicants are scheduled
+		// again from scratch with it blocked — which sends them into an existing
+		// session instead. Their later rounds are torn down too, otherwise the
+		// individual would still be chained to the group time they just left.
+		for (const round of cfg.rounds) {
+			const floor = round.minGroupSize ?? 1;
+			if (floor <= 1) continue;
+
+			// Bounded: each pass blocks at least one slot, so it cannot cycle.
+			for (let attempt = 0; attempt < 10; attempt++) {
+				const under = allSlots.filter(
+					(s0) =>
+						s0.round.id === round.id &&
+						s0.assignedApplicants.length > 0 &&
+						s0.assignedApplicants.length < floor &&
+						!blockedSlots.has(s0.id)
+				);
+				if (under.length === 0) break;
+
+				for (const slot of under) {
+					// Top up first. With 109 applicants and a cap of six, eighteen full
+					// sessions leave exactly one person over — and every other session
+					// is at capacity, so re-placing them just opens another session of
+					// one. The fix is to BORROW from a session that can spare someone
+					// (one still at or above the floor after losing them) and move them
+					// into this one, turning 6+6+1 into 6+5+2 and onward to the floor.
+					let topped = true;
+					while (slot.assignedApplicants.length < floor && topped) {
+						topped = false;
+						const donors = allSlots.filter(
+							(d) =>
+								d.round.id === round.id &&
+								d.id !== slot.id &&
+								!blockedSlots.has(d.id) &&
+								d.assignedApplicants.length > floor
+						);
+						for (const donor of donors) {
+							const movable = donor.assignedApplicants.find((email) => {
+								const a = applicants.find((x) => x.email === email);
+								if (!a) return false;
+								return applicantAvailableAt(
+									a.availability,
+									slot.date,
+									slot.startMins,
+									slot.endMins
+								);
+							});
+							if (!movable) continue;
+
+							const applicant = applicants.find((x) => x.email === movable)!;
+							// Detach them entirely, then rebuild from this round onward so
+							// their individual re-chains to the session they just joined.
+							for (const other of allSlots) {
+								const i = other.assignedApplicants.indexOf(movable);
+								if (i >= 0) other.assignedApplicants.splice(i, 1);
+							}
+							for (let i = proposed.length - 1; i >= 0; i--) {
+								if (proposed[i].applicant === movable) proposed.splice(i, 1);
+							}
+							for (const r of cfg.rounds) {
+								assignedPerRound.get(r.id)?.delete(movable);
+								relaxedPerRound.get(r.id)?.delete(movable);
+							}
+							lastEnd.delete(movable);
+
+							emit(applicant, slot, []);
+							assignedPerRound.get(round.id)!.add(movable);
+							lastEnd.set(movable, { date: slot.date, endMins: slot.endMins });
+							for (let r = 1; r < cfg.rounds.length; r++) {
+								const rd = cfg.rounds[r];
+								const pool = slotsByRound.get(rd.id)!;
+								// Same day if at all possible; only then anywhere.
+								if (!place(applicant, rd, pool, false, cfg.rounds[r + 1], true))
+									place(applicant, rd, pool, false, cfg.rounds[r + 1]);
+							}
+							topped = true;
+							break;
+						}
+					}
+					if (slot.assignedApplicants.length >= floor) continue;
+
+					const stranded = [...slot.assignedApplicants];
+					blockedSlots.add(slot.id);
+					slot.assignedApplicants = [];
+
+					for (const email of stranded) {
+						// Tear the applicant out of every round and every slot.
+						for (const other of allSlots) {
+							const i = other.assignedApplicants.indexOf(email);
+							if (i >= 0) other.assignedApplicants.splice(i, 1);
+						}
+						for (let i = proposed.length - 1; i >= 0; i--) {
+							if (proposed[i].applicant === email) proposed.splice(i, 1);
+						}
+						for (const r of cfg.rounds) {
+							assignedPerRound.get(r.id)?.delete(email);
+							relaxedPerRound.get(r.id)?.delete(email);
+						}
+						lastEnd.delete(email);
+					}
+
+					for (const email of stranded) {
+						const applicant = applicants.find((a) => a.email === email);
+						if (!applicant) continue;
+						for (let r = 0; r < cfg.rounds.length; r++) {
+							if (assignedPerRound.get(cfg.rounds[r].id)?.has(email)) continue;
+							const rd = cfg.rounds[r];
+							const pool = slotsByRound.get(rd.id)!;
+							if (
+								!place(applicant, rd, pool, false, cfg.rounds[r + 1], true) &&
+								!place(applicant, rd, pool, false, cfg.rounds[r + 1])
+							)
+								break;
+						}
+					}
+				}
+			}
+		}
+
+		// ── Under-filled group sessions ────────────────────────────────────────
+		for (const round of cfg.rounds) {
+			const floor = round.minGroupSize ?? 1;
+			if (floor <= 1) continue;
+			for (const slot of allSlots) {
+				if (slot.round.id !== round.id) continue;
+				const n = slot.assignedApplicants.length;
+				if (n > 0 && n < floor) {
+					warnings.push(
+						`${slot.room} ${slot.date} ${slot.startTime}: ${round.label} has only ${n} applicant(s), below the minimum of ${floor}.`
+					);
 				}
 			}
 		}
