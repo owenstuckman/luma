@@ -65,6 +65,46 @@
 
 	let interviewsByEmail: Record<string, Interview[]> = {};
 
+	/**
+	 * One entry per SESSION, not per interview row.
+	 *
+	 * A group interview is stored one row per (applicant x interviewer), so a
+	 * room of six showed up as six identical-looking rows each with its own
+	 * "Hand off" button — and pressing one moved a single candidate. Reported as
+	 * "he could only transfer one participant". Collapsing here makes the list
+	 * match what the server now does, which is move the whole session.
+	 */
+	const sessionKey = (iv: Interview) => `${iv.location}|${iv.start_time}|${iv.type}`;
+
+	$: mySessions = Object.values(
+		interviews.reduce<Record<string, { lead: Interview; count: number }>>((acc, iv) => {
+			const k = sessionKey(iv);
+			if (acc[k]) acc[k].count += 1;
+			else acc[k] = { lead: iv, count: 1 };
+			return acc;
+		}, {})
+	).sort((a, b) => a.lead.start_time.localeCompare(b.lead.start_time));
+
+	/** Sessions belonging to the chosen recipient, for the swap picker. */
+	/** How many candidates are in the session currently being handed off. */
+	$: transferSessionCount = transferFor
+		? interviews.filter((x) => sessionKey(x) === sessionKey(transferFor!)).length
+		: 0;
+
+	$: theirSessions = Object.values(
+		(theirInterviews ?? []).reduce<Record<string, Interview>>((acc, iv) => {
+			const k = sessionKey(iv);
+			if (!acc[k]) acc[k] = iv;
+			return acc;
+		}, {})
+	).sort((a, b) => a.start_time.localeCompare(b.start_time));
+
+	/** A whole session, with how many candidates are in it. */
+	const sessionLabel = (iv: Interview, n: number) =>
+		iv.type === 'group'
+			? `${new Date(iv.start_time).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} ${new Date(iv.start_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} · ${iv.location} · group of ${n}`
+			: label(iv);
+
 	const label = (iv: Interview | undefined) =>
 		iv
 			? `${new Date(iv.start_time).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} ${new Date(iv.start_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} · ${iv.location} · ${applicantNames[iv.applicant ?? ''] ?? iv.applicant}`
@@ -361,19 +401,19 @@
 				<div class="panel-head">
 					<h6 class="panel-title">My interviews ({interviews.length})</h6>
 				</div>
-				{#if interviews.length === 0}
+				{#if mySessions.length === 0}
 					<p class="muted placeholder">Nothing assigned to you yet.</p>
 				{:else}
-					{#each interviews as iv (iv.id)}
+					{#each mySessions as s (sessionKey(s.lead))}
 						<div class="iv-row">
 							<div class="iv-body">
-								<span class="iv-when">{label(iv)}</span>
-								<span class="pill pill-neutral">{iv.type}</span>
+								<span class="iv-when">{sessionLabel(s.lead, s.count)}</span>
+								<span class="pill pill-neutral">{s.lead.type}</span>
 							</div>
-							{#if pendingByInterview.has(iv.id)}
+							{#if pendingByInterview.has(s.lead.id)}
 								<span class="pill pill-warning">Transfer pending</span>
 							{:else}
-								<button class="btn btn-quaternary btn-sm" on:click={() => openTransfer(iv)}>
+								<button class="btn btn-quaternary btn-sm" on:click={() => openTransfer(s.lead)}>
 									Hand off / Swap
 								</button>
 							{/if}
@@ -414,7 +454,14 @@
 				<button class="btn-icon close-btn" on:click={() => (transferFor = null)}>&times;</button>
 			</div>
 
-			<p class="dialog-sub">{label(transferFor)}</p>
+			<p class="dialog-sub">
+				{sessionLabel(transferFor, transferSessionCount)}
+			</p>
+			{#if transferFor.type === 'group'}
+				<p class="dialog-sub warn-line">
+					This is a group session — the whole room moves, all candidates together.
+				</p>
+			{/if}
 
 			<div class="field">
 				<label class="field-label" for="to-email">Give it to</label>
@@ -443,13 +490,18 @@
 					<label class="field-label" for="swap-with">Their interview you'll take</label>
 					{#if !toEmail}
 						<p class="muted note">Choose a teammate first.</p>
-					{:else if theirInterviews.length === 0}
+					{:else if theirSessions.length === 0}
 						<p class="muted note">They have no interviews to swap.</p>
 					{:else}
 						<select id="swap-with" class="form-select" bind:value={swapWith}>
 							<option value={null}>Choose one...</option>
-							{#each theirInterviews as x (x.id)}
-								<option value={x.id}>{label(x)}</option>
+							{#each theirSessions as x (sessionKey(x))}
+								<option value={x.id}
+									>{sessionLabel(
+										x,
+										theirInterviews.filter((y) => sessionKey(y) === sessionKey(x)).length
+									)}</option
+								>
 							{/each}
 						</select>
 					{/if}
@@ -531,6 +583,10 @@
 	.req-actions {
 		display: flex;
 		gap: 6px;
+	}
+	.warn-line {
+		color: $yellow-primary;
+		font-weight: 600;
 	}
 	.dialog-sub {
 		font-size: 13px;
