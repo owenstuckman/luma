@@ -452,18 +452,34 @@ export const isPlatformAdmin = async (): Promise<boolean> => {
 // Interview functions
 // ============================================
 
+/**
+ * Every interview in an org, paged past PostgREST's 1000-row response cap.
+ *
+ * A single select stops at 1000 rows WITHOUT an error. Ordered oldest-first,
+ * that cap cut off the NEWEST rows — so once Archimedes had 891 interviews from
+ * last cycle plus 440 this cycle, the 331 latest were missing from the full
+ * schedule, from the scheduler's clash check, and from the email modal, and
+ * nothing said so.
+ */
 export const getInterviewsByOrg = async (orgId: number) => {
-	const { data, error } = await supabase
-		.from('interviews')
-		.select('*')
-		.eq('org_id', orgId)
-		.order('start_time', { ascending: true });
+	const PAGE = 1000;
+	const rows: Interview[] = [];
+	for (let from = 0; ; from += PAGE) {
+		const { data, error } = await supabase
+			.from('interviews')
+			.select('*')
+			.eq('org_id', orgId)
+			.order('start_time', { ascending: true })
+			.order('id', { ascending: true })
+			.range(from, from + PAGE - 1);
 
-	if (error) {
-		console.error('Error fetching interviews:', error);
-		return [];
+		if (error) {
+			console.error('Error fetching interviews:', error);
+			return rows;
+		}
+		rows.push(...(data as Interview[]));
+		if (data.length < PAGE) return rows;
 	}
-	return data as Interview[];
 };
 
 export const getInterviewsByInterviewer = async (orgId: number, email: string) => {
