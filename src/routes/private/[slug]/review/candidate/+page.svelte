@@ -14,15 +14,25 @@
 	import {
 		getCandidateTimeline,
 		getSubmissionSiblings,
-		getApplicationInterviews,
+		getPersonInterviews,
+		groupInterviewSessions,
+		sessionLabel,
 		resolveApplicationTeam
 	} from '$lib/utils/candidates';
 	import type {
 		TimelineEvent,
 		TimelineKind,
 		SubmissionSibling,
-		InterviewLite
+		InterviewLite,
+		InterviewSession
 	} from '$lib/utils/candidates';
+	import {
+		averageByPrompt,
+		averageScore,
+		questionText,
+		UNIVERSAL_Q1,
+		UNIVERSAL_Q2
+	} from '$lib/utils/interviewForms';
 	import { allQuestions } from '$lib/utils/formSchema';
 	import {
 		tallyVotes,
@@ -37,24 +47,13 @@
 	import type { OrgSettings } from '$lib/types/orgSettings';
 	import type { Applicant, CommentEntry, QuestionSchema, Team } from '$lib/types';
 
-	interface Evaluation {
-		rating: number;
-		strengths: string;
-		weaknesses: string;
-		notes: string;
-		recommendation: string;
-		evaluator: string;
-		evaluatedAt: string;
-	}
-
 	let applicant: Applicant | null = null;
 	let commentsArray: CommentEntry[] = [];
 	let newComment = '';
 	let newStatus = 'pending';
 	let loading = true;
-	// This application's interviews only — never a sibling application's. The
-	// evaluation summary below averages them into a rating, and averaging across
-	// teams would be exactly the cross-team conflation the split exists to stop.
+	// The PERSON's interviews: they sat one interview round however many teams
+	// they applied to, so every one of their applications shows it.
 	let interviews: InterviewLite[] = [];
 	let timeline: TimelineEvent[] = [];
 	let timelineLoading = true;
@@ -131,24 +130,35 @@
 	// where they came from.
 	$: backTo = $page.url.searchParams.get('from') === 'candidates' ? 'candidates' : 'review';
 
-	$: evaluations = interviews
-		.filter((iv) => iv.comments && (iv.comments as Record<string, unknown>).evaluation)
-		.map((iv) => ({
-			interviewer: iv.interviewer,
-			interviewTime: iv.start_time,
-			eval: (iv.comments as Record<string, unknown>).evaluation as Evaluation
-		}));
+	$: sessions = groupInterviewSessions(interviews) as InterviewSession[];
+	$: allEvaluations = sessions.flatMap((x) => x.entries.map((e) => e.evaluation));
+	$: entryCount = sessions.reduce((n, x) => n + x.entries.length, 0);
+	$: evaluatedCount = allEvaluations.filter(Boolean).length;
+	$: overall = averageScore(allEvaluations);
+	$: individualScore = averageScore(allEvaluations, 'individual');
+	$: groupScore = averageScore(allEvaluations, 'group');
+	$: legacyScore = averageScore(allEvaluations, 'legacy');
+	$: hasIndividual = sessions.some((x) => x.type === 'individual');
+	$: hasGroup = sessions.some((x) => x.type === 'group');
 
-	$: avgRating =
-		evaluations.length > 0
-			? evaluations.reduce((sum, e) => sum + (e.eval.rating || 0), 0) / evaluations.length
-			: 0;
+	const fmtScore = (n: number | null) => (n === null ? '—' : n.toFixed(1));
+	/** Tone for a 1-10 value: the form's scale is 1/3/5/7/10. */
+	const scoreTone = (n: number | null) =>
+		n === null ? 'pill-neutral' : n >= 7 ? 'pill-success' : n >= 5 ? 'pill-warning' : 'pill-danger';
 
-	$: recommendationCounts = evaluations.reduce<Record<string, number>>((acc, e) => {
-		const r = e.eval.recommendation || 'neutral';
-		acc[r] = (acc[r] || 0) + 1;
-		return acc;
-	}, {});
+	function sessionWhen(session: InterviewSession): string {
+		const start = new Date(session.start_time);
+		const day = start.toLocaleDateString(undefined, {
+			weekday: 'short',
+			month: 'short',
+			day: 'numeric'
+		});
+		const time = (d: Date) =>
+			d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+		return session.end_time
+			? `${day}, ${time(start)} – ${time(new Date(session.end_time))}`
+			: `${day}, ${time(start)}`;
+	}
 
 	onMount(async () => {
 		const urlParams = new URLSearchParams(window.location.search);
@@ -205,7 +215,7 @@
 						console.error('Failed to load sibling applications:', error);
 					}
 
-					interviews = await getApplicationInterviews(orgData.id, applicant);
+					interviews = await getPersonInterviews(orgData.id, applicant);
 
 					try {
 						timeline = await getCandidateTimeline(orgData.id, applicant);
@@ -338,8 +348,6 @@
 				return '#878fa1';
 		}
 	}
-
-	const recommendationOrder = ['strong_yes', 'yes', 'neutral', 'no', 'strong_no'];
 </script>
 
 <div class="candidate-page">
@@ -474,6 +482,161 @@
 					</div>
 				</div>
 
+				<!-- Interviews: one entry per sitting, each interviewer's evaluation inside -->
+				{#if sessions.length > 0}
+					<div class="card">
+						<h5>Interviews</h5>
+						<p class="meta interviews-meta">
+							{evaluatedCount} of {entryCount} evaluation{entryCount === 1 ? '' : 's'} submitted
+							{#if siblings.length > 0}
+								· shared with their {siblings.map((x) => x.team_name ?? 'other').join(', ')} application{siblings.length ===
+								1
+									? ''
+									: 's'}
+							{/if}
+						</p>
+
+						<div class="score-strip">
+							<div class="score-tile">
+								<span class="pill {scoreTone(overall.average)} score-big"
+									>{fmtScore(overall.average)}</span
+								>
+								<span class="score-cap">Overall /10 · {overall.count} scored</span>
+							</div>
+							{#if hasIndividual}
+								<div class="score-tile">
+									<span class="pill {scoreTone(individualScore.average)} score-big"
+										>{fmtScore(individualScore.average)}</span
+									>
+									<span class="score-cap">Individual · {individualScore.count} scored</span>
+								</div>
+							{/if}
+							{#if hasGroup}
+								<div class="score-tile">
+									<span class="pill {scoreTone(groupScore.average)} score-big"
+										>{fmtScore(groupScore.average)}</span
+									>
+									<span class="score-cap">Group · {groupScore.count} scored</span>
+								</div>
+							{/if}
+							{#if legacyScore.count > 0}
+								<div class="score-tile">
+									<span class="pill {scoreTone(legacyScore.average)} score-big"
+										>{fmtScore(legacyScore.average)}</span
+									>
+									<span class="score-cap">Older form (stars ×2) · {legacyScore.count}</span>
+								</div>
+							{/if}
+						</div>
+
+						{#each sessions as session (session.key)}
+							{@const form = session.type === 'group' ? 'group' : 'individual'}
+							{@const panel = averageByPrompt(
+								session.entries.map((e) => e.evaluation),
+								form
+							)}
+							<div class="session">
+								<div class="session-head">
+									<span class="session-title">{sessionLabel(session.type)}</span>
+									<span class="session-when"
+										>{sessionWhen(session)}{session.location ? ` · ${session.location}` : ''}</span
+									>
+								</div>
+
+								{#if session.entries.length > 1 && panel.some((q) => q.count > 0)}
+									<div class="rating-list panel-avg">
+										<span class="eval-label">Panel average</span>
+										{#each panel as q (q.key)}
+											<div class="rating-row">
+												<span class="rating-label">{q.label}</span>
+												<span class="pill {scoreTone(q.average)}">{fmtScore(q.average)}</span>
+											</div>
+										{/each}
+									</div>
+								{/if}
+
+								{#each session.entries as entry (entry.interview.id)}
+									{@const ev = entry.evaluation}
+									<div class="eval-item">
+										<div class="eval-item-header">
+											<span class="eval-interviewer">
+												{ev?.evaluator || entry.interview.interviewer || 'Unknown'}
+											</span>
+											{#if ev}
+												<span class="pill {scoreTone(entry.score)}"
+													>{entry.score === null
+														? 'Not scored'
+														: `${entry.score.toFixed(1)}/10`}</span
+												>
+											{:else}
+												<span class="pill pill-neutral">Not evaluated yet</span>
+											{/if}
+										</div>
+
+										{#if ev && ev.form !== 'legacy'}
+											<div class="rating-list">
+												{#each averageByPrompt([ev], ev.form) as q (q.key)}
+													<div class="rating-row">
+														<span class="rating-label">{q.label}</span>
+														<span class="pill {scoreTone(q.average)}"
+															>{q.average === null ? '—' : q.average}</span
+														>
+													</div>
+												{/each}
+											</div>
+
+											{#if ev.form === 'individual'}
+												<div class="asked">
+													<span class="eval-label">Questions asked</span>
+													<ul class="asked-list">
+														<li>{UNIVERSAL_Q1}</li>
+														<li>{UNIVERSAL_Q2}</li>
+														{#each [...ev.successQuestions, ...ev.failureQuestions] as id (id)}
+															<li>{questionText(id)}</li>
+														{/each}
+													</ul>
+													{#if ev.otherQuestions.trim()}
+														<span class="eval-label">Other questions</span>
+														<p class="eval-text pre">{ev.otherQuestions}</p>
+													{/if}
+												</div>
+											{/if}
+
+											{#if ev.notes.trim()}
+												<span class="eval-label">Notes</span>
+												<p class="eval-text pre">{ev.notes}</p>
+											{/if}
+										{:else if ev && ev.form === 'legacy'}
+											<div class="star-row">
+												{#each [1, 2, 3, 4, 5] as star (star)}
+													<span class="star" class:filled={ev.rating >= star}>&#9733;</span>
+												{/each}
+												{#if ev.recommendation}
+													<span
+														class="rec-pill"
+														style="background-color: {getRecommendationColor(ev.recommendation)};"
+													>
+														{getRecommendationLabel(ev.recommendation)}
+													</span>
+												{/if}
+											</div>
+											{#if ev.strengths}
+												<p class="eval-text pre"><strong>+</strong> {ev.strengths}</p>
+											{/if}
+											{#if ev.weaknesses}
+												<p class="eval-text pre"><strong>−</strong> {ev.weaknesses}</p>
+											{/if}
+											{#if ev.notes}
+												<p class="eval-text pre eval-text-muted">{ev.notes}</p>
+											{/if}
+										{/if}
+									</div>
+								{/each}
+							</div>
+						{/each}
+					</div>
+				{/if}
+
 				<!-- Full pipeline history, unioned from every table that records
 				     something about this candidate. -->
 				<div class="card">
@@ -532,81 +695,6 @@
 								</p>
 							</div>
 						{/each}
-					</div>
-				{/if}
-
-				<!-- Evaluation Summary -->
-				{#if interviews.length > 0}
-					<div class="card">
-						<h5>Evaluation Summary</h5>
-						<p class="meta" style="margin-bottom: 12px;">
-							{evaluations.length} of {interviews.length} interview{interviews.length !== 1
-								? 's'
-								: ''} evaluated
-						</p>
-
-						{#if evaluations.length > 0}
-							<!-- Average rating -->
-							<div class="eval-row">
-								<span class="eval-label">Avg Rating</span>
-								<div class="star-row">
-									{#each [1, 2, 3, 4, 5] as star}
-										<span class="star" class:filled={avgRating >= star - 0.5}>&#9733;</span>
-									{/each}
-									<span class="rating-num">{avgRating.toFixed(1)}</span>
-								</div>
-							</div>
-
-							<!-- Recommendation breakdown -->
-							<div class="eval-row" style="margin-top: 10px;">
-								<span class="eval-label">Recommendations</span>
-								<div class="rec-pills">
-									{#each recommendationOrder as rec}
-										{#if recommendationCounts[rec]}
-											<span
-												class="rec-pill"
-												style="background-color: {getRecommendationColor(rec)};"
-											>
-												{getRecommendationLabel(rec)} &times;{recommendationCounts[rec]}
-											</span>
-										{/if}
-									{/each}
-								</div>
-							</div>
-
-							<!-- Individual evaluations -->
-							<div class="eval-list">
-								{#each evaluations as ev}
-									<div class="eval-item">
-										<div class="eval-item-header">
-											<span class="eval-interviewer">{ev.interviewer || 'Unknown'}</span>
-											<span
-												class="rec-pill"
-												style="background-color: {getRecommendationColor(ev.eval.recommendation)};"
-											>
-												{getRecommendationLabel(ev.eval.recommendation)}
-											</span>
-										</div>
-										<div class="star-row" style="margin: 4px 0;">
-											{#each [1, 2, 3, 4, 5] as star}
-												<span class="star" class:filled={ev.eval.rating >= star}>&#9733;</span>
-											{/each}
-										</div>
-										{#if ev.eval.strengths}
-											<p class="eval-text"><strong>+</strong> {ev.eval.strengths}</p>
-										{/if}
-										{#if ev.eval.weaknesses}
-											<p class="eval-text"><strong>−</strong> {ev.eval.weaknesses}</p>
-										{/if}
-										{#if ev.eval.notes}
-											<p class="eval-text eval-text-muted">{ev.eval.notes}</p>
-										{/if}
-									</div>
-								{/each}
-							</div>
-						{:else}
-							<p class="muted">No evaluations submitted yet.</p>
-						{/if}
 					</div>
 				{/if}
 			</div>
@@ -961,5 +1049,87 @@
 	}
 	.eval-text-muted {
 		color: $text-muted;
+	}
+	.pre {
+		white-space: pre-wrap;
+	}
+	.interviews-meta {
+		margin-bottom: 12px;
+	}
+	.score-strip {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+		margin-bottom: 14px;
+	}
+	.score-tile {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 4px;
+		padding: 8px 10px;
+		border: 1px solid $border;
+		border-radius: $radius-sm;
+		min-width: 110px;
+	}
+	.score-big {
+		font-size: 15px;
+		padding: 3px 10px;
+	}
+	.score-cap {
+		font-size: 11px;
+		color: $text-muted;
+	}
+	.session {
+		border-top: 1px solid $border-faint;
+		padding-top: 12px;
+		margin-top: 12px;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+	.session-head {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 8px;
+	}
+	.session-title {
+		font-size: 14px;
+		font-weight: 700;
+		color: $text;
+	}
+	.session-when {
+		font-size: 12px;
+		color: $text-muted;
+	}
+	.rating-list {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		margin: 6px 0;
+	}
+	.panel-avg {
+		padding: 8px 10px;
+		border: 1px dashed $border;
+		border-radius: $radius-sm;
+		margin: 0;
+	}
+	.rating-row {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 10px;
+		font-size: 12px;
+		color: $text;
+	}
+	.asked {
+		margin: 6px 0;
+	}
+	.asked-list {
+		margin: 4px 0 6px;
+		padding-left: 18px;
+		font-size: 12px;
+		color: $text;
 	}
 </style>
