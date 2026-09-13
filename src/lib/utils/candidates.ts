@@ -136,6 +136,7 @@ export interface TimelineEvent {
 export interface InterviewLite {
 	id: number;
 	start_time: string;
+	end_time: string | null;
 	created_at: string;
 	interviewer: string | null;
 	location: string | null;
@@ -143,26 +144,56 @@ export interface InterviewLite {
 	comments: Record<string, unknown> | null;
 }
 
-const INTERVIEW_COLUMNS = 'id, start_time, created_at, interviewer, location, type, comments';
+const INTERVIEW_COLUMNS =
+	'id, start_time, end_time, created_at, interviewer, location, type, comments';
 
 /**
- * Which interviews belong to ONE application.
+ * Which interviews belong to a candidate: the PERSON, not one application.
  *
- * `interviews.applicant` is the candidate's email, and since migration 00024 a
- * single email can own several applications — one per team. Joining on email
- * alone therefore hands every sibling application the SAME interviews, which
- * would make the Astra application display Terra's interview and count it into
- * Astra's interview/evaluation/rating numbers. That is exactly the cross-team
- * conflation the per-team model exists to prevent.
+ * Since migration 00024 an application is per team, so someone who picked Juvo
+ * and Terra has two applications. But they sit ONE interview round — the
+ * schedule interviews each person once — and the rows are linked (via
+ * `interviews.applicant_id`, 00026) to whichever application was scheduled.
+ * Scoping interviews to that single application left the sibling looking
+ * un-interviewed: Terra's reviewers saw no scores for a candidate who had four.
  *
- * So: `interviews.applicant_id` (migration 00026) is authoritative whenever it
- * is set. The email join is kept ONLY for legacy rows where `applicant_id` is
- * null — interviews the backfill could not map unambiguously. Those rows
- * predate the split and so have no siblings, which is precisely why matching
- * them by email is safe.
+ * So a candidate's interviews are those linked to ANY of their applications
+ * for the same posting (same org, same job, same email). The job bound keeps a
+ * returning applicant's interviews from an earlier cycle out. Legacy rows with
+ * no `applicant_id` still match by email: they predate the split.
  *
- * DO NOT "simplify" this back to an email-only join.
+ * Votes, comments and decisions stay per application — only the interview
+ * record, which genuinely is shared, is shown on each.
  */
+const personKey = (job: number | null, email: string) => `${job ?? ''}|${email.toLowerCase()}`;
+
+/** `ilike` treats `_` and `%` as wildcards; an email may contain `_`. */
+const likeLiteral = (value: string) => value.replace(/[\\%_]/g, (c) => `\\${c}`);
+
+/**
+ * Every interview row in an org, paged past PostgREST's 1000-row response cap.
+ * A plain select stops at 1000 WITHOUT an error, which silently drops rows once
+ * an org has more than one cycle of interviews on file.
+ */
+async function fetchAllInterviews<T>(orgId: number, columns: string): Promise<T[]> {
+	const PAGE = 1000;
+	const rows: T[] = [];
+	for (let from = 0; ; from += PAGE) {
+		const { data, error } = await supabase
+			.from('interviews')
+			.select(columns)
+			.eq('org_id', orgId)
+			.order('id', { ascending: true })
+			.range(from, from + PAGE - 1);
+		if (error) {
+			console.warn('interviews unavailable:', error.message);
+			return rows;
+		}
+		rows.push(...(data as T[]));
+		if (data.length < PAGE) return rows;
+	}
+}
+
 function sortInterviews(list: InterviewLite[]): InterviewLite[] {
 	return [...list].sort(
 		(x, y) => new Date(x.start_time).getTime() - new Date(y.start_time).getTime()
@@ -180,6 +211,74 @@ function sortInterviews(list: InterviewLite[]): InterviewLite[] {
 function readEvaluation(iv: InterviewLite): Evaluation | null {
 	return readEvaluationPayload(iv.comments?.evaluation);
 }
+
+/** One interviewer's part in a session, with what they submitted. */
+export interface SessionEntry {
+	interview: InterviewLite;
+	evaluation: Evaluation | null;
+	/** 1-10, null until scored. */
+	score: number | null;
+}
+
+/**
+ * One sitting: a candidate in a room at a time.
+ *
+ * A group interview is stored one row per (candidate × interviewer), so three
+ * interviewers on one group are three rows. Listed raw they read as "Round 2,
+ * Round 3, Round 4 interview" — all at the same minute in the same room. This
+ * folds them back into the single interview the candidate actually sat, with
+ * each interviewer's evaluation inside it.
+ */
+export interface InterviewSession {
+	key: string;
+	type: string;
+	start_time: string;
+	end_time: string | null;
+	location: string | null;
+	created_at: string;
+	entries: SessionEntry[];
+}
+
+export function groupInterviewSessions(interviews: InterviewLite[]): InterviewSession[] {
+	const sessions = new Map<string, InterviewSession>();
+	for (const iv of sortInterviews(interviews)) {
+		// Only group rows share a session; two individual rows at the same time
+		// would be separate interviews (and a scheduling error worth seeing).
+		const key =
+			iv.type === 'group'
+				? `group|${iv.location}|${new Date(iv.start_time).getTime()}`
+				: `row|${iv.id}`;
+		let session = sessions.get(key);
+		if (!session) {
+			session = {
+				key,
+				type: iv.type ?? 'individual',
+				start_time: iv.start_time,
+				end_time: iv.end_time,
+				location: iv.location,
+				created_at: iv.created_at,
+				entries: []
+			};
+			sessions.set(key, session);
+		}
+		const evaluation = readEvaluation(iv);
+		session.entries.push({ interview: iv, evaluation, score: evaluationScore(evaluation) });
+		if (iv.created_at < session.created_at) session.created_at = iv.created_at;
+	}
+	for (const session of sessions.values()) {
+		session.entries.sort((a, b) =>
+			(a.interview.interviewer ?? '').localeCompare(b.interview.interviewer ?? '')
+		);
+	}
+	return [...sessions.values()];
+}
+
+export const sessionLabel = (type: string) =>
+	type === 'group'
+		? 'Group interview'
+		: type === 'individual'
+			? 'Individual interview'
+			: 'Interview';
 
 /**
  * Fetch every applicant for an org, enriched with pipeline state.
@@ -204,7 +303,6 @@ export const getCandidates = async (
 	const rows = applicants as Applicant[];
 	// Applicant email is normalized to lowercase on write since 00025, but older
 	// rows carry mixed case, so every email match here is done case-insensitively.
-	const emails = rows.map((a) => a.email).filter(Boolean);
 	const ids = rows.map((a) => a.id);
 
 	// Look up names for the foreign keys the roster displays. Teams and
@@ -212,11 +310,10 @@ export const getCandidates = async (
 	const [jobsRes, teamsRes, interviewsRes, decisionsRes] = await Promise.all([
 		supabase.from('job_posting').select('id, name').eq('org_id', orgId),
 		supabase.from('teams').select('*').eq('org_id', orgId),
-		supabase
-			.from('interviews')
-			.select(`${INTERVIEW_COLUMNS}, applicant, applicant_id`)
-			.eq('org_id', orgId)
-			.in('applicant', emails.length > 0 ? emails : ['']),
+		fetchAllInterviews<InterviewLite & { applicant: string | null; applicant_id: number | null }>(
+			orgId,
+			`${INTERVIEW_COLUMNS}, applicant, applicant_id`
+		),
 		supabase.from('decisions').select('*').eq('org_id', orgId).in('applicant_id', ids)
 	]);
 
@@ -226,17 +323,19 @@ export const getCandidates = async (
 	const teams = (teamsRes.data as Team[] | null) ?? [];
 	const teamsById = new Map(teams.map((t) => [t.id, t]));
 
-	// Linked interviews are keyed by the application they belong to; only the
-	// unlinked (legacy) ones fall back to the email join. See sortInterviews'
-	// comment for why this distinction must not be collapsed.
-	type InterviewJoinRow = InterviewLite & { applicant: string | null; applicant_id: number | null };
-	const interviewsByApplicantId = new Map<number, InterviewLite[]>();
+	// Linked interviews belong to the PERSON the application is for, so every one
+	// of their applications for the posting shows them; only unlinked (legacy)
+	// rows fall back to the email join. See sortInterviews' comment.
+	const personOfApp = new Map(rows.map((a) => [a.id, personKey(a.job, a.email)]));
+	const interviewsByPerson = new Map<string, InterviewLite[]>();
 	const legacyInterviewsByEmail = new Map<string, InterviewLite[]>();
-	for (const iv of (interviewsRes.data as InterviewJoinRow[] | null) ?? []) {
+	for (const iv of interviewsRes) {
 		if (iv.applicant_id !== null && iv.applicant_id !== undefined) {
-			const list = interviewsByApplicantId.get(iv.applicant_id) ?? [];
+			const person = personOfApp.get(iv.applicant_id);
+			if (!person) continue; // an application outside this roster's scope
+			const list = interviewsByPerson.get(person) ?? [];
 			list.push(iv);
-			interviewsByApplicantId.set(iv.applicant_id, list);
+			interviewsByPerson.set(person, list);
 			continue;
 		}
 		if (!iv.applicant) continue;
@@ -255,7 +354,7 @@ export const getCandidates = async (
 
 	return rows.map((a) => {
 		const interviews = sortInterviews([
-			...(interviewsByApplicantId.get(a.id) ?? []),
+			...(interviewsByPerson.get(personKey(a.job, a.email)) ?? []),
 			...(legacyInterviewsByEmail.get(a.email.toLowerCase()) ?? [])
 		]);
 		// Normalised to 1-10 across both form generations — see evaluationScore().
@@ -344,38 +443,25 @@ export const getCandidateTimeline = async (
 ): Promise<TimelineEvent[]> => {
 	const events: TimelineEvent[] = [];
 
-	const [draftRes, interviewsRes, legacyInterviewsRes, decisionsRes, teamsRes, emailRes] =
-		await Promise.all([
-			supabase
-				.from('application_drafts')
-				.select('created_at, updated_at, submitted_at')
-				.eq('org_id', orgId)
-				.eq('email', applicant.email)
-				.order('created_at', { ascending: true }),
-			// Same rule as the roster: this application's own interviews, plus the
-			// legacy unlinked ones for this email. Never a sibling's.
-			supabase
-				.from('interviews')
-				.select(INTERVIEW_COLUMNS)
-				.eq('org_id', orgId)
-				.eq('applicant_id', applicant.id)
-				.order('start_time', { ascending: true }),
-			supabase
-				.from('interviews')
-				.select(INTERVIEW_COLUMNS)
-				.eq('org_id', orgId)
-				.eq('applicant', applicant.email)
-				.is('applicant_id', null)
-				.order('start_time', { ascending: true }),
-			supabase.from('decisions').select('*').eq('applicant_id', applicant.id),
-			supabase.from('teams').select('id, name, slug').eq('org_id', orgId),
-			supabase
-				.from('email_log')
-				.select('created_at, type, status, recipient, error')
-				.eq('org_id', orgId)
-				.eq('recipient', applicant.email)
-				.order('created_at', { ascending: true })
-		]);
+	const [draftRes, personInterviews, decisionsRes, teamsRes, emailRes] = await Promise.all([
+		supabase
+			.from('application_drafts')
+			.select('created_at, updated_at, submitted_at')
+			.eq('org_id', orgId)
+			.eq('email', applicant.email)
+			.order('created_at', { ascending: true }),
+		// Same rule as the roster: the person's interviews, shared by every one
+		// of their applications for this posting.
+		getPersonInterviews(orgId, applicant),
+		supabase.from('decisions').select('*').eq('applicant_id', applicant.id),
+		supabase.from('teams').select('id, name, slug').eq('org_id', orgId),
+		supabase
+			.from('email_log')
+			.select('created_at, type, status, recipient, error')
+			.eq('org_id', orgId)
+			.eq('recipient', applicant.email)
+			.order('created_at', { ascending: true })
+	]);
 
 	for (const d of (draftRes.data as { created_at: string }[] | null) ?? []) {
 		events.push({
@@ -402,42 +488,41 @@ export const getCandidateTimeline = async (
 				: undefined
 	});
 
-	const interviews = sortInterviews([
-		...((interviewsRes.data as InterviewLite[] | null) ?? []),
-		...((legacyInterviewsRes.data as InterviewLite[] | null) ?? [])
-	]);
-	interviews.forEach((iv, i) => {
-		const round = i + 1;
+	for (const session of groupInterviewSessions(personInterviews)) {
+		const label = sessionLabel(session.type);
+		const interviewers = session.entries
+			.map((e) => e.interview.interviewer)
+			.filter(Boolean)
+			.join(', ');
 		events.push({
 			kind: 'interview_scheduled',
-			at: iv.created_at,
-			title: `Round ${round} interview scheduled`,
-			detail: [iv.location, iv.type].filter(Boolean).join(' · ') || undefined,
-			actor: iv.interviewer ?? undefined
+			at: session.created_at,
+			title: `${label} scheduled`,
+			detail: session.location ?? undefined,
+			actor: interviewers || undefined
 		});
 		events.push({
 			kind: 'interview',
-			at: iv.start_time,
-			title: `Round ${round} interview`,
-			detail: [iv.location, iv.type].filter(Boolean).join(' · ') || undefined,
-			actor: iv.interviewer ?? undefined
+			at: session.start_time,
+			title: label,
+			detail: session.location ?? undefined,
+			actor: interviewers || undefined
 		});
-
-		const evaluation = readEvaluation(iv);
-		if (evaluation) {
+		for (const entry of session.entries) {
+			if (!entry.evaluation) continue;
 			events.push({
 				kind: 'evaluation',
-				at: evaluation.evaluatedAt ?? iv.start_time,
-				title: `Round ${round} evaluation submitted`,
-				detail: (() => {
-					const score = evaluationScore(evaluation);
-					return score === null ? undefined : `${score.toFixed(1)}/10`;
-				})(),
-				actor: evaluation.evaluator ?? iv.interviewer ?? undefined,
-				tag: evaluation.form === 'legacy' ? evaluation.recommendation : evaluation.form
+				at: entry.evaluation.evaluatedAt || session.start_time,
+				title: `${label} evaluated`,
+				detail: entry.score === null ? 'Not scored' : `${entry.score.toFixed(1)}/10`,
+				actor: entry.evaluation.evaluator || entry.interview.interviewer || undefined,
+				tag:
+					entry.evaluation.form === 'legacy'
+						? entry.evaluation.recommendation
+						: entry.evaluation.form
 			});
 		}
-	});
+	}
 
 	const teamNames = new Map<number, string>(
 		((teamsRes.data as { id: number; name: string }[] | null) ?? []).map((t) => [t.id, t.name])
@@ -511,8 +596,9 @@ export interface SubmissionSibling {
  * single-candidate view, so a reviewer who needs it can navigate sideways.
  * It is deliberately NOT part of a candidate's identity — never merge siblings
  * into one row, never list their teams on the roster or in the review queue,
- * and never sum their interviews, votes or ratings. Each application is judged
- * on its own.
+ * and never sum their votes or decisions. Each application is judged on its
+ * own. The one exception is the interview record: the person sat it once, so
+ * every sibling shows it (see getPersonInterviews).
  *
  * Returns [] when the row predates `submission_group`, when it was the only
  * application in its submit, or when the column is missing.
@@ -553,29 +639,37 @@ export const getSubmissionSiblings = async (
 };
 
 /**
- * The interviews belonging to ONE application.
- *
- * Same rule as the roster and the timeline: `applicant_id` (migration 00026)
- * is authoritative, and the email join is the fallback only for unlinked
- * legacy rows. Exported so the candidate page's evaluation summary cannot
- * drift back into showing a sibling application's interviews and averaging
- * their ratings into this team's decision.
+ * The interviews belonging to a candidate — every one of their applications
+ * for this posting shares them. See sortInterviews' comment for the rule.
  */
-export const getApplicationInterviews = async (
+export const getPersonInterviews = async (
 	orgId: number,
-	applicant: Pick<Applicant, 'id' | 'email'>
+	applicant: Pick<Applicant, 'id' | 'email' | 'job'>
 ): Promise<InterviewLite[]> => {
+	let siblingsQuery = supabase
+		.from('applicants')
+		.select('id')
+		.eq('org_id', orgId)
+		.ilike('email', likeLiteral(applicant.email));
+	siblingsQuery =
+		applicant.job !== null ? siblingsQuery.eq('job', applicant.job) : siblingsQuery.is('job', null);
+	const { data: siblingRows, error: siblingError } = await siblingsQuery;
+	if (siblingError) console.warn('sibling applications unavailable:', siblingError.message);
+	const ids = [
+		...new Set([applicant.id, ...((siblingRows as { id: number }[] | null) ?? []).map((r) => r.id)])
+	];
+
 	const [linkedRes, legacyRes] = await Promise.all([
 		supabase
 			.from('interviews')
 			.select(INTERVIEW_COLUMNS)
 			.eq('org_id', orgId)
-			.eq('applicant_id', applicant.id),
+			.in('applicant_id', ids),
 		supabase
 			.from('interviews')
 			.select(INTERVIEW_COLUMNS)
 			.eq('org_id', orgId)
-			.eq('applicant', applicant.email)
+			.ilike('applicant', likeLiteral(applicant.email))
 			.is('applicant_id', null)
 	]);
 

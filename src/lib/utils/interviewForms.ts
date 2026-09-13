@@ -222,3 +222,38 @@ export function isComplete(evaluation: Evaluation | null): boolean {
 export function questionText(id: string): string {
 	return [...SUCCESS_QUESTIONS, ...FAILURE_QUESTIONS].find((q) => q.id === id)?.text ?? id;
 }
+
+/** Mean of numbers, or null for none. */
+function mean(values: number[]): number | null {
+	return values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
+}
+
+/**
+ * Average score per prompt across several interviewers' evaluations of one
+ * candidate — e.g. the three group interviewers' "contribution" scores. Only
+ * evaluations on the matching form count; a prompt nobody scored is null.
+ */
+export function averageByPrompt(
+	evaluations: (Evaluation | null)[],
+	form: 'individual' | 'group'
+): { key: string; label: string; average: number | null; count: number }[] {
+	const onForm = evaluations.filter(
+		(e): e is IndividualEvaluation | GroupEvaluation => e?.form === form
+	);
+	return (form === 'individual' ? INDIVIDUAL_RATINGS : GROUP_RATINGS).map((p) => {
+		const scores = onForm.map((e) => e.ratings[p.key]).filter((n): n is number => n > 0);
+		return { key: p.key, label: p.label, average: mean(scores), count: scores.length };
+	});
+}
+
+/** Mean 1-10 score over evaluations, optionally only one form. Null when none are scored. */
+export function averageScore(
+	evaluations: (Evaluation | null)[],
+	form?: Evaluation['form']
+): { average: number | null; count: number } {
+	const scores = evaluations
+		.filter((e) => e && (!form || e.form === form))
+		.map((e) => evaluationScore(e))
+		.filter((n): n is number => n !== null);
+	return { average: mean(scores), count: scores.length };
+}
