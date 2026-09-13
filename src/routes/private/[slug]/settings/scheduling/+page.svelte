@@ -24,6 +24,8 @@
 	} from '$lib/scheduling/types';
 	import type { Organization, JobPosting, Interview, Applicant, OrgMember } from '$lib/types';
 	import { parseRoomList } from '$lib/scheduling/utils';
+	import { parseApplicantAvailability } from '$lib/scheduling/addToSchedule';
+	import AddCandidatePanel from '$lib/components/recruiter/AddCandidatePanel.svelte';
 	import Sidebar from '$lib/components/recruiter/Sidebar.svelte';
 	import Navbar from '$lib/components/recruiter/Navbar.svelte';
 	import EmailGeneratorModal from '$lib/components/recruiter/EmailGeneratorModal.svelte';
@@ -182,22 +184,6 @@
 
 		loading = false;
 	});
-
-	function parseApplicantAvailability(recruitInfo: Record<string, string> | null): TimeRange[] {
-		if (!recruitInfo) return [];
-		for (const [key, value] of Object.entries(recruitInfo)) {
-			if (key.toLowerCase().includes('availability') || key.toLowerCase().includes('avail')) {
-				try {
-					const parsed = JSON.parse(value);
-					if (Array.isArray(parsed)) return parsed as TimeRange[];
-					if (parsed?.ranges && Array.isArray(parsed.ranges)) return parsed.ranges as TimeRange[];
-				} catch {
-					/* not JSON, skip */
-				}
-			}
-		}
-		return [];
-	}
 
 	function extractApplicantAttributes(
 		recruitInfo: Record<string, string>,
@@ -528,6 +514,10 @@
 					</a>
 				</div>
 			</div>
+
+			{#if org}
+				<AddCandidatePanel orgId={org.id} jobs={schedJobs} jobId={schedJobId} />
+			{/if}
 
 			<!-- Job filter -->
 			<div class="panel">
