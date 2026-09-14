@@ -3,7 +3,7 @@
 	// and job-scoped on /review. Owns search / filter / sort / pagination /
 	// selection; the host page supplies bulk actions through the `bulk` slot and
 	// extra toolbar buttons through the `actions` slot.
-	import { createEventDispatcher } from 'svelte';
+	import { createEventDispatcher, onMount } from 'svelte';
 	import {
 		STAGE_COLORS,
 		STAGE_LABELS,
@@ -13,6 +13,7 @@
 		type CandidateStage
 	} from '$lib/utils/candidates';
 	import { selectedTeamSlug } from '$lib/stores/teamFilter';
+	import { readFilters, writeFilters } from '$lib/utils/persistedFilters';
 	import type { Team } from '$lib/types';
 
 	export let candidates: CandidateRow[] = [];
@@ -26,13 +27,20 @@
 	export let view: 'cards' | 'table' = 'cards';
 	export let pageSize = 50;
 	export let emptyMessage = 'No candidates found.';
+	/**
+	 * Remember search, filters, sort, page and view under this key for the tab's
+	 * session, so leaving the list and coming back finds it as it was. Unset (the
+	 * default) keeps the list's filters to this visit only.
+	 */
+	export let persistKey: string | null = null;
 
 	const dispatch = createEventDispatcher<{ open: number; selectionChange: Set<number> }>();
 
 	let searchQuery = '';
 	let statusFilter = 'all';
 	let stageFilter: 'all' | CandidateStage = 'all';
-	let sortBy: 'date' | 'name' | 'status' | 'stage' | 'rating' = 'date';
+	type SortKey = 'date' | 'name' | 'status' | 'stage' | 'rating';
+	let sortBy: SortKey = 'date';
 	let currentPage = 0;
 
 	// An application belongs to ONE team, so the team filter is a straight
@@ -62,14 +70,87 @@
 			return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
 		});
 
-	// Reset to the first page whenever the result set changes underneath us.
-	$: {
-		searchQuery;
-		statusFilter;
-		stageFilter;
-		sortBy;
-		$selectedTeamSlug;
+	interface SavedFilters {
+		search: string;
+		status: string;
+		stage: 'all' | CandidateStage;
+		sort: SortKey;
+		team: string | null;
+		page: number;
+		view: 'cards' | 'table';
+	}
+
+	const filterSignature = () =>
+		JSON.stringify([searchQuery, statusFilter, stageFilter, sortBy, $selectedTeamSlug]);
+
+	// Reset to the first page whenever the result set changes underneath us —
+	// but not for the restore below, which must land back on the saved page.
+	let lastSignature = filterSignature();
+	function resetPageIfFiltersChanged(signature: string) {
+		if (signature === lastSignature) return;
+		lastSignature = signature;
 		currentPage = 0;
+	}
+	$: resetPageIfFiltersChanged(
+		JSON.stringify([searchQuery, statusFilter, stageFilter, sortBy, $selectedTeamSlug])
+	);
+
+	// Restored in onMount, not at init: the list is server-rendered with default
+	// filters, and swapping them in before hydration would mismatch that markup.
+	let restored = false;
+	onMount(() => {
+		const saved = persistKey ? readFilters<SavedFilters>(persistKey) : null;
+		if (saved) {
+			if (typeof saved.search === 'string') searchQuery = saved.search;
+			if (typeof saved.status === 'string') statusFilter = saved.status;
+			if (saved.stage === 'all' || STAGE_ORDER.includes(saved.stage as CandidateStage)) {
+				stageFilter = saved.stage as 'all' | CandidateStage;
+			}
+			if (typeof saved.sort === 'string') sortBy = saved.sort;
+			if (saved.team === null || typeof saved.team === 'string') selectedTeamSlug.set(saved.team);
+			if (saved.view === 'cards' || saved.view === 'table') view = saved.view;
+			lastSignature = filterSignature();
+			if (typeof saved.page === 'number' && saved.page > 0) currentPage = saved.page;
+		}
+		restored = true;
+	});
+
+	$: if (restored && persistKey) {
+		writeFilters(persistKey, {
+			search: searchQuery,
+			status: statusFilter,
+			stage: stageFilter,
+			sort: sortBy,
+			team: $selectedTeamSlug,
+			page: currentPage,
+			view
+		} satisfies SavedFilters);
+	}
+
+	// A remembered team or page can outlive the data it pointed at: a team that
+	// was renamed, or a page past the end once candidates were rejected.
+	$: if (
+		teams.length > 0 &&
+		$selectedTeamSlug &&
+		!teams.some((t) => t.slug === $selectedTeamSlug)
+	) {
+		selectedTeamSlug.set(null);
+	}
+	$: if (!loading && currentPage > 0 && currentPage >= totalPages) {
+		currentPage = Math.max(0, totalPages - 1);
+	}
+
+	$: hasActiveFilters =
+		searchQuery.trim() !== '' ||
+		statusFilter !== 'all' ||
+		stageFilter !== 'all' ||
+		(teams.length > 0 && $selectedTeamSlug !== null);
+
+	function clearFilters() {
+		searchQuery = '';
+		statusFilter = 'all';
+		stageFilter = 'all';
+		selectedTeamSlug.set(null);
 	}
 
 	$: totalPages = Math.ceil(filtered.length / pageSize);
@@ -158,6 +239,15 @@
 		<option value="rating">Sort: Rating</option>
 	</select>
 	<span class="muted result-count">{filtered.length} candidates</span>
+	{#if hasActiveFilters}
+		<button
+			class="btn btn-quaternary btn-sm"
+			on:click={clearFilters}
+			title="Clear search and filters"
+		>
+			Clear filters
+		</button>
+	{/if}
 	<div class="filter-actions">
 		<button
 			class="btn btn-quaternary btn-sm"

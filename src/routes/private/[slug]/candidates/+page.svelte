@@ -1,7 +1,22 @@
+<script context="module" lang="ts">
+	import type { JobPosting, Team } from '$lib/types';
+
+	/**
+	 * The org, jobs and teams behind the roster, by slug. Module scope, so it
+	 * outlives the component: coming back to /candidates paints straight away
+	 * instead of re-resolving the org before anything else can load.
+	 */
+	const orgContext = new Map<string, { orgId: number; jobs: JobPosting[]; teams: Team[] }>();
+</script>
+
 <script lang="ts">
 	// Org-wide candidate roster. Unlike /review (which is scoped to one job and
 	// will narrow to the current user's assigned applications in Phase 3), this
 	// lists every candidate across every posting with their pipeline stage.
+	//
+	// Loads stale-while-revalidate: the last roster this tab saw renders at once
+	// (so returning from a candidate is instant and keeps its scroll position),
+	// and a fresh copy replaces it as soon as it arrives.
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
@@ -11,20 +26,38 @@
 		getTeams,
 		bulkUpdateApplicantStatus
 	} from '$lib/utils/supabase';
-	import { getCandidates, STAGE_COLORS, STAGE_LABELS, STAGE_ORDER } from '$lib/utils/candidates';
+	import {
+		getCandidates,
+		peekCandidates,
+		STAGE_COLORS,
+		STAGE_LABELS,
+		STAGE_ORDER
+	} from '$lib/utils/candidates';
 	import type { CandidateRow, CandidateStage } from '$lib/utils/candidates';
+	import { readFilters, writeFilters } from '$lib/utils/persistedFilters';
 	import Sidebar from '$lib/components/recruiter/Sidebar.svelte';
 	import Navbar from '$lib/components/recruiter/Navbar.svelte';
 	import CandidateList from '$lib/components/recruiter/CandidateList.svelte';
-	import type { JobPosting, Team } from '$lib/types';
 
-	let candidates: CandidateRow[] = [];
-	let jobs: JobPosting[] = [];
-	let teams: Team[] = [];
-	let jobFilter: number | 'all' = 'all';
-	let orgId: number | null = null;
-	let loading = true;
+	const slug = $page.params.slug ?? '';
+	const cached = orgContext.get(slug);
+	const cachedRows = cached ? peekCandidates(cached.orgId) : null;
+
+	let candidates: CandidateRow[] = cachedRows ?? [];
+	let jobs: JobPosting[] = cached?.jobs ?? [];
+	let teams: Team[] = cached?.teams ?? [];
+	let orgId: number | null = cached?.orgId ?? null;
+	let loading = cachedRows === null;
+	let refreshing = false;
 	let loadError = '';
+
+	const filterKey = `candidates:${slug}:job`;
+	let jobFilter: number | 'all' = readFilters<{ job: number | 'all' }>(filterKey)?.job ?? 'all';
+	$: writeFilters(filterKey, { job: jobFilter });
+	// A remembered job that no longer exists would filter the roster to nothing.
+	$: if (jobs.length > 0 && jobFilter !== 'all' && !jobs.some((j) => j.id === jobFilter)) {
+		jobFilter = 'all';
+	}
 
 	let selectMode = false;
 	let selectedIds: Set<number> = new Set();
@@ -32,7 +65,6 @@
 	let bulkUpdating = false;
 	let list: CandidateList;
 
-	$: slug = $page.params.slug;
 	$: visible = jobFilter === 'all' ? candidates : candidates.filter((c) => c.job === jobFilter);
 
 	$: stageCounts = STAGE_ORDER.reduce<Record<CandidateStage, number>>(
@@ -46,26 +78,31 @@
 	$: conflictCount = visible.filter((c) => c.hire_conflict).length;
 
 	onMount(async () => {
-		const org = slug ? await getOrgBySlug(slug) : null;
-
-		if (!org) {
-			loadError = 'Organization not found.';
-			loading = false;
-			return;
-		}
-		const id = org.id;
-		orgId = id;
-
+		refreshing = !loading;
 		try {
+			let id = orgId;
+			if (id === null) {
+				const org = slug ? await getOrgBySlug(slug) : null;
+				if (!org) {
+					loadError = 'Organization not found.';
+					return;
+				}
+				id = org.id;
+				orgId = id;
+			}
+
 			[candidates, jobs, teams] = await Promise.all([
 				getCandidates(id),
 				getActiveRoles(id),
 				getTeams(id)
 			]);
+			orgContext.set(slug, { orgId: id, jobs, teams });
 		} catch (e: unknown) {
 			loadError = e instanceof Error ? e.message : 'Failed to load candidates.';
+		} finally {
+			loading = false;
+			refreshing = false;
 		}
-		loading = false;
 	});
 
 	async function reload() {
@@ -144,6 +181,7 @@
 				<h4 class="page-title">Candidates</h4>
 				<p class="page-subtitle">
 					Everyone who has applied to this organization, and where they stand.
+					{#if refreshing}<span class="refreshing">Refreshing…</span>{/if}
 				</p>
 			</div>
 		</div>
@@ -189,6 +227,7 @@
 			bind:selectMode
 			bind:selectedIds
 			view="table"
+			persistKey="candidates:{slug}"
 			showJob={true}
 			emptyMessage="No candidates yet."
 			on:open={(e) => goto(`/private/${slug}/review/candidate?id=${e.detail}&from=candidates`)}
@@ -270,6 +309,12 @@
 		font-size: 12px;
 		color: $text-muted;
 		font-weight: 600;
+	}
+
+	.refreshing {
+		margin-left: 8px;
+		font-size: 12px;
+		color: $text-muted;
 	}
 
 	.job-select {

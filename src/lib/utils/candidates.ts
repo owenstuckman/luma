@@ -88,7 +88,24 @@ export function resolveApplicationTeam(
 	};
 }
 
-export interface CandidateRow extends Applicant {
+/**
+ * The applicant columns the roster reads. Deliberately NOT `*`: `recruitInfo`
+ * (every answer on the form) and `comments` (every reviewer note) are ~80% of
+ * an applicant row, and the list shows neither — selecting them made the
+ * roster download ~3.8 MB for ~700 applications. `first_comment` is the first
+ * reviewer note or null, which is all `deriveStage` needs to know.
+ */
+const ROSTER_APPLICANT_COLUMNS =
+	'id, created_at, name, email, status, job, org_id, team_id, selected_team_slugs, ' +
+	'team_rank, submission_group, prior_team_id, pass_screen, accepted_role, ' +
+	'first_comment:comments->comments->0';
+
+/** The slice of an applicant the roster carries. Open the profile for the rest. */
+export type RosterApplicant = Omit<Applicant, 'recruitInfo' | 'comments' | 'metadata'>;
+
+export interface CandidateRow extends RosterApplicant {
+	/** At least one reviewer comment has been left on this application. */
+	has_review_comments: boolean;
 	job_name: string | null;
 	/** The one team this application is for. */
 	team: ApplicationTeam;
@@ -171,27 +188,35 @@ const personKey = (job: number | null, email: string) => `${job ?? ''}|${email.t
 const likeLiteral = (value: string) => value.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 /**
- * Every interview row in an org, paged past PostgREST's 1000-row response cap.
+ * Every row a query matches, paged past PostgREST's 1000-row response cap.
  * A plain select stops at 1000 WITHOUT an error, which silently drops rows once
- * an org has more than one cycle of interviews on file.
+ * an org has more than one cycle on file. `build` must apply a stable order.
  */
-async function fetchAllInterviews<T>(orgId: number, columns: string): Promise<T[]> {
+async function fetchAllRows<T>(
+	build: () => {
+		range: (
+			from: number,
+			to: number
+		) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>;
+	}
+): Promise<{ rows: T[]; error: { message: string } | null }> {
 	const PAGE = 1000;
 	const rows: T[] = [];
 	for (let from = 0; ; from += PAGE) {
-		const { data, error } = await supabase
-			.from('interviews')
-			.select(columns)
-			.eq('org_id', orgId)
-			.order('id', { ascending: true })
-			.range(from, from + PAGE - 1);
-		if (error) {
-			console.warn('interviews unavailable:', error.message);
-			return rows;
-		}
-		rows.push(...(data as T[]));
-		if (data.length < PAGE) return rows;
+		const { data, error } = await build().range(from, from + PAGE - 1);
+		if (error) return { rows, error };
+		rows.push(...((data ?? []) as T[]));
+		if (!data || data.length < PAGE) return { rows, error: null };
 	}
+}
+
+/** Every interview row in an org. Failure-tolerant: a failed read is "no interviews". */
+async function fetchAllInterviews<T>(orgId: number, columns: string): Promise<T[]> {
+	const { rows, error } = await fetchAllRows<T>(() =>
+		supabase.from('interviews').select(columns).eq('org_id', orgId).order('id', { ascending: true })
+	);
+	if (error) console.warn('interviews unavailable:', error.message);
+	return rows;
 }
 
 function sortInterviews(list: InterviewLite[]): InterviewLite[] {
@@ -283,53 +308,74 @@ export const sessionLabel = (type: string) =>
 /**
  * Fetch every applicant for an org, enriched with pipeline state.
  * Pass `jobId` to scope to a single posting.
+ *
+ * Every query runs in parallel, and each selects only what the roster shows —
+ * see ROSTER_APPLICANT_COLUMNS. The result is also kept in memory so a page can
+ * paint the last roster instantly and refresh behind it (`peekCandidates`).
  */
 export const getCandidates = async (
 	orgId: number,
 	jobId?: number | null
 ): Promise<CandidateRow[]> => {
-	let query = supabase
-		.from('applicants')
-		.select('*')
-		.eq('org_id', orgId)
-		.order('created_at', { ascending: false });
+	type RosterRow = RosterApplicant & { first_comment: unknown };
+	type RosterInterview = InterviewLite & { applicant: string | null; applicant_id: number | null };
 
-	if (jobId) query = query.eq('job', jobId);
-
-	const { data: applicants, error } = await query;
-	if (error) throw error;
-	if (!applicants || applicants.length === 0) return [];
-
-	const rows = applicants as Applicant[];
-	// Applicant email is normalized to lowercase on write since 00025, but older
-	// rows carry mixed case, so every email match here is done case-insensitively.
-	const ids = rows.map((a) => a.id);
-
-	// Look up names for the foreign keys the roster displays. Teams and
-	// decisions are V1 tables; treat their absence as "no data".
-	const [jobsRes, teamsRes, interviewsRes, decisionsRes] = await Promise.all([
+	const [applicantsRes, jobsRes, teamsRes, interviewsRes, decisionsRes] = await Promise.all([
+		fetchAllRows<RosterRow>(() => {
+			let query = supabase
+				.from('applicants')
+				.select(ROSTER_APPLICANT_COLUMNS)
+				.eq('org_id', orgId)
+				.order('created_at', { ascending: false })
+				.order('id', { ascending: false });
+			if (jobId) query = query.eq('job', jobId);
+			return query;
+		}),
+		// Look up names for the foreign keys the roster displays. Teams and
+		// decisions are V1 tables; treat their absence as "no data".
 		supabase.from('job_posting').select('id, name').eq('org_id', orgId),
 		supabase.from('teams').select('*').eq('org_id', orgId),
-		fetchAllInterviews<InterviewLite & { applicant: string | null; applicant_id: number | null }>(
+		// Only the evaluation is read out of `comments`; the rest of the column
+		// (a rescheduled row's no-show history, say) never leaves the database.
+		fetchAllInterviews<Omit<RosterInterview, 'comments'> & { evaluation: unknown }>(
 			orgId,
-			`${INTERVIEW_COLUMNS}, applicant, applicant_id`
+			'id, start_time, end_time, created_at, type, applicant, applicant_id, evaluation:comments->evaluation'
 		),
-		supabase.from('decisions').select('*').eq('org_id', orgId).in('applicant_id', ids)
+		// Filtered by org rather than `.in(applicant ids)`: hundreds of ids in a
+		// query string is a URL-length failure waiting to happen.
+		supabase.from('decisions').select('*').eq('org_id', orgId)
 	]);
+
+	if (applicantsRes.error) throw applicantsRes.error;
+	const rows = applicantsRes.rows;
+	if (rows.length === 0) {
+		rosterCache.set(cacheKey(orgId, jobId), []);
+		return [];
+	}
 
 	const jobNames = new Map<number, string>(
 		((jobsRes.data as { id: number; name: string }[] | null) ?? []).map((j) => [j.id, j.name])
 	);
 	const teams = (teamsRes.data as Team[] | null) ?? [];
 	const teamsById = new Map(teams.map((t) => [t.id, t]));
+	if (decisionsRes.error) console.warn('decisions unavailable:', decisionsRes.error.message);
 
 	// Linked interviews belong to the PERSON the application is for, so every one
 	// of their applications for the posting shows them; only unlinked (legacy)
-	// rows fall back to the email join. See sortInterviews' comment.
+	// rows fall back to the email join. See personKey's comment.
+	// Applicant email is normalized to lowercase on write since 00025, but older
+	// rows carry mixed case, so every email match here is done case-insensitively.
 	const personOfApp = new Map(rows.map((a) => [a.id, personKey(a.job, a.email)]));
 	const interviewsByPerson = new Map<string, InterviewLite[]>();
 	const legacyInterviewsByEmail = new Map<string, InterviewLite[]>();
-	for (const iv of interviewsRes) {
+	for (const raw of interviewsRes) {
+		const { evaluation, ...rest } = raw;
+		const iv: RosterInterview = {
+			...rest,
+			interviewer: null,
+			location: null,
+			comments: evaluation === null || evaluation === undefined ? null : { evaluation }
+		};
 		if (iv.applicant_id !== null && iv.applicant_id !== undefined) {
 			const person = personOfApp.get(iv.applicant_id);
 			if (!person) continue; // an application outside this roster's scope
@@ -345,21 +391,24 @@ export const getCandidates = async (
 		legacyInterviewsByEmail.set(key, list);
 	}
 
+	const inRoster = new Set(rows.map((a) => a.id));
 	const decisionsByApplicant = new Map<number, Decision[]>();
 	for (const d of (decisionsRes.data as Decision[] | null) ?? []) {
+		if (!inRoster.has(d.applicant_id)) continue;
 		const list = decisionsByApplicant.get(d.applicant_id) ?? [];
 		list.push(d);
 		decisionsByApplicant.set(d.applicant_id, list);
 	}
 
-	return rows.map((a) => {
+	const result = rows.map(({ first_comment, ...a }) => {
 		const interviews = sortInterviews([
 			...(interviewsByPerson.get(personKey(a.job, a.email)) ?? []),
 			...(legacyInterviewsByEmail.get(a.email.toLowerCase()) ?? [])
 		]);
+		const evaluations = interviews.map(readEvaluation);
 		// Normalised to 1-10 across both form generations — see evaluationScore().
-		const ratings = interviews
-			.map((iv) => evaluationScore(readEvaluation(iv)))
+		const ratings = evaluations
+			.map((e) => evaluationScore(e))
 			.filter((r): r is number => typeof r === 'number' && r > 0);
 
 		const team = resolveApplicationTeam(a, teams);
@@ -371,11 +420,12 @@ export const getCandidates = async (
 
 		const row: CandidateRow = {
 			...a,
+			has_review_comments: first_comment !== null && first_comment !== undefined,
 			job_name: a.job !== null ? (jobNames.get(a.job) ?? null) : null,
 			team,
 			team_names: team.all_names,
 			interview_count: interviews.length,
-			evaluated_count: interviews.filter((iv) => readEvaluation(iv) !== null).length,
+			evaluated_count: evaluations.filter((e) => e !== null).length,
 			latest_round: interviews.length,
 			avg_rating: ratings.length > 0 ? ratings.reduce((s, r) => s + r, 0) / ratings.length : null,
 			decisions,
@@ -385,7 +435,24 @@ export const getCandidates = async (
 		row.stage = deriveStage(row);
 		return row;
 	});
+
+	rosterCache.set(cacheKey(orgId, jobId), result);
+	return result;
 };
+
+/**
+ * The last roster `getCandidates` returned for this scope, or null.
+ *
+ * In memory only, so it lasts for the tab's session and survives client-side
+ * navigation (open a candidate, come back) but not a reload. Applicant names,
+ * emails and scores are deliberately kept out of browser storage. Callers
+ * render this immediately and then call `getCandidates` to refresh it.
+ */
+export const peekCandidates = (orgId: number, jobId?: number | null): CandidateRow[] | null =>
+	rosterCache.get(cacheKey(orgId, jobId)) ?? null;
+
+const rosterCache = new Map<string, CandidateRow[]>();
+const cacheKey = (orgId: number, jobId?: number | null) => `${orgId}|${jobId ?? 'all'}`;
 
 /** Derive a pipeline stage from the candidate's aggregated state. */
 export function deriveStage(row: CandidateRow): CandidateStage {
@@ -395,7 +462,7 @@ export function deriveStage(row: CandidateRow): CandidateStage {
 	if (row.interview_count > 0) {
 		return row.evaluated_count >= row.interview_count ? 'evaluated' : 'interviewing';
 	}
-	if ((row.comments?.comments ?? []).length > 0) return 'reviewed';
+	if (row.has_review_comments) return 'reviewed';
 	return 'applied';
 }
 
