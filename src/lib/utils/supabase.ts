@@ -82,15 +82,23 @@ export const getUserOrgs = async (): Promise<(OrgMember & { organizations: Organ
 	return data as (OrgMember & { organizations: Organization })[];
 };
 
-export const getUserRoleInOrg = async (orgId: number): Promise<OrgMember | null> => {
-	const { data: userData } = await supabase.auth.getUser();
-	if (!userData?.user) return null;
+export const getUserRoleInOrg = async (
+	orgId: number,
+	/** Skip the auth round trip when the caller already knows who is signed in. */
+	knownUserId?: string
+): Promise<OrgMember | null> => {
+	let userId = knownUserId;
+	if (!userId) {
+		const { data: userData } = await supabase.auth.getUser();
+		userId = userData?.user?.id;
+	}
+	if (!userId) return null;
 
 	const { data, error } = await supabase
 		.from('org_members')
 		.select('*')
 		.eq('org_id', orgId)
-		.eq('user_id', userData.user.id)
+		.eq('user_id', userId)
 		.single();
 
 	if (error) return null;

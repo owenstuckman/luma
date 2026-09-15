@@ -15,6 +15,9 @@ import {
 	evaluationScore
 } from '$lib/utils/interviewForms';
 import type { Evaluation } from '$lib/utils/interviewForms';
+import { fitScoreModel, adjustedAverage } from '$lib/utils/scoreModel';
+import type { ScoreModel, ScoreObservation } from '$lib/utils/scoreModel';
+import { candidateNumber } from '$lib/utils/blind';
 import type { Applicant, Decision, DecisionOutcome, Team } from '$lib/types';
 
 /** Where a candidate sits in the pipeline, derived from their data. */
@@ -125,6 +128,15 @@ export interface CandidateRow extends RosterApplicant {
 	stage: CandidateStage;
 	/** True when 2+ teams have independently voted to hire this candidate. */
 	hire_conflict: boolean;
+	/**
+	 * Average interview score with each interviewer's usual lean taken out — see
+	 * scoreModel.ts. Null until scored. `avg_rating` stays the raw average.
+	 */
+	adjusted_rating: number | null;
+	/** Stable number shown instead of the name in blind mode (see blind.ts). */
+	candidate_number: number;
+	/** Identifies the person across their per-team applications for a posting. */
+	person_key: string;
 }
 
 export type TimelineKind =
@@ -182,7 +194,8 @@ const INTERVIEW_COLUMNS =
  * Votes, comments and decisions stay per application — only the interview
  * record, which genuinely is shared, is shown on each.
  */
-const personKey = (job: number | null, email: string) => `${job ?? ''}|${email.toLowerCase()}`;
+export const personKey = (job: number | null, email: string) =>
+	`${job ?? ''}|${email.toLowerCase()}`;
 
 /** `ilike` treats `_` and `%` as wildcards; an email may contain `_`. */
 const likeLiteral = (value: string) => value.replace(/[\\%_]/g, (c) => `\\${c}`);
@@ -192,7 +205,7 @@ const likeLiteral = (value: string) => value.replace(/[\\%_]/g, (c) => `\\${c}`)
  * A plain select stops at 1000 WITHOUT an error, which silently drops rows once
  * an org has more than one cycle on file. `build` must apply a stable order.
  */
-async function fetchAllRows<T>(
+export async function fetchAllRows<T>(
 	build: () => {
 		range: (
 			from: number,
@@ -235,6 +248,27 @@ function sortInterviews(list: InterviewLite[]): InterviewLite[] {
  */
 function readEvaluation(iv: InterviewLite): Evaluation | null {
 	return readEvaluationPayload(iv.comments?.evaluation);
+}
+
+/**
+ * Each evaluated interview as (score, who gave it, which form) — the input the
+ * interviewer-lean model needs. The evaluator recorded on the form wins over the
+ * row's assigned interviewer: after a handoff they can differ.
+ */
+export function scoredInterviews(
+	interviews: InterviewLite[]
+): { score: number | null; rater: string; form: string }[] {
+	const out: { score: number | null; rater: string; form: string }[] = [];
+	for (const iv of interviews) {
+		const evaluation = readEvaluation(iv);
+		if (!evaluation) continue;
+		out.push({
+			score: evaluationScore(evaluation),
+			rater: (evaluation.evaluator || iv.interviewer || '').toLowerCase(),
+			form: evaluation.form
+		});
+	}
+	return out;
 }
 
 /** One interviewer's part in a session, with what they submitted. */
@@ -339,7 +373,7 @@ export const getCandidates = async (
 		// (a rescheduled row's no-show history, say) never leaves the database.
 		fetchAllInterviews<Omit<RosterInterview, 'comments'> & { evaluation: unknown }>(
 			orgId,
-			'id, start_time, end_time, created_at, type, applicant, applicant_id, evaluation:comments->evaluation'
+			'id, start_time, end_time, created_at, type, interviewer, applicant, applicant_id, evaluation:comments->evaluation'
 		),
 		// Filtered by org rather than `.in(applicant ids)`: hundreds of ids in a
 		// query string is a URL-length failure waiting to happen.
@@ -372,7 +406,6 @@ export const getCandidates = async (
 		const { evaluation, ...rest } = raw;
 		const iv: RosterInterview = {
 			...rest,
-			interviewer: null,
 			location: null,
 			comments: evaluation === null || evaluation === undefined ? null : { evaluation }
 		};
@@ -400,11 +433,42 @@ export const getCandidates = async (
 		decisionsByApplicant.set(d.applicant_id, list);
 	}
 
-	const result = rows.map(({ first_comment, ...a }) => {
-		const interviews = sortInterviews([
+	const interviewsOf = (a: Pick<Applicant, 'job' | 'email'>) =>
+		sortInterviews([
 			...(interviewsByPerson.get(personKey(a.job, a.email)) ?? []),
 			...(legacyInterviewsByEmail.get(a.email.toLowerCase()) ?? [])
 		]);
+
+	// One number per person: the lowest of their application ids.
+	const idsByPerson = new Map<string, number[]>();
+	for (const a of rows) {
+		const key = personKey(a.job, a.email);
+		idsByPerson.set(key, [...(idsByPerson.get(key) ?? []), a.id]);
+	}
+
+	// Interviewer leans are fitted per posting: each cycle has its own panel and
+	// its own forms. Each person counts once, however many teams they applied to.
+	const models = new Map<number | null, ScoreModel>();
+	const personsByJob = new Map<number | null, Map<string, Pick<Applicant, 'job' | 'email'>>>();
+	for (const a of rows) {
+		const people = personsByJob.get(a.job) ?? new Map();
+		people.set(personKey(a.job, a.email), a);
+		personsByJob.set(a.job, people);
+	}
+	for (const [job, people] of personsByJob) {
+		const observations: ScoreObservation[] = [];
+		for (const [key, person] of people) {
+			for (const s of scoredInterviews(interviewsOf(person))) {
+				if (s.score !== null && s.rater)
+					observations.push({ candidate: key, ...s, score: s.score });
+			}
+		}
+		models.set(job, fitScoreModel(observations));
+	}
+
+	const result = rows.map(({ first_comment, ...a }) => {
+		const interviews = interviewsOf(a);
+		const key = personKey(a.job, a.email);
 		const evaluations = interviews.map(readEvaluation);
 		// Normalised to 1-10 across both form generations — see evaluationScore().
 		const ratings = evaluations
@@ -418,6 +482,7 @@ export const getCandidates = async (
 			team_name: teamsById.get(d.team_id)?.name ?? null
 		}));
 
+		const model = models.get(a.job);
 		const row: CandidateRow = {
 			...a,
 			has_review_comments: first_comment !== null && first_comment !== undefined,
@@ -428,6 +493,9 @@ export const getCandidates = async (
 			evaluated_count: evaluations.filter((e) => e !== null).length,
 			latest_round: interviews.length,
 			avg_rating: ratings.length > 0 ? ratings.reduce((s, r) => s + r, 0) / ratings.length : null,
+			adjusted_rating: model ? adjustedAverage(model, scoredInterviews(interviews)) : null,
+			candidate_number: candidateNumber(idsByPerson.get(key) ?? [a.id]),
+			person_key: key,
 			decisions,
 			stage: 'applied',
 			hire_conflict: decisions.filter((d) => d.outcome === 'hire').length > 1
@@ -506,7 +574,9 @@ export const OUTCOME_COLORS: Record<DecisionOutcome, string> = {
  */
 export const getCandidateTimeline = async (
 	orgId: number,
-	applicant: Applicant
+	applicant: Applicant,
+	/** The person's interviews, when the caller already fetched them. */
+	prefetchedInterviews?: InterviewLite[]
 ): Promise<TimelineEvent[]> => {
 	const events: TimelineEvent[] = [];
 
@@ -519,7 +589,7 @@ export const getCandidateTimeline = async (
 			.order('created_at', { ascending: true }),
 		// Same rule as the roster: the person's interviews, shared by every one
 		// of their applications for this posting.
-		getPersonInterviews(orgId, applicant),
+		prefetchedInterviews ?? getPersonInterviews(orgId, applicant),
 		supabase.from('decisions').select('*').eq('applicant_id', applicant.id),
 		supabase.from('teams').select('id, name, slug').eq('org_id', orgId),
 		supabase

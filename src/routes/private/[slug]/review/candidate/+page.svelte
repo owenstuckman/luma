@@ -16,8 +16,9 @@
 		getSubmissionSiblings,
 		getPersonInterviews,
 		groupInterviewSessions,
-		sessionLabel,
-		resolveApplicationTeam
+		resolveApplicationTeam,
+		personKey,
+		scoredInterviews
 	} from '$lib/utils/candidates';
 	import type {
 		TimelineEvent,
@@ -26,13 +27,25 @@
 		InterviewLite,
 		InterviewSession
 	} from '$lib/utils/candidates';
+	import { averageScore } from '$lib/utils/interviewForms';
+	import { adjustedAverage } from '$lib/utils/scoreModel';
+	import { blindMode } from '$lib/stores/blindMode';
+	import { blindName, buildNameScrubber, candidateNumber } from '$lib/utils/blind';
 	import {
-		averageByPrompt,
-		averageScore,
-		questionText,
-		UNIVERSAL_Q1,
-		UNIVERSAL_Q2
-	} from '$lib/utils/interviewForms';
+		getJobScoringContext,
+		getSecondRoundPicks,
+		setSecondRoundPick,
+		getReadinessScores,
+		saveReadinessScore,
+		summarizeReadiness,
+		READINESS_PASS_LABELS,
+		type JobScoringContext,
+		type ReadinessPass,
+		type ReadinessScore,
+		type SecondRoundPick
+	} from '$lib/utils/round2';
+	import InterviewSessions from '$lib/components/recruiter/InterviewSessions.svelte';
+	import BlindToggle from '$lib/components/recruiter/BlindToggle.svelte';
 	import { allQuestions } from '$lib/utils/formSchema';
 	import {
 		tallyVotes,
@@ -75,7 +88,9 @@
 	$: tally = tallyVotes(commentsArray, reviewerWeights);
 	$: outcome = thresholdOutcome(tally, thresholds);
 	$: remaining = votesRemaining(tally, thresholds);
-	$: blinded = shouldBlind(viewerRoles, thresholds);
+	// Blinded either by the org's reviewer policy or by this viewer's blind toggle.
+	$: policyBlinded = shouldBlind(viewerRoles, thresholds);
+	$: blinded = policyBlinded || $blindMode;
 	// What the reviewer is allowed to see. Advisors/admins get the real record;
 	// a plain reviewer sees a redacted copy.
 	$: shown = applicant ? redactApplicant(applicant, jobSchema, blinded) : null;
@@ -141,92 +156,162 @@
 	$: hasIndividual = sessions.some((x) => x.type === 'individual');
 	$: hasGroup = sessions.some((x) => x.type === 'group');
 
+	// --- Interviewer-adjusted score, blind mode, round 2 ---
+	let orgId: number | null = null;
+	let myUserId: string | null = null;
+	let scoring: JobScoringContext | null = null;
+	let pick: SecondRoundPick | null = null;
+	let readinessRows: ReadinessScore[] = [];
+	let round2Saving = false;
+	let round2Error = '';
+
+	$: adjustedOverall = scoring
+		? adjustedAverage(scoring.model, scoredInterviews(interviews))
+		: null;
+	$: myPersonKey = applicant ? personKey(applicant.job, applicant.email) : '';
+	$: myNumber =
+		scoring?.numberOf.get(myPersonKey) ??
+		(applicant ? candidateNumber([applicant.id, ...siblings.map((x) => x.id)]) : 0);
+	// Until the posting's name list arrives, still scrub this candidate's own name.
+	$: scrub =
+		$blindMode && applicant
+			? buildNameScrubber(
+					scoring?.people ?? [{ name: applicant.name, number: myNumber }],
+					scoring?.sessionMates.get(myPersonKey) ?? []
+				)
+			: (text: string) => text;
+	$: readiness = applicant
+		? (summarizeReadiness(readinessRows, myUserId).get(applicant.id) ?? null)
+		: null;
+
 	const fmtScore = (n: number | null) => (n === null ? '—' : n.toFixed(1));
 	/** Tone for a 1-10 value: the form's scale is 1/3/5/7/10. */
 	const scoreTone = (n: number | null) =>
 		n === null ? 'pill-neutral' : n >= 7 ? 'pill-success' : n >= 5 ? 'pill-warning' : 'pill-danger';
 
-	function sessionWhen(session: InterviewSession): string {
-		const start = new Date(session.start_time);
-		const day = start.toLocaleDateString(undefined, {
-			weekday: 'short',
-			month: 'short',
-			day: 'numeric'
-		});
-		const time = (d: Date) =>
-			d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-		return session.end_time
-			? `${day}, ${time(start)} – ${time(new Date(session.end_time))}`
-			: `${day}, ${time(start)}`;
+	async function togglePick(picked: boolean) {
+		if (!applicant || orgId === null) return;
+		round2Saving = true;
+		round2Error = '';
+		try {
+			await setSecondRoundPick(orgId, applicant.id, picked);
+			pick = picked
+				? {
+						applicant_id: applicant.id,
+						picked_by_email: myEmail,
+						created_at: new Date().toISOString()
+					}
+				: null;
+		} catch (e) {
+			round2Error = e instanceof Error ? e.message : 'Could not save.';
+		} finally {
+			round2Saving = false;
+		}
 	}
 
-	onMount(async () => {
-		const urlParams = new URLSearchParams(window.location.search);
-		const id = Number(urlParams.get('id'));
-
-		if (id) {
-			try {
-				const data = await getApplicantData(id);
-				if (data && data.length > 0) {
-					applicant = data[0];
-					commentsArray = applicant.comments?.comments || [];
-				}
-			} catch (error) {
-				console.error('Failed to load applicant data:', error);
-			}
-
-			// Fetch interviews for this applicant to show evaluation summary
-			if (applicant?.email) {
-				const { data: orgData } = await supabase
-					.from('organizations')
-					.select('id, settings')
-					.eq('slug', slug)
-					.single();
-
-				if (orgData) {
-					orgSettings = readOrgSettings(orgData.settings);
-					myEmail = ((await getCurrentUserEmail()) as string) ?? '';
-
-					// Reviewer weights + this viewer's roles drive weighted scoring
-					// and whether the record is blinded. Weights must key by real
-					// email, since that is what comments record — hence the RPC
-					// rather than a plain `org_members` select (which only has user_id).
-					const members = await getOrgMembersWithEmail(orgData.id);
-					reviewerWeights = buildWeightMap(members);
-
-					const me = await getUserRoleInOrg(orgData.id);
-					viewerRoles = me ? [...(me.roles ?? []), me.role].filter(Boolean) : [];
-
-					// The job's schema tells us which answers are marked `blinded`.
-					if (applicant.job) {
-						const { data: jobRow } = await supabase
-							.from('job_posting')
-							.select('questions')
-							.eq('id', applicant.job)
-							.single();
-						jobSchema = jobRow?.questions ?? null;
-					}
-
-					teams = await getTeams(orgData.id);
-
-					try {
-						siblings = await getSubmissionSiblings(orgData.id, applicant);
-					} catch (error) {
-						console.error('Failed to load sibling applications:', error);
-					}
-
-					interviews = await getPersonInterviews(orgData.id, applicant);
-
-					try {
-						timeline = await getCandidateTimeline(orgData.id, applicant);
-					} catch (error) {
-						console.error('Failed to load candidate timeline:', error);
-					}
-				}
-			}
+	async function rateReadiness(pass: ReadinessPass, score: number) {
+		if (!applicant || orgId === null || !myUserId) return;
+		const current = readiness?.mine[pass];
+		const next = current === score ? null : score; // clicking your score again clears it
+		round2Saving = true;
+		round2Error = '';
+		try {
+			await saveReadinessScore(orgId, applicant.id, pass, next);
+			const others = readinessRows.filter((r) => !(r.rater_id === myUserId && r.pass === pass));
+			readinessRows =
+				next === null
+					? others
+					: [
+							...others,
+							{
+								applicant_id: applicant.id,
+								rater_id: myUserId,
+								rater_email: myEmail,
+								pass,
+								score: next,
+								updated_at: new Date().toISOString()
+							}
+						];
+		} catch (e) {
+			round2Error = e instanceof Error ? e.message : 'Could not save.';
+		} finally {
+			round2Saving = false;
 		}
-		timelineLoading = false;
+	}
+
+	// Loads in two waves. The applicant, org and session come first and render the
+	// page; everything else starts at once and fills in as it lands, instead of
+	// the old one-query-after-another chain.
+	onMount(async () => {
+		const id = Number(new URLSearchParams(window.location.search).get('id'));
+		if (!id) {
+			loading = false;
+			timelineLoading = false;
+			return;
+		}
+
+		const [applicantRows, orgRes, sessionRes] = await Promise.all([
+			getApplicantData(id).catch((error) => {
+				console.error('Failed to load applicant data:', error);
+				return [] as Applicant[];
+			}),
+			supabase.from('organizations').select('id, settings').eq('slug', slug).single(),
+			supabase.auth.getSession()
+		]);
+
+		applicant = applicantRows[0] ?? null;
+		commentsArray = applicant?.comments?.comments || [];
 		loading = false;
+
+		const orgData = orgRes.data;
+		if (!applicant || !orgData) {
+			timelineLoading = false;
+			return;
+		}
+		const app = applicant;
+		const org = orgData.id as number;
+		orgId = org;
+		orgSettings = readOrgSettings(orgData.settings);
+		const user = sessionRes.data.session?.user;
+		myEmail = user?.email ?? '';
+		myUserId = user?.id ?? null;
+
+		const interviewsP = getPersonInterviews(org, app);
+
+		await Promise.allSettled([
+			// Reviewer weights must key by real email, since that is what comments
+			// record — hence the RPC rather than a plain `org_members` select.
+			getOrgMembersWithEmail(org).then((members) => (reviewerWeights = buildWeightMap(members))),
+			getUserRoleInOrg(org, user?.id).then((me) => {
+				viewerRoles = me ? [...(me.roles ?? []), me.role].filter(Boolean) : [];
+			}),
+			// The job's schema tells us which answers are marked `blinded`.
+			app.job
+				? supabase
+						.from('job_posting')
+						.select('questions')
+						.eq('id', app.job)
+						.single()
+						.then(({ data }) => (jobSchema = data?.questions ?? null))
+				: null,
+			getTeams(org).then((list) => (teams = list)),
+			getSubmissionSiblings(org, app)
+				.then((list) => (siblings = list))
+				.catch((error) => console.error('Failed to load sibling applications:', error)),
+			interviewsP.then((list) => (interviews = list)),
+			interviewsP
+				.then((list) => getCandidateTimeline(org, app, list))
+				.then((events) => (timeline = events))
+				.catch((error) => console.error('Failed to load candidate timeline:', error))
+				.finally(() => (timelineLoading = false)),
+			app.job
+				? getJobScoringContext(org, app.job)
+						.then((context) => (scoring = context))
+						.catch((error) => console.warn('Adjusted scores unavailable:', error))
+				: null,
+			getSecondRoundPicks(org, app.id).then((map) => (pick = map.get(app.id) ?? null)),
+			getReadinessScores(org, app.id).then((rows) => (readinessRows = rows))
+		]);
 	});
 
 	function formatEventTime(at: string | null): string {
@@ -314,40 +399,6 @@
 				return '#878fa1';
 		}
 	}
-
-	function getRecommendationLabel(rec: string): string {
-		switch (rec) {
-			case 'strong_yes':
-				return 'Strong Yes';
-			case 'yes':
-				return 'Yes';
-			case 'neutral':
-				return 'Neutral';
-			case 'no':
-				return 'No';
-			case 'strong_no':
-				return 'Strong No';
-			default:
-				return rec;
-		}
-	}
-
-	function getRecommendationColor(rec: string): string {
-		switch (rec) {
-			case 'strong_yes':
-				return '#16a34a';
-			case 'yes':
-				return '#22c55e';
-			case 'neutral':
-				return '#878fa1';
-			case 'no':
-				return '#f59e0b';
-			case 'strong_no':
-				return '#ef4444';
-			default:
-				return '#878fa1';
-		}
-	}
 </script>
 
 <div class="candidate-page">
@@ -356,6 +407,7 @@
 			<i class="fi fi-br-arrow-left"></i>
 			Back to {backTo === 'candidates' ? 'Candidates' : 'Review'}
 		</a>
+		<BlindToggle />
 	</div>
 
 	{#if loading}
@@ -366,7 +418,9 @@
 			<div class="candidate-info">
 				<div class="card">
 					<div style="display: flex; justify-content: space-between; align-items: center;">
-						<h5 style="margin: 0;">{shown?.name ?? applicant.name}</h5>
+						<h5 style="margin: 0;">
+							{$blindMode ? blindName(myNumber) : (shown?.name ?? applicant.name)}
+						</h5>
 						<span
 							class="status-badge"
 							style="background-color: {getStatusColor(applicant.status)};"
@@ -401,10 +455,15 @@
 							— reviewed separately.
 						</p>
 					{/if}
-					{#if blinded}
+					{#if policyBlinded}
 						<p class="blind-note">
 							<i class="fi fi-br-eye-crossed"></i>
 							Blinded review — identifying details are hidden. Advisors and admins see the full record.
+						</p>
+					{:else if $blindMode}
+						<p class="blind-note">
+							<i class="fi fi-br-eye-crossed"></i>
+							Blind names is on — candidate names are replaced with numbers, including in notes and comments.
 						</p>
 					{/if}
 
@@ -497,11 +556,20 @@
 						</p>
 
 						<div class="score-strip">
+							<div
+								class="score-tile"
+								title="Average with each interviewer's usual lean removed. See Candidates → Team rankings → How scores work."
+							>
+								<span class="pill {scoreTone(adjustedOverall)} score-big"
+									>{scoring ? fmtScore(adjustedOverall) : '…'}</span
+								>
+								<span class="score-cap">Adjusted /10</span>
+							</div>
 							<div class="score-tile">
 								<span class="pill {scoreTone(overall.average)} score-big"
 									>{fmtScore(overall.average)}</span
 								>
-								<span class="score-cap">Overall /10 · {overall.count} scored</span>
+								<span class="score-cap">Raw /10 · {overall.count} scored</span>
 							</div>
 							{#if hasIndividual}
 								<div class="score-tile">
@@ -529,111 +597,7 @@
 							{/if}
 						</div>
 
-						{#each sessions as session (session.key)}
-							{@const form = session.type === 'group' ? 'group' : 'individual'}
-							{@const panel = averageByPrompt(
-								session.entries.map((e) => e.evaluation),
-								form
-							)}
-							<div class="session">
-								<div class="session-head">
-									<span class="session-title">{sessionLabel(session.type)}</span>
-									<span class="session-when"
-										>{sessionWhen(session)}{session.location ? ` · ${session.location}` : ''}</span
-									>
-								</div>
-
-								{#if session.entries.length > 1 && panel.some((q) => q.count > 0)}
-									<div class="rating-list panel-avg">
-										<span class="eval-label">Panel average</span>
-										{#each panel as q (q.key)}
-											<div class="rating-row">
-												<span class="rating-label">{q.label}</span>
-												<span class="pill {scoreTone(q.average)}">{fmtScore(q.average)}</span>
-											</div>
-										{/each}
-									</div>
-								{/if}
-
-								{#each session.entries as entry (entry.interview.id)}
-									{@const ev = entry.evaluation}
-									<div class="eval-item">
-										<div class="eval-item-header">
-											<span class="eval-interviewer">
-												{ev?.evaluator || entry.interview.interviewer || 'Unknown'}
-											</span>
-											{#if ev}
-												<span class="pill {scoreTone(entry.score)}"
-													>{entry.score === null
-														? 'Not scored'
-														: `${entry.score.toFixed(1)}/10`}</span
-												>
-											{:else}
-												<span class="pill pill-neutral">Not evaluated yet</span>
-											{/if}
-										</div>
-
-										{#if ev && ev.form !== 'legacy'}
-											<div class="rating-list">
-												{#each averageByPrompt([ev], ev.form) as q (q.key)}
-													<div class="rating-row">
-														<span class="rating-label">{q.label}</span>
-														<span class="pill {scoreTone(q.average)}"
-															>{q.average === null ? '—' : q.average}</span
-														>
-													</div>
-												{/each}
-											</div>
-
-											{#if ev.form === 'individual'}
-												<div class="asked">
-													<span class="eval-label">Questions asked</span>
-													<ul class="asked-list">
-														<li>{UNIVERSAL_Q1}</li>
-														<li>{UNIVERSAL_Q2}</li>
-														{#each [...ev.successQuestions, ...ev.failureQuestions] as id (id)}
-															<li>{questionText(id)}</li>
-														{/each}
-													</ul>
-													{#if ev.otherQuestions.trim()}
-														<span class="eval-label">Other questions</span>
-														<p class="eval-text pre">{ev.otherQuestions}</p>
-													{/if}
-												</div>
-											{/if}
-
-											{#if ev.notes.trim()}
-												<span class="eval-label">Notes</span>
-												<p class="eval-text pre">{ev.notes}</p>
-											{/if}
-										{:else if ev && ev.form === 'legacy'}
-											<div class="star-row">
-												{#each [1, 2, 3, 4, 5] as star (star)}
-													<span class="star" class:filled={ev.rating >= star}>&#9733;</span>
-												{/each}
-												{#if ev.recommendation}
-													<span
-														class="rec-pill"
-														style="background-color: {getRecommendationColor(ev.recommendation)};"
-													>
-														{getRecommendationLabel(ev.recommendation)}
-													</span>
-												{/if}
-											</div>
-											{#if ev.strengths}
-												<p class="eval-text pre"><strong>+</strong> {ev.strengths}</p>
-											{/if}
-											{#if ev.weaknesses}
-												<p class="eval-text pre"><strong>−</strong> {ev.weaknesses}</p>
-											{/if}
-											{#if ev.notes}
-												<p class="eval-text pre eval-text-muted">{ev.notes}</p>
-											{/if}
-										{/if}
-									</div>
-								{/each}
-							</div>
-						{/each}
+						<InterviewSessions {sessions} model={scoring?.model ?? null} {scrub} />
 					</div>
 				{/if}
 
@@ -672,7 +636,7 @@
 											<span class="timeline-actor">{ev.actor}</span>
 										{/if}
 										{#if ev.detail}
-											<p class="timeline-detail">{ev.detail}</p>
+											<p class="timeline-detail">{scrub(ev.detail)}</p>
 										{/if}
 									</div>
 								</li>
@@ -699,8 +663,56 @@
 				{/if}
 			</div>
 
-			<!-- Right: Comments -->
+			<!-- Right: Round 2 + comments -->
 			<div class="candidate-comments">
+				<div class="card">
+					<h5>Round 2</h5>
+					<label class="pick-line">
+						<input
+							type="checkbox"
+							checked={!!pick}
+							disabled={round2Saving || orgId === null}
+							on:change={(e) => togglePick(e.currentTarget.checked)}
+						/>
+						<span>
+							Second interview{appTeam?.name ? ` with ${appTeam.name}` : ''}
+							{#if pick}<span class="meta">· picked by {pick.picked_by_email}</span>{/if}
+						</span>
+					</label>
+
+					<span class="field-label">Your readiness rating (1–10)</span>
+					{#each ['blind', 'informed'] as const as pass (pass)}
+						<div class="readiness-row">
+							<span class="readiness-label">{READINESS_PASS_LABELS[pass]}</span>
+							<div class="readiness-scale">
+								{#each [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as n (n)}
+									<button
+										class="scale-btn"
+										class:active={readiness?.mine[pass] === n}
+										disabled={round2Saving || !myUserId}
+										on:click={() => rateReadiness(pass, n)}>{n}</button
+									>
+								{/each}
+							</div>
+							<span class="meta">
+								Everyone: {readiness?.[pass].average != null
+									? `${readiness[pass].average?.toFixed(1)} (${readiness[pass].count})`
+									: '—'}
+							</span>
+						</div>
+					{/each}
+					<p class="meta">
+						"Without scores" means before looking at interview scores — the
+						<a
+							href="/private/{slug}/candidates/readiness?job={applicant.job}&team={applicant.team_id}&pass=blind"
+							>readiness review</a
+						> hides them for you.
+					</p>
+					{#if round2Error}
+						<div class="alert-soft alert-error">{round2Error}</div>
+					{/if}
+				</div>
+
 				<div class="card">
 					<h5>Comments ({commentsArray.length})</h5>
 
@@ -717,7 +729,7 @@
 											{comment.decision}
 										</span>
 									</div>
-									<p class="comment-text">{comment.comment}</p>
+									<p class="comment-text">{scrub(comment.comment)}</p>
 								</div>
 							{/each}
 						</div>
@@ -874,6 +886,64 @@
 	}
 	.candidate-header {
 		margin-bottom: 20px;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+	}
+	.pick-line {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-size: 13px;
+		font-weight: 600;
+		margin-bottom: 12px;
+		cursor: pointer;
+		input {
+			width: 16px;
+			height: 16px;
+		}
+		.meta {
+			font-weight: 400;
+		}
+	}
+	.readiness-row {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		margin: 6px 0 10px;
+	}
+	.readiness-label {
+		font-size: 12px;
+		font-weight: 700;
+		color: $text;
+	}
+	.readiness-scale {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px;
+	}
+	.scale-btn {
+		width: 28px;
+		height: 28px;
+		border: 1px solid $border-strong;
+		border-radius: $radius-sm;
+		background-color: $surface;
+		font-size: 12px;
+		font-weight: 700;
+		color: $text;
+		cursor: pointer;
+		&:hover:not(:disabled) {
+			border-color: $yellow-secondary;
+		}
+		&.active {
+			background-color: $yellow-primary;
+			border-color: $yellow-secondary;
+		}
+		&:disabled {
+			cursor: default;
+			opacity: 0.6;
+		}
 	}
 	.back-btn {
 		display: inline-flex;
@@ -977,82 +1047,6 @@
 		border-top: 1px solid $border;
 	}
 
-	/* Evaluation summary */
-	.eval-row {
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
-	}
-	.eval-label {
-		font-size: 11px;
-		font-weight: 700;
-		color: $text-muted;
-		text-transform: uppercase;
-		letter-spacing: 0.03em;
-	}
-	.star-row {
-		display: flex;
-		align-items: center;
-		gap: 2px;
-	}
-	.star {
-		font-size: 16px;
-		color: $border-strong;
-	}
-	.star.filled {
-		color: $yellow-primary;
-	}
-	.rating-num {
-		font-size: 13px;
-		font-weight: 700;
-		color: $text;
-		margin-left: 6px;
-	}
-	.rec-pills {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 5px;
-	}
-	.rec-pill {
-		font-size: 10px;
-		font-weight: 700;
-		color: $surface;
-		padding: 2px 8px;
-		border-radius: $radius-pill;
-	}
-	.eval-list {
-		margin-top: 12px;
-		display: flex;
-		flex-direction: column;
-		gap: 10px;
-	}
-	.eval-item {
-		padding: 10px;
-		background-color: $surface-sunken;
-		border-radius: $radius-sm;
-	}
-	.eval-item-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 4px;
-	}
-	.eval-interviewer {
-		font-size: 12px;
-		font-weight: 700;
-		color: $text;
-	}
-	.eval-text {
-		font-size: 12px;
-		color: $text;
-		margin: 3px 0 0;
-	}
-	.eval-text-muted {
-		color: $text-muted;
-	}
-	.pre {
-		white-space: pre-wrap;
-	}
 	.interviews-meta {
 		margin-bottom: 12px;
 	}
@@ -1079,57 +1073,5 @@
 	.score-cap {
 		font-size: 11px;
 		color: $text-muted;
-	}
-	.session {
-		border-top: 1px solid $border-faint;
-		padding-top: 12px;
-		margin-top: 12px;
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-	}
-	.session-head {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: baseline;
-		gap: 8px;
-	}
-	.session-title {
-		font-size: 14px;
-		font-weight: 700;
-		color: $text;
-	}
-	.session-when {
-		font-size: 12px;
-		color: $text-muted;
-	}
-	.rating-list {
-		display: flex;
-		flex-direction: column;
-		gap: 4px;
-		margin: 6px 0;
-	}
-	.panel-avg {
-		padding: 8px 10px;
-		border: 1px dashed $border;
-		border-radius: $radius-sm;
-		margin: 0;
-	}
-	.rating-row {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		gap: 10px;
-		font-size: 12px;
-		color: $text;
-	}
-	.asked {
-		margin: 6px 0;
-	}
-	.asked-list {
-		margin: 4px 0 6px;
-		padding-left: 18px;
-		font-size: 12px;
-		color: $text;
 	}
 </style>
