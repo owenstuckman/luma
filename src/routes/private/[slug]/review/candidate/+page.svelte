@@ -184,6 +184,30 @@
 		? (summarizeReadiness(readinessRows, myUserId).get(applicant.id) ?? null)
 		: null;
 
+	const ordinal = (n: number) => (n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`);
+
+	/**
+	 * Every team this person applied to, in the order they ranked them. One
+	 * application per team, so this is their preference list — the thing
+	 * interviewers could see when they asked "which team is your first choice?".
+	 */
+	$: teamChoices = applicant
+		? [
+				{
+					id: applicant.id,
+					team_name: appTeam?.name ?? null,
+					rank: applicant.team_rank,
+					status: applicant.status
+				},
+				...siblings.map((sib) => ({
+					id: sib.id,
+					team_name: sib.team_name,
+					rank: sib.team_rank,
+					status: sib.status
+				}))
+			].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99))
+		: [];
+
 	const fmtScore = (n: number | null) => (n === null ? '—' : n.toFixed(1));
 	/** Tone for a 1-10 value: the form's scale is 1/3/5/7/10. */
 	const scoreTone = (n: number | null) =>
@@ -442,6 +466,32 @@
 					{:else if appTeam?.name}
 						<p class="team-line">
 							<span class="pill pill-neutral">{appTeam.name}</span>
+							{#if applicant.team_rank !== null}
+								<span class="pill {applicant.team_rank === 1 ? 'pill-success' : 'pill-neutral'}">
+									their {ordinal(applicant.team_rank)} choice
+								</span>
+							{/if}
+						</p>
+					{/if}
+
+					<!-- How this person ranked the teams they applied to. During interviews
+					     it mattered whether a team was their first pick; this keeps that
+					     visible on the application itself. -->
+					{#if teamChoices.length > 1}
+						<p class="choice-line">
+							<span class="field-label">Their team ranking</span>
+							{#each teamChoices as choice, i (choice.id)}
+								<span class="choice">
+									<span class="choice-rank">{ordinal(choice.rank ?? i + 1)}</span>
+									{#if choice.id === applicant.id}
+										<strong>{choice.team_name ?? 'This application'}</strong>
+									{:else}
+										<a href="/private/{slug}/review/candidate?id={choice.id}&from={backTo}">
+											{choice.team_name ?? `application #${choice.id}`}
+										</a>
+									{/if}
+								</span>
+							{/each}
 						</p>
 					{/if}
 					{#if !blinded && siblings.length > 0}
@@ -988,6 +1038,26 @@
 		font-size: 12px;
 		font-weight: 700;
 		color: $text-muted;
+	}
+	.choice-line {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 8px;
+		margin: 8px 0 0;
+		font-size: 12px;
+	}
+	.choice {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		color: $text;
+	}
+	.choice-rank {
+		font-size: 10px;
+		font-weight: 700;
+		color: $text-muted;
+		text-transform: uppercase;
 	}
 	.team-line {
 		margin: 8px 0 0;
