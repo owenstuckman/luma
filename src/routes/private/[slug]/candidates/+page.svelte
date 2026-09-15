@@ -38,6 +38,8 @@
 	import Sidebar from '$lib/components/recruiter/Sidebar.svelte';
 	import Navbar from '$lib/components/recruiter/Navbar.svelte';
 	import CandidateList from '$lib/components/recruiter/CandidateList.svelte';
+	import TeamRankings from '$lib/components/recruiter/TeamRankings.svelte';
+	import BlindToggle from '$lib/components/recruiter/BlindToggle.svelte';
 
 	const slug = $page.params.slug ?? '';
 	const cached = orgContext.get(slug);
@@ -64,6 +66,26 @@
 	let bulkStatus = 'pending';
 	let bulkUpdating = false;
 	let list: CandidateList;
+
+	// Both tabs share one job filter. Rankings need a single posting, so "All
+	// jobs" ranks the most recent one; picking a job there sets the filter here.
+	$: rankingJob = jobFilter === 'all' ? null : jobFilter;
+	const setRankingJob = (job: number) => (jobFilter = job);
+
+	// Which view: the full roster, or one team's round 2 ranking. Remembered for
+	// the tab like the filters, and restored after mount so it never disagrees
+	// with the server-rendered markup.
+	const tabKey = `candidates:${slug}:tab`;
+	let tab: 'all' | 'rankings' = 'all';
+	onMount(() => {
+		if (readFilters<{ tab: string }>(tabKey)?.tab === 'rankings') tab = 'rankings';
+	});
+	function setTab(next: typeof tab) {
+		tab = next;
+		writeFilters(tabKey, { tab: next });
+	}
+	const openCandidate = (id: number) =>
+		goto(`/private/${slug}/review/candidate?id=${id}&from=candidates`);
 
 	$: visible = jobFilter === 'all' ? candidates : candidates.filter((c) => c.job === jobFilter);
 
@@ -184,13 +206,38 @@
 					{#if refreshing}<span class="refreshing">Refreshing…</span>{/if}
 				</p>
 			</div>
+			<BlindToggle />
+		</div>
+
+		<div class="tab-bar">
+			<button class="tab-btn" class:active={tab === 'all'} on:click={() => setTab('all')}>
+				All candidates
+			</button>
+			<button class="tab-btn" class:active={tab === 'rankings'} on:click={() => setTab('rankings')}>
+				Team rankings
+			</button>
 		</div>
 
 		{#if loadError}
 			<div class="alert-soft alert-error">{loadError}</div>
 		{/if}
 
-		{#if !loading && candidates.length > 0}
+		{#if tab === 'rankings'}
+			{#if loading}
+				<p class="muted">Loading candidates…</p>
+			{:else if orgId !== null}
+				<TeamRankings
+					jobId={rankingJob}
+					on:jobChange={(e) => setRankingJob(e.detail)}
+					{orgId}
+					{slug}
+					{candidates}
+					{teams}
+					{jobs}
+					on:open={(e) => openCandidate(e.detail)}
+				/>
+			{/if}
+		{:else if !loading && candidates.length > 0}
 			<div class="stage-strip">
 				{#each STAGE_ORDER as stage (stage)}
 					<div class="stage-stat">
@@ -219,52 +266,54 @@
 			</div>
 		{/if}
 
-		<CandidateList
-			bind:this={list}
-			candidates={visible}
-			{teams}
-			{loading}
-			bind:selectMode
-			bind:selectedIds
-			view="table"
-			persistKey="candidates:{slug}"
-			showJob={true}
-			emptyMessage="No candidates yet."
-			on:open={(e) => goto(`/private/${slug}/review/candidate?id=${e.detail}&from=candidates`)}
-		>
-			<svelte:fragment slot="actions">
-				{#if !selectMode}
-					<button class="btn btn-quaternary btn-sm" on:click={() => (selectMode = true)}>
-						Select
+		{#if tab === 'all'}
+			<CandidateList
+				bind:this={list}
+				candidates={visible}
+				{teams}
+				{loading}
+				bind:selectMode
+				bind:selectedIds
+				view="table"
+				persistKey="candidates:{slug}"
+				showJob={true}
+				emptyMessage="No candidates yet."
+				on:open={(e) => openCandidate(e.detail)}
+			>
+				<svelte:fragment slot="actions">
+					{#if !selectMode}
+						<button class="btn btn-quaternary btn-sm" on:click={() => (selectMode = true)}>
+							Select
+						</button>
+					{:else}
+						<button class="btn btn-quaternary btn-sm" on:click={exitSelectMode}>Cancel</button>
+					{/if}
+					<button class="btn btn-quaternary btn-sm" on:click={exportCSV} title="Export to CSV">
+						<i class="fi fi-br-download"></i> CSV
 					</button>
-				{:else}
-					<button class="btn btn-quaternary btn-sm" on:click={exitSelectMode}>Cancel</button>
-				{/if}
-				<button class="btn btn-quaternary btn-sm" on:click={exportCSV} title="Export to CSV">
-					<i class="fi fi-br-download"></i> CSV
-				</button>
-			</svelte:fragment>
+				</svelte:fragment>
 
-			<svelte:fragment slot="bulk">
-				<select
-					bind:value={bulkStatus}
-					class="form-control"
-					style="max-width: 140px; font-size: 12px;"
-				>
-					<option value="pending">Set Pending</option>
-					<option value="interview">Set Interview</option>
-					<option value="accepted">Set Accepted</option>
-					<option value="denied">Set Denied</option>
-				</select>
-				<button
-					class="btn btn-tertiary btn-sm"
-					on:click={bulkUpdateStatus}
-					disabled={selectedIds.size === 0 || bulkUpdating}
-				>
-					{bulkUpdating ? 'Updating...' : 'Apply'}
-				</button>
-			</svelte:fragment>
-		</CandidateList>
+				<svelte:fragment slot="bulk">
+					<select
+						bind:value={bulkStatus}
+						class="form-control"
+						style="max-width: 140px; font-size: 12px;"
+					>
+						<option value="pending">Set Pending</option>
+						<option value="interview">Set Interview</option>
+						<option value="accepted">Set Accepted</option>
+						<option value="denied">Set Denied</option>
+					</select>
+					<button
+						class="btn btn-tertiary btn-sm"
+						on:click={bulkUpdateStatus}
+						disabled={selectedIds.size === 0 || bulkUpdating}
+					>
+						{bulkUpdating ? 'Updating...' : 'Apply'}
+					</button>
+				</svelte:fragment>
+			</CandidateList>
+		{/if}
 	</div>
 
 	<Navbar />

@@ -14,6 +14,8 @@
 	} from '$lib/utils/candidates';
 	import { selectedTeamSlug } from '$lib/stores/teamFilter';
 	import { readFilters, writeFilters } from '$lib/utils/persistedFilters';
+	import { blindMode } from '$lib/stores/blindMode';
+	import { blindName } from '$lib/utils/blind';
 	import type { Team } from '$lib/types';
 
 	export let candidates: CandidateRow[] = [];
@@ -39,7 +41,7 @@
 	let searchQuery = '';
 	let statusFilter = 'all';
 	let stageFilter: 'all' | CandidateStage = 'all';
-	type SortKey = 'date' | 'name' | 'status' | 'stage' | 'rating';
+	type SortKey = 'date' | 'name' | 'status' | 'stage' | 'rating' | 'adjusted';
 	let sortBy: SortKey = 'date';
 	let currentPage = 0;
 
@@ -60,6 +62,7 @@
 		.filter((a) => {
 			const q = searchQuery.trim().toLowerCase();
 			if (!q) return true;
+			if ($blindMode) return String(a.candidate_number).includes(q.replace(/^#/, ''));
 			return a.name.toLowerCase().includes(q) || a.email.toLowerCase().includes(q);
 		})
 		.sort((a, b) => {
@@ -67,6 +70,7 @@
 			if (sortBy === 'status') return a.status.localeCompare(b.status);
 			if (sortBy === 'stage') return STAGE_ORDER.indexOf(a.stage) - STAGE_ORDER.indexOf(b.stage);
 			if (sortBy === 'rating') return (b.avg_rating ?? -1) - (a.avg_rating ?? -1);
+			if (sortBy === 'adjusted') return (b.adjusted_rating ?? -1) - (a.adjusted_rating ?? -1);
 			return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
 		});
 
@@ -205,7 +209,7 @@
 <div class="filter-bar">
 	<input
 		type="text"
-		placeholder="Search name or email..."
+		placeholder={$blindMode ? 'Search candidate #...' : 'Search name or email...'}
 		bind:value={searchQuery}
 		class="form-control"
 		style="max-width: 240px;"
@@ -236,7 +240,8 @@
 		<option value="name">Sort: Name</option>
 		<option value="stage">Sort: Stage</option>
 		<option value="status">Sort: Status</option>
-		<option value="rating">Sort: Rating</option>
+		<option value="adjusted">Sort: Adjusted score</option>
+		<option value="rating">Sort: Raw score</option>
 	</select>
 	<span class="muted result-count">{filtered.length} candidates</span>
 	{#if hasActiveFilters}
@@ -302,7 +307,8 @@
 					<th>Stage</th>
 					<th>Status</th>
 					<th>Interviews</th>
-					<th>Rating</th>
+					<th title="Average with each interviewer's usual lean removed">Adjusted</th>
+					<th>Raw</th>
 					<th>Decision</th>
 					<th>Applied</th>
 				</tr>
@@ -320,11 +326,11 @@
 							</td>
 						{/if}
 						<td>
-							<span class="cell-name">{c.name}</span>
+							<span class="cell-name">{$blindMode ? blindName(c.candidate_number) : c.name}</span>
 							{#if c.hire_conflict}
 								<span class="conflict-flag" title="Hired by more than one team">⚑</span>
 							{/if}
-							<span class="cell-sub">{c.email}</span>
+							{#if !$blindMode}<span class="cell-sub">{c.email}</span>{/if}
 						</td>
 						{#if showJob}<td class="cell-sub">{c.job_name ?? '—'}</td>{/if}
 						{#if showTeams}
@@ -355,6 +361,9 @@
 						</td>
 						<td class="cell-sub">
 							{c.interview_count > 0 ? `${c.evaluated_count}/${c.interview_count}` : '—'}
+						</td>
+						<td class="cell-name">
+							{c.adjusted_rating !== null ? c.adjusted_rating.toFixed(1) : '—'}
 						</td>
 						<td class="cell-sub">{c.avg_rating !== null ? c.avg_rating.toFixed(1) : '—'}</td>
 						<td>
@@ -396,7 +405,7 @@
 				{/if}
 				<div class="card-top">
 					<span class="cell-name">
-						{c.name}
+						{$blindMode ? blindName(c.candidate_number) : c.name}
 						{#if c.hire_conflict}
 							<span class="conflict-flag" title="Hired by more than one team">⚑</span>
 						{/if}
@@ -405,7 +414,7 @@
 						{c.status}
 					</span>
 				</div>
-				<p class="cell-sub">{c.email}</p>
+				{#if !$blindMode}<p class="cell-sub">{c.email}</p>{/if}
 				{#if showJob && c.job_name}
 					<p class="cell-sub">{c.job_name}</p>
 				{/if}
@@ -428,8 +437,10 @@
 					{#if c.interview_count > 0}
 						<span class="cell-sub">{c.evaluated_count}/{c.interview_count} evaluated</span>
 					{/if}
-					{#if c.avg_rating !== null}
-						<span class="cell-sub">★ {c.avg_rating.toFixed(1)}</span>
+					{#if c.adjusted_rating !== null}
+						<span class="cell-sub" title="Adjusted score (raw {c.avg_rating?.toFixed(1)})"
+							>★ {c.adjusted_rating.toFixed(1)}</span
+						>
 					{/if}
 				</div>
 			</div>
