@@ -41,9 +41,110 @@
 	let searchQuery = '';
 	let statusFilter = 'all';
 	let stageFilter: 'all' | CandidateStage = 'all';
-	type SortKey = 'date' | 'name' | 'status' | 'stage' | 'rating' | 'adjusted';
+	type SortKey =
+		| 'date'
+		| 'name'
+		| 'job'
+		| 'team'
+		| 'choice'
+		| 'status'
+		| 'stage'
+		| 'interviews'
+		| 'rating'
+		| 'adjusted';
+	type SortDir = 'asc' | 'desc';
 	let sortBy: SortKey = 'date';
+	let sortDir: SortDir = 'desc';
 	let currentPage = 0;
+
+	/**
+	 * What each column sorts on. Numbers sort numerically, everything else as
+	 * text; a null (no score, no team) always sinks to the bottom whichever way
+	 * the column is pointing, so "sort by score" never buries the scored
+	 * candidates under the unscored ones.
+	 */
+	const SORT_VALUES: Record<SortKey, (c: CandidateRow) => string | number | null> = {
+		date: (c) => new Date(c.created_at).getTime(),
+		name: (c) => c.name.toLowerCase(),
+		job: (c) => c.job_name?.toLowerCase() ?? null,
+		team: (c) => c.team.name?.toLowerCase() ?? null,
+		choice: (c) => c.team_rank,
+		status: (c) => c.status,
+		stage: (c) => STAGE_ORDER.indexOf(c.stage),
+		interviews: (c) => (c.interview_count === 0 ? null : c.evaluated_count / c.interview_count),
+		rating: (c) => c.avg_rating,
+		adjusted: (c) => c.adjusted_rating
+	};
+
+	/** Columns people read largest-first; the rest start A-Z / oldest-first. */
+	const DESC_FIRST: SortKey[] = ['date', 'adjusted', 'rating', 'interviews'];
+
+	// Takes the column and direction as arguments rather than reading them from
+	// component state: that keeps them visible to the reactive statement below,
+	// which otherwise would not re-sort when someone changes the sort.
+	function compare(a: CandidateRow, b: CandidateRow, key: SortKey, dir: SortDir): number {
+		const read = SORT_VALUES[key];
+		const x = read(a);
+		const y = read(b);
+		if (x === null || x === undefined) return y === null || y === undefined ? 0 : 1;
+		if (y === null || y === undefined) return -1;
+		const order =
+			typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y));
+		return dir === 'asc' ? order : -order;
+	}
+
+	/** Pick a column from the dropdown: start on that column's natural direction. */
+	function chooseSort(key: SortKey) {
+		sortBy = key;
+		sortDir = DESC_FIRST.includes(key) ? 'desc' : 'asc';
+	}
+
+	/** Click a column heading: the same column flips direction, a new one starts fresh. */
+	function sortColumn(key: SortKey) {
+		if (sortBy === key) {
+			sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+			return;
+		}
+		sortBy = key;
+		sortDir = DESC_FIRST.includes(key) ? 'desc' : 'asc';
+	}
+
+	$: headers = [
+		{ key: 'name' as SortKey, label: 'Name', show: true, title: '' },
+		{ key: 'job' as SortKey, label: 'Job', show: showJob, title: '' },
+		{ key: 'team' as SortKey, label: 'Team', show: showTeams, title: '' },
+		{
+			key: 'choice' as SortKey,
+			label: 'Choice',
+			show: showTeams,
+			title: 'Where the applicant ranked this team; 1st is their first choice'
+		},
+		{ key: 'stage' as SortKey, label: 'Stage', show: true, title: '' },
+		{ key: 'status' as SortKey, label: 'Status', show: true, title: '' },
+		{
+			key: 'interviews' as SortKey,
+			label: 'Interviews',
+			show: true,
+			title: 'Evaluations submitted out of interviews held'
+		},
+		{
+			key: 'adjusted' as SortKey,
+			label: 'Adjusted',
+			show: true,
+			title: "Average with each interviewer's usual lean removed"
+		},
+		{
+			key: 'rating' as SortKey,
+			label: 'Raw',
+			show: true,
+			title: 'Plain average of every evaluation'
+		}
+	];
+
+	// Same reason as `compare`: the current sort is passed in, so the attribute
+	// updates when it changes.
+	const ariaSort = (key: SortKey, active: SortKey, dir: SortDir) =>
+		active !== key ? 'none' : dir === 'asc' ? 'ascending' : 'descending';
 
 	// An application belongs to ONE team, so the team filter is a straight
 	// equality test on that team. A legacy combined row (pre-00024, several
@@ -65,27 +166,21 @@
 			if ($blindMode) return String(a.candidate_number).includes(q.replace(/^#/, ''));
 			return a.name.toLowerCase().includes(q) || a.email.toLowerCase().includes(q);
 		})
-		.sort((a, b) => {
-			if (sortBy === 'name') return a.name.localeCompare(b.name);
-			if (sortBy === 'status') return a.status.localeCompare(b.status);
-			if (sortBy === 'stage') return STAGE_ORDER.indexOf(a.stage) - STAGE_ORDER.indexOf(b.stage);
-			if (sortBy === 'rating') return (b.avg_rating ?? -1) - (a.avg_rating ?? -1);
-			if (sortBy === 'adjusted') return (b.adjusted_rating ?? -1) - (a.adjusted_rating ?? -1);
-			return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-		});
+		.sort((a, b) => compare(a, b, sortBy, sortDir));
 
 	interface SavedFilters {
 		search: string;
 		status: string;
 		stage: 'all' | CandidateStage;
 		sort: SortKey;
+		dir: SortDir;
 		team: string | null;
 		page: number;
 		view: 'cards' | 'table';
 	}
 
 	const filterSignature = () =>
-		JSON.stringify([searchQuery, statusFilter, stageFilter, sortBy, $selectedTeamSlug]);
+		JSON.stringify([searchQuery, statusFilter, stageFilter, sortBy, sortDir, $selectedTeamSlug]);
 
 	// Reset to the first page whenever the result set changes underneath us —
 	// but not for the restore below, which must land back on the saved page.
@@ -96,7 +191,7 @@
 		currentPage = 0;
 	}
 	$: resetPageIfFiltersChanged(
-		JSON.stringify([searchQuery, statusFilter, stageFilter, sortBy, $selectedTeamSlug])
+		JSON.stringify([searchQuery, statusFilter, stageFilter, sortBy, sortDir, $selectedTeamSlug])
 	);
 
 	// Restored in onMount, not at init: the list is server-rendered with default
@@ -110,7 +205,8 @@
 			if (saved.stage === 'all' || STAGE_ORDER.includes(saved.stage as CandidateStage)) {
 				stageFilter = saved.stage as 'all' | CandidateStage;
 			}
-			if (typeof saved.sort === 'string') sortBy = saved.sort;
+			if (saved.sort && saved.sort in SORT_VALUES) sortBy = saved.sort;
+			if (saved.dir === 'asc' || saved.dir === 'desc') sortDir = saved.dir;
 			if (saved.team === null || typeof saved.team === 'string') selectedTeamSlug.set(saved.team);
 			if (saved.view === 'cards' || saved.view === 'table') view = saved.view;
 			lastSignature = filterSignature();
@@ -125,6 +221,7 @@
 			status: statusFilter,
 			stage: stageFilter,
 			sort: sortBy,
+			dir: sortDir,
 			team: $selectedTeamSlug,
 			page: currentPage,
 			view
@@ -190,6 +287,8 @@
 		dispatch('open', id);
 	}
 
+	const ordinal = (n: number) => (n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`);
+
 	function getStatusColor(status: string) {
 		switch (status) {
 			case 'pending':
@@ -235,14 +334,34 @@
 		<option value="accepted">Accepted</option>
 		<option value="denied">Denied</option>
 	</select>
-	<select bind:value={sortBy} class="form-control" style="max-width: 140px;">
+	<select
+		value={sortBy}
+		on:change={(e) => chooseSort(e.currentTarget.value as SortKey)}
+		class="form-control"
+		style="max-width: 160px;"
+		aria-label="Sort by"
+	>
 		<option value="date">Sort: Date</option>
 		<option value="name">Sort: Name</option>
+		<option value="job">Sort: Job</option>
+		<option value="team">Sort: Team</option>
+		<option value="choice">Sort: Team choice</option>
 		<option value="stage">Sort: Stage</option>
 		<option value="status">Sort: Status</option>
+		<option value="interviews">Sort: Evaluated</option>
 		<option value="adjusted">Sort: Adjusted score</option>
 		<option value="rating">Sort: Raw score</option>
 	</select>
+	<button
+		class="btn btn-quaternary btn-sm sort-dir"
+		on:click={() => (sortDir = sortDir === 'asc' ? 'desc' : 'asc')}
+		title={sortDir === 'asc'
+			? 'Ascending — click for descending'
+			: 'Descending — click for ascending'}
+	>
+		<i class="fi {sortDir === 'asc' ? 'fi-br-arrow-up' : 'fi-br-arrow-down'}"></i>
+		{sortDir === 'asc' ? 'Asc' : 'Desc'}
+	</button>
 	<span class="muted result-count">{filtered.length} candidates</span>
 	{#if hasActiveFilters}
 		<button
@@ -301,16 +420,35 @@
 			<thead>
 				<tr>
 					{#if selectMode}<th class="col-check"></th>{/if}
-					<th>Name</th>
-					{#if showJob}<th>Job</th>{/if}
-					{#if showTeams}<th>Team</th>{/if}
-					<th>Stage</th>
-					<th>Status</th>
-					<th>Interviews</th>
-					<th title="Average with each interviewer's usual lean removed">Adjusted</th>
-					<th>Raw</th>
+					{#each headers as h (h.key)}
+						{#if h.show}
+							<th aria-sort={ariaSort(h.key, sortBy, sortDir)} title={h.title}>
+								<button
+									class="sort-head"
+									class:sorted={sortBy === h.key}
+									on:click={() => sortColumn(h.key)}
+								>
+									{h.label}
+									<span class="sort-arrow">
+										{sortBy === h.key ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+									</span>
+								</button>
+							</th>
+						{/if}
+					{/each}
 					<th>Decision</th>
-					<th>Applied</th>
+					<th aria-sort={ariaSort('date', sortBy, sortDir)}>
+						<button
+							class="sort-head"
+							class:sorted={sortBy === 'date'}
+							on:click={() => sortColumn('date')}
+						>
+							Applied
+							<span class="sort-arrow">
+								{sortBy === 'date' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+							</span>
+						</button>
+					</th>
 				</tr>
 			</thead>
 			<tbody>
@@ -346,6 +484,17 @@
 									<span class="pill pill-neutral">{c.team.name}</span>
 								{:else}
 									<span class="cell-sub">—</span>
+								{/if}
+							</td>
+						{/if}
+						{#if showTeams}
+							<td>
+								{#if c.team_rank === null}
+									<span class="cell-sub">—</span>
+								{:else}
+									<span class="pill {c.team_rank === 1 ? 'pill-success' : 'pill-neutral'}">
+										{ordinal(c.team_rank)}
+									</span>
 								{/if}
 							</td>
 						{/if}
@@ -428,7 +577,14 @@
 						</span>
 					</p>
 				{:else if showTeams && c.team.name}
-					<p class="cell-sub"><span class="pill pill-neutral">{c.team.name}</span></p>
+					<p class="cell-sub">
+						<span class="pill pill-neutral">{c.team.name}</span>
+						{#if c.team_rank !== null}
+							<span class="pill {c.team_rank === 1 ? 'pill-success' : 'pill-neutral'}">
+								{ordinal(c.team_rank)} choice
+							</span>
+						{/if}
+					</p>
 				{/if}
 				<div class="card-foot">
 					<span class="stage-pill" style="background-color: {STAGE_COLORS[c.stage]};">
@@ -472,6 +628,37 @@
 
 <style lang="scss">
 	@use '../../../styles/col.scss' as *;
+
+	// Column headings double as sort controls: a button so it is keyboard
+	// reachable, styled to still read as a table heading.
+	.sort-head {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		padding: 0;
+		background: none;
+		border: none;
+		font: inherit;
+		color: inherit;
+		text-transform: inherit;
+		letter-spacing: inherit;
+		cursor: pointer;
+		white-space: nowrap;
+
+		&:hover {
+			color: $text;
+		}
+		&.sorted {
+			color: $text;
+		}
+	}
+	.sort-arrow {
+		font-size: 10px;
+		min-width: 8px;
+	}
+	.sort-dir {
+		white-space: nowrap;
+	}
 
 	.result-count {
 		font-weight: 500;

@@ -724,6 +724,8 @@ export interface SubmissionSibling {
 	team_id: number | null;
 	team_name: string | null;
 	status: Applicant['status'];
+	/** Where the applicant ranked this team; 1 is their first choice. */
+	team_rank: number | null;
 }
 
 /**
@@ -749,7 +751,7 @@ export const getSubmissionSiblings = async (
 	const [siblingRes, teamsRes] = await Promise.all([
 		supabase
 			.from('applicants')
-			.select('id, team_id, status, selected_team_slugs')
+			.select('id, team_id, status, selected_team_slugs, team_rank')
 			.eq('org_id', orgId)
 			.eq('submission_group', applicant.submission_group)
 			.neq('id', applicant.id),
@@ -762,7 +764,10 @@ export const getSubmissionSiblings = async (
 	}
 
 	const teams = (teamsRes.data as Team[] | null) ?? [];
-	type SiblingRow = Pick<Applicant, 'id' | 'team_id' | 'status' | 'selected_team_slugs'>;
+	type SiblingRow = Pick<
+		Applicant,
+		'id' | 'team_id' | 'status' | 'selected_team_slugs' | 'team_rank'
+	>;
 
 	return ((siblingRes.data as SiblingRow[] | null) ?? []).map((row) => {
 		const team = resolveApplicationTeam(row, teams);
@@ -770,7 +775,8 @@ export const getSubmissionSiblings = async (
 			id: row.id,
 			team_id: row.team_id,
 			team_name: team.name,
-			status: row.status
+			status: row.status,
+			team_rank: row.team_rank ?? null
 		};
 	});
 };
