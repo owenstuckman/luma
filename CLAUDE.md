@@ -22,7 +22,8 @@ LUMA is an open-source Applicant Tracking System (ATS) built with SvelteKit. It 
 | `npm run lint`    | Prettier + ESLint check                 |
 | `npm run format`  | Auto-format with Prettier               |
 | `npm test`        | Run Playwright E2E tests (builds first) |
-| `npm run setup`   | Guided first-time setup                 |
+| `npm run setup`   | Interactive instance setup              |
+| `npm run tenant`  | Export/import org config + applicants   |
 
 **Node 22+ is required** (`engines.node: ">=22"`). `@supabase/realtime-js` needs a native
 global `WebSocket`, which arrived in Node 22 and which it version-gates on; under Node 20
@@ -140,7 +141,9 @@ Auth guard in `src/hooks.server.ts` redirects unauthenticated users from `/priva
   `platform_admins`, `platform_settings`, `platform_activity_log`, plus the V1 additions
   `teams`, `application_drafts`, `job_reviewers`, `decisions`, `org_invites`,
   `org_invite_redemptions`
-- Migrations are forward-only and additive (`supabase/migrations/00001`–`00026`)
+- Migrations are forward-only and additive (`supabase/migrations/00001`–`00040`), and hold
+  schema only — tenant data (teams, forms, settings) goes in tenant files
+  (`npm run tenant`, `docs/INSTANCE.md`)
 - RLS helpers: `is_org_member()`, `has_org_role()`, `has_app_role()`
 - Org settings render through the shared `OrgSettingsPanel.svelte` on both the org page and
   the admin panel. It takes the org as a **prop** — never resolve an org from a slug inside
@@ -226,12 +229,15 @@ schema rather than from hand-written step pages.
   `settings.interview_forms`; read with `resolveInterviewForms(settings, orgName)`
 - `src/lib/utils/orgConfig.ts` — writes for org settings sections (`saveOrgSettingsSection`)
   and teams
+- `src/lib/utils/assets.ts` — tenant image uploads (`uploadOrgImage`) into `org-assets`
+  under `orgs/<org_id>/…`; UI via `components/admin/ImageUpload.svelte`. Nothing
+  org-specific goes in `static/`
 - `src/lib/server/instance.ts` — `getInstanceStatus()` for `/admin` → Setup (no secrets)
 - `src/styles/` — SCSS files (Bootstrap theme + color tokens)
 - `supabase/migrations/` — Forward-only SQL migrations
 - `scripts/` — `setup.mjs` (interactive instance setup: DB/auth provider, keys, hosting,
   schema, email, first admin; then opens `/admin/?tab=setup`), `cross-platform-deps.mjs`
-  (Windows/WSL deps)
+  (Windows/WSL deps), `tenant.mjs` (tenant export/import and applicant import)
 - `docs/` — all project documentation; start at `docs/README.md`. `v0/` is the
   pre-rebuild app's docs, kept as history only
 - `instance/` — **untracked**: per-deployment data exports, internal docs, one-off SQL

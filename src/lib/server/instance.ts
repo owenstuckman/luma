@@ -46,11 +46,13 @@ function dbProvider(url: string): DbProvider {
 const MIGRATIONS: string[] = [...__LUMA_MIGRATIONS__].sort();
 
 /**
- * One table per late migration, newest first. If the newest probe table is
- * readable the schema is at least that new. When you add a migration that
- * creates a table, add it at the top so the Setup tab notices a missing apply.
+ * One table (or column) per late migration, newest first. If the newest probe
+ * is readable the schema is at least that new. When you add a migration that
+ * creates a table or column, add it at the top so the Setup tab notices a
+ * missing apply.
  */
-const SCHEMA_PROBES: { migration: string; table: string }[] = [
+const SCHEMA_PROBES: { migration: string; table: string; column?: string }[] = [
+	{ migration: '00040', table: 'teams', column: 'image_url' },
 	{ migration: '00039', table: 'readiness_scores' },
 	{ migration: '00036', table: 'interview_transfers' },
 	{ migration: '00023', table: 'org_invite_redemptions' },
@@ -63,7 +65,7 @@ async function schemaStatus(supabase: SupabaseClient): Promise<SchemaStatus> {
 	for (const probe of SCHEMA_PROBES) {
 		const { error } = await supabase
 			.from(probe.table)
-			.select('id', { head: true, count: 'exact' })
+			.select(probe.column ?? 'id', { head: true, count: 'exact' })
 			.limit(0);
 		if (!error) {
 			appliedThrough = probe.migration;

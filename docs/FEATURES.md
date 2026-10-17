@@ -23,7 +23,10 @@ Authoritative feature inventory for LUMA V1. Status legend:
 | Custom domain per org                              | ⏭️     | One domain per deployment (`PUBLIC_APP_URL`)                       |
 | Interactive instance setup (`npm run setup`)       | ✅     | DB/auth provider, keys, hosting, schema, email, first admin        |
 | Instance status board (`/admin/?tab=setup`)        | ✅     | Where setup lands; `getInstanceStatus()`, no secrets               |
-| Org-specific material out of the repo              | ✅     | Untracked `instance/`; see [INSTANCE.md](INSTANCE.md)              |
+| Org-specific material out of the repo              | ✅     | Untracked `instance/`; no seed data in migrations or `static/`     |
+| Tenant config export/import (`npm run tenant`)     | ✅     | `tenant.json` + assets; upsert by slug/name; `--dry-run`           |
+| Import existing applicants (CSV/JSON)              | ✅     | `tenant import-applicants`; extra columns become answers           |
+| Per-tenant images (logo, teams, jobs, questions)   | ✅     | `org-assets` under `orgs/<id>/`; org-admin writes only (`00040`)   |
 
 ## Auth & Roles
 

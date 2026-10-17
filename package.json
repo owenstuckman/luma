@@ -19,6 +19,7 @@
 		"test:e2e": "playwright test",
 		"test": "npm run test:e2e",
 		"setup": "node scripts/setup.mjs",
+		"tenant": "node scripts/tenant.mjs",
 		"deps:cross": "node scripts/cross-platform-deps.mjs"
 	},
 	"devDependencies": {

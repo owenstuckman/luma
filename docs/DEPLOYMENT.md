@@ -101,7 +101,9 @@ under Authentication → SMTP before real recruiting volume.
 
 ## 5. Configure organizations (in the app)
 
-From `/admin` (platform admins) or `/private/<slug>/settings` (org admins):
+From `/admin` (platform admins) or `/private/<slug>/settings` (org admins) — or all at once
+from a tenant file: `npm run tenant -- import <dir> --owner <email>` (see
+[INSTANCE.md](INSTANCE.md#tenant-config-files)):
 
 1. **Create the org** — `/register`, or Admin → Organizations.
 2. **Teams** — the teams applicants choose between (none = single-team org).

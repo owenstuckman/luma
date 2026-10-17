@@ -973,3 +973,24 @@ everything Archimedes-specific out of the repo. See [INSTANCE.md](INSTANCE.md).
       public, rewrite history (`git filter-repo`) and force-push; that is the owner's call.
 - [ ] Older docs below this phase still name Archimedes as worked examples. They are
       history, deliberately left as written.
+
+### Follow-up (same PR): tenant files, images, no seed data in the repo
+
+- [x] **Archimedes seed data removed from migrations** `00015`, `00024`, `00028` (data only;
+      schema untouched) and `00031` (now an empty migration, version kept). They were keyed
+      to that org's slug / job id, so no other database ever ran them. Originals kept in
+      `instance/archimedes/seed-history/`.
+- [x] **`static/images/team/*` removed** — unreferenced in code and in every stored job form
+      (checked via export). Kept in `instance/archimedes/tenant/assets/teams/`.
+- [x] **`npm run tenant`** — `export <slug>` (config, images, optional applicants) /
+      `import <dir>` (upsert by slug / name, uploads relative images, `--dry-run`) /
+      `import-applicants <slug> <csv|json> --job …`. Archimedes' live config exported to
+      `instance/archimedes/tenant/`; example tenant in `docs/examples/tenant/`.
+- [x] **Migration `00040`** — `teams.image_url`, `job_posting.image_url`, and org-scoped
+      write policies on `org-assets` (previously any signed-in user could overwrite any
+      org's files).
+- [x] **Image uploads** — team photos (Teams card), job cover (job editor), question images
+      (form builder); shown on the application's team picker and form header.
+- [ ] Apply `00040` to production (`supabase db push`), then optionally
+      `npm run tenant -- import instance/archimedes/tenant` to pin Archimedes' original rubric
+      wording (its org name is "Archimedes Society", so the `{org}` default reads differently).

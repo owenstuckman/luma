@@ -78,7 +78,7 @@ export interface InviteDetails {
 	expires_at?: string;
 }
 
-// V1: Per-org subteam (e.g., Infinitum/Astra/Terra/Juvo for Archimedes).
+// V1: Per-org subteam (e.g. Design / Build / Ops — whatever the org recruits into).
 export interface Team {
 	id: number;
 	created_at: string;
@@ -88,6 +88,8 @@ export interface Team {
 	description: string | null;
 	display_order: number;
 	active: boolean;
+	/** Team image (org-assets bucket), shown on the application team picker. Migration 00040. */
+	image_url?: string | null;
 }
 
 export interface JobPosting {
@@ -109,6 +111,8 @@ export interface JobPosting {
 	applications_closed: boolean;
 	description: string | null;
 	org_id: number | null;
+	/** Cover image (org-assets bucket) shown atop the application form. Migration 00040. */
+	image_url?: string | null;
 }
 
 export interface Applicant {
@@ -138,7 +142,7 @@ export interface Applicant {
 	team_id: number | null;
 	// V1: groups the sibling rows created by one submit. Two rows sharing this
 	// are the same person applying to two teams in one sitting. Deliberately
-	// NOT surfaced as "applied to Astra + Terra" anywhere in the reviewer UI —
+	// NOT surfaced as "applied to Design + Build" anywhere in the reviewer UI —
 	// each application is judged on its own — but it makes the split auditable
 	// and lets a resubmit be detected instead of silently duplicating.
 	submission_group: string | null;
@@ -252,7 +256,7 @@ export interface QuestionSchema {
  * Per-job rules for the team picker.
  *
  * Absent means the historical behaviour: pick any number of teams, unranked.
- * Archimedes' 2026 cycle sets `{ max: 2, ranked: true }` — top two choices, in
+ * e.g. `{ max: 2, ranked: true }` — top two choices, in
  * order of preference.
  */
 export interface TeamSelectionConfig {

@@ -22,8 +22,8 @@
 	let job: JobPosting | null = null;
 	let schema: QuestionSchema | null = null;
 	let teams: Team[] = [];
-	// Optional per-org restriction on the applicant's address (Archimedes is
-	// vt.edu). Null for every org that hasn't set one, which is the default.
+	// Optional per-org restriction on the applicant's address (e.g. a university
+	// club limiting to example.edu). Null for every org that hasn't set one, which is the default.
 	let emailDomain: string | null = null;
 	let selectedTeamSlugs: string[] = [];
 	let teamError = '';
@@ -243,7 +243,7 @@
 	}
 
 	/**
-	 * Answers keyed by the ids the FORM used (so `why_team::astra`), read back
+	 * Answers keyed by the ids the FORM used (so `why_team::design`), read back
 	 * out of localStorage. Shared by the word-limit check and by submit, so the
 	 * two can never disagree about what the applicant actually wrote.
 	 */
@@ -318,7 +318,7 @@
 
 		try {
 			// Answers are keyed by the ids the FORM used, so a per-team question shows
-			// up here as `why_team::astra`. splitSubmissionByTeam collapses those back
+			// up here as `why_team::design`. splitSubmissionByTeam collapses those back
 			// to the authored id on the one application they belong to.
 			const formAnswers = collectAnswers();
 
@@ -358,8 +358,8 @@
 
 			const rows = submissions.map((sub) => {
 				// Evaluated against THIS team's answers under THIS team's scope, so an
-				// eligibility rule can deny the Astra application while the same
-				// person's Terra application stays pending.
+				// eligibility rule can deny the Design application while the same
+				// person's Build application stays pending.
 				const matches = evaluateRejectRules(
 					sub.answers,
 					schema,
@@ -542,6 +542,10 @@
 		<!-- Content -->
 		<div class="content">
 			{#if currentStep === 0}
+				{#if job.image_url}
+					<!-- Per-posting cover image (job_posting.image_url, migration 00040) -->
+					<img class="job-cover" src={job.image_url} alt="" />
+				{/if}
 				<!-- Personal Info (always required) -->
 				<h4 class="text-center">Personal Information</h4>
 				<div class="card">
@@ -606,6 +610,9 @@
 							<span class="team-check" aria-hidden="true">
 								{chosen ? (teamRules.ranked ? rank + 1 : '✓') : ''}
 							</span>
+							{#if team.image_url}
+								<img class="team-image" src={team.image_url} alt="" />
+							{/if}
 							<span class="team-name">{team.name}</span>
 							{#if team.description}
 								<span class="team-desc">{team.description}</span>
@@ -1052,6 +1059,21 @@
 		right: 12px;
 		font-weight: 800;
 		color: $yellow-primary;
+	}
+	.team-image {
+		width: 100%;
+		height: 120px;
+		object-fit: cover;
+		border-radius: $radius-sm;
+		margin-bottom: 6px;
+	}
+	.job-cover {
+		display: block;
+		width: 100%;
+		max-height: 220px;
+		object-fit: cover;
+		border-radius: $radius;
+		margin-bottom: 16px;
 	}
 	.team-name {
 		font-weight: 700;

@@ -464,7 +464,7 @@ export const isPlatformAdmin = async (): Promise<boolean> => {
  * Every interview in an org, paged past PostgREST's 1000-row response cap.
  *
  * A single select stops at 1000 rows WITHOUT an error. Ordered oldest-first,
- * that cap cut off the NEWEST rows — so once Archimedes had 891 interviews from
+ * that cap cut off the NEWEST rows — so once an org had ~900 interviews from
  * last cycle plus 440 this cycle, the 331 latest were missing from the full
  * schedule, from the scheduler's clash check, and from the email modal, and
  * nothing said so.

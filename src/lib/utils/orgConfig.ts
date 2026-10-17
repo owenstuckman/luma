@@ -82,7 +82,7 @@ export async function createTeam(
  */
 export async function updateTeam(
 	teamId: number,
-	patch: Partial<Pick<Team, 'name' | 'description' | 'display_order' | 'active'>>
+	patch: Partial<Pick<Team, 'name' | 'description' | 'display_order' | 'active' | 'image_url'>>
 ): Promise<void> {
 	const { error } = await supabase.from('teams').update(patch).eq('id', teamId);
 	if (error) throw new Error(error.message);

@@ -21,7 +21,7 @@
 	let forms: InterviewForms = FALLBACK_INTERVIEW_FORMS;
 	let interviews: Interview[] = [];
 	let applicantMap: Record<string, Applicant> = {};
-	/** Ranked team choices per applicant email, e.g. ['Juvo', 'Terra']. */
+	/** Ranked team choices per applicant email, e.g. ['Ops', 'Build']. */
 	let teamChoices: Record<string, string[]> = {};
 	let interviewerNames: Record<string, string> = {};
 	let loading = true;

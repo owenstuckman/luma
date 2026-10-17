@@ -14,6 +14,7 @@
 	import Sidebar from '$lib/components/recruiter/Sidebar.svelte';
 	import Navbar from '$lib/components/recruiter/Navbar.svelte';
 	import QuestionRenderer from '$lib/components/QuestionRenderer.svelte';
+	import ImageUpload from '$lib/components/admin/ImageUpload.svelte';
 	import type { JobPosting, FormStep, FormQuestion } from '$lib/types';
 
 	let job: JobPosting | null = null;
@@ -24,6 +25,8 @@
 	// Editable job fields
 	let jobName = '';
 	let jobDescription = '';
+	/** Cover image URL ('' = none). Uploaded to the org's own storage folder. */
+	let jobImage = '';
 	let steps: FormStep[] = [];
 
 	// How many applications already exist for this posting. Drives the warnings
@@ -315,6 +318,7 @@
 		job = jobData;
 		jobName = jobData.name;
 		jobDescription = jobData.description || '';
+		jobImage = jobData.image_url || '';
 		steps = jobData.questions?.steps || [];
 		teamMax = jobData.questions?.team_selection?.max ?? 0;
 		teamRanked = jobData.questions?.team_selection?.ranked === true;
@@ -375,8 +379,12 @@
 		try {
 			await updateJobPosting(job.id, {
 				name: jobName,
-				description: jobDescription
+				description: jobDescription,
+				// Only sent when changed, so saving still works on a database that
+				// hasn't applied migration 00040 (which adds the column).
+				...(jobImage !== (job.image_url ?? '') ? { image_url: jobImage || null } : {})
 			});
+			job = { ...job, image_url: jobImage || null };
 			// The schema is written on its own so a stale tab can't clobber a rename
 			// made elsewhere — see updateJobQuestions in src/lib/utils/supabase.ts.
 			// Omit `team_selection` entirely when it is at its defaults, so a job
@@ -664,6 +672,17 @@
 					<textarea id="job-desc" class="form-control" bind:value={jobDescription} rows="2"
 					></textarea>
 				</div>
+				{#if job?.org_id}
+					<div class="field">
+						<ImageUpload
+							orgId={job.org_id}
+							kind="jobs"
+							label="Cover image (optional, shown at the top of the application)"
+							value={jobImage}
+							onchange={(url) => (jobImage = url ?? '')}
+						/>
+					</div>
+				{/if}
 
 				{#if teams.length > 0}
 					<div class="field">
@@ -1126,14 +1145,15 @@
 								</div>
 								<div class="field-row">
 									<div class="field field-grow">
-										<label class="field-label" for="q-image">Image URL</label>
-										<input
-											id="q-image"
-											type="text"
-											class="form-control"
-											bind:value={newQ.imageSrc}
-											placeholder="/images/..."
-										/>
+										{#if job?.org_id}
+											<ImageUpload
+												orgId={job.org_id}
+												kind="questions"
+												label="Image"
+												value={newQ.imageSrc}
+												onchange={(url) => (newQ = { ...newQ, imageSrc: url ?? '' })}
+											/>
+										{/if}
 									</div>
 									<div class="field field-grow">
 										<label class="field-label" for="q-image-alt">Image Alt Text</label>

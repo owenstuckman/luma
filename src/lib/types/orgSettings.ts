@@ -37,7 +37,7 @@ export interface EmailSettings {
 // V1: constraints on the public application form itself.
 export interface ApplicationSettings {
 	/**
-	 * Restrict applicant email addresses to one domain (e.g. 'vt.edu' for a
+	 * Restrict applicant email addresses to one domain (e.g. 'example.edu' for a
 	 * university club that only recruits its own students). Null means any
 	 * address is accepted, which is the default and what every pre-existing org
 	 * gets. Stored bare — no '@' — and matched case-insensitively.
@@ -171,7 +171,7 @@ export function readOrgSettings(raw: unknown): OrgSettings {
 }
 
 /**
- * Accept what an admin is likely to type — '@vt.edu', 'VT.EDU', ' vt.edu ' —
+ * Accept what an admin is likely to type — '@example.edu', 'EXAMPLE.EDU', ' example.edu ' —
  * and store the one canonical form the matcher expects. Anything that isn't a
  * plausible domain becomes null (no restriction) rather than a filter that
  * silently rejects every applicant.
@@ -188,8 +188,8 @@ export function emailMatchesDomain(email: string, domain: string | null): boolea
 	if (!domain) return true;
 	const at = email.trim().toLowerCase().lastIndexOf('@');
 	if (at === -1) return false;
-	// Match the domain itself or any subdomain of it, so 'vt.edu' also accepts
-	// 'cs.vt.edu' rather than bouncing a legitimate departmental address.
+	// Match the domain itself or any subdomain of it, so 'example.edu' also accepts
+	// 'cs.example.edu' rather than bouncing a legitimate departmental address.
 	const host = email
 		.trim()
 		.toLowerCase()

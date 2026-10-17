@@ -10,6 +10,7 @@
 	 * `per_team` answer ids reference it.
 	 */
 	import { getAllTeams, createTeam, updateTeam, slugifyTeam } from '$lib/utils/orgConfig';
+	import ImageUpload from './ImageUpload.svelte';
 	import type { Organization, Team } from '$lib/types';
 
 	let { org }: { org: Organization } = $props();
@@ -84,6 +85,19 @@
 		busyId = null;
 	}
 
+	/** Images save immediately — there's no reason to make an upload wait on "Save". */
+	async function setImage(team: Team, url: string | null) {
+		busyId = team.id;
+		try {
+			await updateTeam(team.id, { image_url: url });
+			teams = teams.map((t) => (t.id === team.id ? { ...t, image_url: url } : t));
+			flash(url ? `Image set for ${team.name}.` : `Image removed from ${team.name}.`);
+		} catch (e) {
+			flash(e instanceof Error ? e.message : String(e), true);
+		}
+		busyId = null;
+	}
+
 	async function toggleActive(team: Team) {
 		busyId = team.id;
 		try {
@@ -121,8 +135,9 @@
 <div class="card">
 	<h5>Teams ({teams.filter((t) => t.active).length})</h5>
 	<p class="card-hint">
-		The teams applicants can apply to. Leave empty for a single-team org. Retired teams disappear
-		from new application forms but keep their past applications.
+		The teams applicants can apply to, with an optional image shown on the application form. Leave
+		empty for a single-team org. Retired teams disappear from new application forms but keep their
+		past applications.
 	</p>
 
 	{#if loading}
@@ -164,6 +179,14 @@
 							class="form-control form-control-sm"
 							bind:value={team.description}
 							placeholder="Description (optional)"
+						/>
+						<ImageUpload
+							orgId={org.id}
+							kind="teams"
+							value={team.image_url}
+							label="{team.name} image"
+							compact
+							onchange={(url) => setImage(team, url)}
 						/>
 					</div>
 					<div class="team-actions">

@@ -11,8 +11,10 @@ none of them is committed.
 | **Organization**      | `organizations` row + `.settings` JSONB, `teams` | Org Settings (org admins) or `/admin` → Orgs | Branding, teams, review thresholds, scheduling defaults, email toggles, applicant email domain, interview forms |
 | **Recruitment cycle** | `job_posting.questions`                          | Settings → Manage Postings (form builder)    | Questions, per-team questions, auto-reject rules, team selection limits, availability windows                   |
 
-Plus a fifth, optional place for everything that isn't configuration: the untracked
-`instance/` folder (below).
+The organization and recruitment-cycle layers can also be kept as **tenant files** and
+imported with one command (below). Images (logos, team photos, job covers, question images)
+are uploaded per tenant. Everything that isn't configuration goes in the untracked
+`instance/` folder.
 
 ## First run
 
@@ -61,6 +63,59 @@ Everything an org needs is editable in the UI — no SQL:
   `resolveInterviewForms(settings, orgName)`; an org that never edits them gets
   `DEFAULT_INTERVIEW_FORMS`.
 
+- **Images** — the org logo, a photo per team (shown on the application's team picker), a
+  cover image per job posting (top of the application), and images on `checkbox_image`
+  questions. All upload from the UI into the public `org-assets` bucket under
+  `orgs/<org_id>/…` (logos: `logos/<org_id>/…`). Since migration `00040` only that org's
+  admins, or a platform admin, can write there. A pasted URL works too.
+
+## Tenant config files
+
+An organization's whole configuration — profile, settings, teams, job postings with their
+forms, and images — can live in files and move between databases:
+
+```bash
+npm run tenant -- export <slug>                     # → instance/<slug>/tenant/
+npm run tenant -- import instance/<slug>/tenant --owner you@example.org
+npm run tenant -- import instance/<slug>/tenant --dry-run   # show what would change
+```
+
+```
+instance/<slug>/tenant/
+  tenant.json        { "format": "luma-tenant", "version": 1, "organization", "teams", "jobs" }
+  assets/…           images referenced from tenant.json by relative path
+  applicants.json    only with --with-applicants (personal data — keep private)
+```
+
+- **Import is an upsert.** The org matches by slug (`--owner` is needed only to create
+  it), teams by slug, job postings by name. Settings are merged section by section, so
+  sections missing from the file are kept. Re-running is safe.
+- **Images** given as relative paths are uploaded to the org's storage folder and replaced
+  by their URL. Absolute URLs are stored as-is.
+- **Export** downloads images held in this project's storage into `assets/`, so the folder
+  can be imported into another Supabase project (`--keep-urls` to skip).
+- A complete starting point with two teams, team-scoped and per-team questions, an
+  auto-reject rule and an availability step lives in
+  [`docs/examples/tenant/tenant.json`](examples/tenant/tenant.json).
+
+Both commands use `PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` from your env files.
+The service role bypasses RLS, so run them only from a trusted machine.
+
+### Importing existing applicants
+
+```bash
+npm run tenant -- import-applicants <slug> applicants.csv --job "Fall Recruitment" --dry-run
+```
+
+CSV or JSON. Recognised columns: `name` (or `first_name` + `last_name`), `email`, and
+optionally `team` (slug or name), `status` (`pending` / `interview` / `accepted` /
+`denied`), `created_at`, `team_rank`, `job` (per-row override of `--job`). **Every other
+column is stored as an answer** on the application, keyed by its header, so name the
+columns after your form's question ids to have them render as answers. One row per
+application; give each team a row, as the app does. Applications already present
+(same job, email and team) are skipped, so an import can be re-run. Interviews and
+evaluations are not imported.
+
 ## The `instance/` folder
 
 `/instance/` is gitignored. Use it for material that belongs to one deployment or one
@@ -69,9 +124,10 @@ organization and must not be published:
 ```
 instance/
   <org-or-deployment>/
+    tenant/      tenant.json + assets/ (see above)
     data/        exports: applicant CSVs, interview invites, rejections
     docs/        runbooks, owner to-dos, room bookings, auth hand-offs, internal process docs
-    *.sql        one-off seeds / settings for that org (run in the SQL editor)
+    *.sql        one-off SQL for that org (run in the SQL editor)
 ```
 
 Back it up somewhere private (a shared drive, a private repo) — it is not in git.
@@ -89,8 +145,9 @@ Supabase project ref) and the Supabase CLI's local state (`supabase/config.toml`
 - A new instance-level knob goes in `.env.example` / `.env.local.example`, `setup.mjs`, and
   `getInstanceStatus()` so the Setup tab can report it. Secrets are reported only as
   present/absent.
-- Migrations are forward-only, so four historical ones still carry the first tenant's seed
-  data: `00015` and `00024` insert only `WHERE slug = 'archimedes'`, and `00028` / `00031`
-  update one job posting by id. On a fresh database all four touch nothing, because
-  migrations run before any org exists. New migrations must not seed org-specific data.
-  Put that in `instance/<org>/*.sql`.
+- Migrations hold schema only, never tenant data. Teams, forms, settings and images for a
+  particular org belong in a tenant file. (The first tenant's seed data was removed from
+  `00015`, `00024`, `00028` and `00031`; those inserts and updates were keyed to that org's
+  slug and job id, so they never did anything on any other database. `00031` is kept as an
+  empty migration so the version history stays continuous.)
+- Nothing org-specific in `static/` either — images are uploaded per tenant.

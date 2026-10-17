@@ -380,15 +380,15 @@ export interface TeamSubmission {
 /**
  * Split one filled-in form into one submission per team the applicant chose.
  *
- * This is the whole point of the per-team model: applying to Astra and Terra
+ * This is the whole point of the per-team model: applying to Design and Build
  * produces two independent applications that are reviewed, interviewed and
  * decided separately, rather than one row tagged with both teams. Each result
  * carries the shared answers plus only the questions that team actually asked,
- * so an Astra reviewer never sees the Terra essay.
+ * so a Design reviewer never sees the Build essay.
  *
- * Answers come in keyed by the ids the FORM used (so `why_team::astra`), and go
+ * Answers come in keyed by the ids the FORM used (so `why_team::design`), and go
  * out keyed by the ids the SCHEMA declares (`why_team`). Collapsing the suffix
- * is what makes the rows comparable: every Astra application stores its essay
+ * is what makes the rows comparable: every Design application stores its essay
  * under the same key, and reject rules — written against authored ids — apply
  * without the caller having to know expansion happened.
  *

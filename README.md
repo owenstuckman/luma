@@ -17,6 +17,8 @@ Originally built for Virginia Tech's Archimedes Society, where it processed **40
 - **Team management** — invite members by email, assign roles (Owner, Admin, Recruiter, Viewer)
 - **Role-based access** — RLS policies enforce org-scoped data isolation at the database level
 - **Admin panel** — platform-wide org/user/job management, analytics, auto-scheduling, platform settings, and an instance **Setup** status board
+- **Tenant files** — export/import an org's whole configuration (settings, teams, forms, images) and import existing applicants from CSV
+- **Per-tenant images** — org logo, team photos, job cover images and question images, uploaded from the UI
 - **Fully configurable per org** — teams, review thresholds, blinded review, scheduling defaults, email toggles, applicant email domain and interview forms are all edited in the UI; nothing is hardcoded for any one organization
 
 ## Quick Start
@@ -51,6 +53,9 @@ Then:
    Rules** and **Interview Forms**
 3. Go to Settings → Manage Postings → create a job → build the form
 4. Share `/apply/your-slug` with applicants
+   — or skip steps 2–3 by importing a tenant file: `npm run tenant -- import <dir> --owner you@example.org`
+   (start from [`docs/examples/tenant`](docs/examples/tenant/tenant.json)). Existing
+   applicants import from CSV with `npm run tenant -- import-applicants`.
 5. Invite your team: Settings → **Invite Links**. Create a link, send it, and they sign up
    and join automatically — they don't need an account first.
 
