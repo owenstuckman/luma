@@ -6,25 +6,38 @@ An open-source, multi-tenant applicant tracking system for design teams and stud
 
 ## Developing
 
-Install dependencies and run the guided setup — it asks where your database and auth live (Supabase by default, or self-hosted), writes your env files, sets up the schema, and opens the admin dashboard where everything else is configured:
+You'll need **Node 22+** (see `.nvmrc`) and a Supabase project (or Docker, if you'd rather run Supabase locally).
 
 ```bash
 npm install
 npm run setup
 ```
 
-After that, start a development server:
+`npm run setup` walks through the whole first-time configuration in the terminal: where your database and auth live, your keys, where you'll host, the database schema, email, and your first admin account. When it finishes it starts the app on the admin **Setup** dashboard (`/admin/?tab=setup`), which shows what's configured and links to everything else — platform branding, organizations, teams, recruiting rules, interview forms and members. Re-run it any time; it keeps whatever you don't change.
+
+Day to day:
 
 ```bash
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
+npm run dev            # dev server at http://localhost:5173
+npm run dev -- --open  # same, and open it in a browser tab
+npm run check          # type-check
+npm run lint           # prettier + eslint
+npm test               # Playwright end-to-end tests
 ```
+
+To load an organization's configuration (teams, application forms, settings, images) from files, or to bring in existing applicants from a spreadsheet, use `npm run tenant` — see [docs/INSTANCE.md](docs/INSTANCE.md).
 
 ### Supabase
 
-For security purposes, I am not including the anon key and url. They live in your own `.env.local`, which `npm run setup` writes for you (templates: `.env.example` and `.env.local.example`).
+LUMA runs on [Supabase](https://supabase.com): Postgres for data, Supabase Auth for sign-in, and Storage for logos and images. `npm run setup` supports three ways of running it:
+
+- **Supabase Cloud** (default) — a project on supabase.com.
+- **Self-hosted Supabase** — your own stack ([Supabase's Docker guide](https://supabase.com/docs/guides/self-hosting/docker)).
+- **Local Supabase** — `supabase start` on your machine, for development.
+
+For security purposes, no keys are included in the repo. They live in your own `.env.local` (non-secret instance settings go in `.env`); both are gitignored, and `.env.example` / `.env.local.example` are the templates. Setup can write them for you.
+
+The schema is in `supabase/migrations/` and is applied with `supabase db push` (setup can do this too). Emails are sent through [Resend](https://resend.com) from the Supabase Edge Functions in `supabase/functions/`; without a Resend key they run in dry-run mode and send nothing.
 
 ## Building
 
@@ -35,6 +48,16 @@ npm run build
 ```
 
 You can preview the production build with `npm run preview`.
+
+The build targets **Vercel** by default. To self-host, choose Node server or Docker in `npm run setup` (it sets `ADAPTER=node`), then either:
+
+```bash
+npm run build && node build
+# or
+docker compose --env-file .env --env-file .env.local up -d --build
+```
+
+Full deployment steps — environments, Supabase auth URLs, DNS and email — are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 # Background
 
@@ -48,18 +71,6 @@ Hence, I built out software to schedule everyone based on their availability, bo
 LUMA has since been rebuilt as a general, multi-tenant platform: any design team or organization can run its own recruiting from one deployment, with its own teams, application forms, review rules, interview forms and branding — none of it hardcoded for any one organization. Each organization's configuration can be kept in its own files and imported (`npm run tenant`), so this public repository is a starting point for running your own ATS.
 
 **Was used by archimedes recruitment in the Fall 2025 recruitment season to process _400+_ applicants and passed _200+_ applicants to interview rounds. This included a group and individual interview stage, scheduling _250+_ interviews.**
-
-# Internal Notes / TODO
-
-Go to src for all of the actual website code.
-Scheduling algorithms live in `src/lib/scheduling/algorithms`.
-Otherwise look at the supabase folder for the backend/db (migrations and edge functions).
-All docs are in `docs/` — start at [docs/README.md](docs/README.md).
-
-- [x] write long term docs
-- [x] generalize the local scheduling
-- [ ] enable cron jobs for scheduling
-- [x] enhanced admin view
 
 ## License
 
