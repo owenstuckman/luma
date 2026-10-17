@@ -4,18 +4,20 @@ Start here. Files are grouped by what they're for, not by when they were written
 
 ## Working context (read these first)
 
-| File                                 | What it's for                                                                     |
-| ------------------------------------ | --------------------------------------------------------------------------------- |
-| [CLAUDE.md](CLAUDE.md)               | V1 decisions, scope, and conventions. **Overrides the root `/CLAUDE.md`** for V1. |
-| [FEATURES.md](FEATURES.md)           | Authoritative feature inventory with per-feature status.                          |
-| [TODO.md](TODO.md)                   | Phase-by-phase engineering tracker. What is done, what is left, and why.          |
-| [INSTANCE.md](INSTANCE.md)           | `npm run setup`, the four config layers, and the untracked `instance/` folder.    |
-| [DEPLOYMENT.md](DEPLOYMENT.md)       | How a deployment gets to production (any org, any host).                          |
-| [ANALYTICS.md](ANALYTICS.md)         | PostHog wiring, how to add a new event, privacy posture, troubleshooting.         |
-| [DESIGN-SYSTEM.md](DESIGN-SYSTEM.md) | Tokens, shared classes, and UI conventions. **Read before writing any UI.**       |
-| [DESIGN-ADMIN.md](DESIGN-ADMIN.md)   | Design for expanding the platform admin panel (`/admin`). Not yet built.          |
+| File                                 | What it's for                                                                      |
+| ------------------------------------ | ---------------------------------------------------------------------------------- |
+| [CLAUDE.md](CLAUDE.md)               | V1 decisions, scope, and conventions. **Overrides the root `/CLAUDE.md`** for V1.  |
+| [FEATURES.md](FEATURES.md)           | Authoritative feature inventory with per-feature status.                           |
+| [TODO.md](TODO.md)                   | Phase-by-phase engineering tracker. What is done, what is left, and why.           |
+| [SETUP.md](SETUP.md)                 | Technical setup: install, `npm run setup`, development, deploying, project layout. |
+| [INSTANCE.md](INSTANCE.md)           | `npm run setup`, the four config layers, and the untracked `instance/` folder.     |
+| [DEPLOYMENT.md](DEPLOYMENT.md)       | How a deployment gets to production (any org, any host).                           |
+| [ANALYTICS.md](ANALYTICS.md)         | PostHog wiring, how to add a new event, privacy posture, troubleshooting.          |
+| [DESIGN-SYSTEM.md](DESIGN-SYSTEM.md) | Tokens, shared classes, and UI conventions. **Read before writing any UI.**        |
+| [DESIGN-ADMIN.md](DESIGN-ADMIN.md)   | Design for expanding the platform admin panel (`/admin`). Not yet built.           |
 
-The root [`/README.md`](../README.md) covers setup, prerequisites, and local development.
+[SETUP.md](SETUP.md) covers installation, prerequisites, local development and deployment. The root
+[`/README.md`](../README.md) is the project overview and background.
 The root [`/CLAUDE.md`](../CLAUDE.md) is the general architecture guide.
 
 ## Source material

@@ -31,7 +31,7 @@ global `WebSocket`, which arrived in Node 22 and which it version-gates on; unde
 and WSL have separate Node installs — check `node -v` in both.
 
 If the repo is used from both PowerShell and WSL, run `npm run deps:cross` after any
-`npm install` — see the README section "Working from both Windows and WSL". It places a
+`npm install` — see `docs/SETUP.md` → "Working from both Windows and WSL". It places a
 correctly-versioned native binary next to _every_ copy of rollup/esbuild/lightningcss in
 the tree, including nested ones, since each copy rejects a version-mismatched binary.
 
