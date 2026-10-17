@@ -32,6 +32,11 @@
 	import SchedulingTab from '$lib/components/admin/SchedulingTab.svelte';
 	import SettingsTab from '$lib/components/admin/SettingsTab.svelte';
 	import AdminsTab from '$lib/components/admin/AdminsTab.svelte';
+	import SetupTab from '$lib/components/admin/SetupTab.svelte';
+	import type { PageData } from './$types';
+
+	/** Server-computed deployment status (no secrets) for the Setup tab. */
+	export let data: PageData;
 
 	// Auth
 	let authenticated = false;
@@ -52,7 +57,20 @@
 		| 'applicants'
 		| 'scheduling'
 		| 'settings'
-		| 'admins';
+		| 'admins'
+		| 'setup';
+	// `?tab=setup` deep-links a tab — `npm run setup` opens the panel that way.
+	const TAB_IDS: TabId[] = [
+		'overview',
+		'orgs',
+		'users',
+		'jobs',
+		'applicants',
+		'scheduling',
+		'settings',
+		'admins',
+		'setup'
+	];
 	let activeTab: TabId = 'overview';
 
 	// Shared data
@@ -86,14 +104,18 @@
 		applicants: 'Applicants',
 		scheduling: 'Scheduling',
 		settings: 'Platform Settings',
-		admins: 'Platform Admins'
+		admins: 'Platform Admins',
+		setup: 'Instance Setup'
 	};
 
 	onMount(async () => {
-		const { data } = await supabase.auth.getUser();
-		if (data?.user) {
+		const requested = new URLSearchParams(window.location.search).get('tab');
+		if (requested && (TAB_IDS as string[]).includes(requested)) activeTab = requested as TabId;
+
+		const { data: userData } = await supabase.auth.getUser();
+		if (userData?.user) {
 			authenticated = true;
-			currentUserId = data.user.id;
+			currentUserId = userData.user.id;
 			isAdmin = await isPlatformAdmin();
 			if (isAdmin) await loadAllData();
 		}
@@ -269,6 +291,13 @@
 				<div class="nav-divider"></div>
 				<button
 					class="nav-item"
+					class:active={activeTab === 'setup'}
+					on:click={() => (activeTab = 'setup')}
+				>
+					<i class="fi fi-br-settings-sliders" aria-hidden="true"></i> Setup
+				</button>
+				<button
+					class="nav-item"
 					class:active={activeTab === 'settings'}
 					on:click={() => (activeTab = 'settings')}
 				>
@@ -314,6 +343,13 @@
 					<SettingsTab {platformSettings} />
 				{:else if activeTab === 'admins'}
 					<AdminsTab {platformAdmins} onreload={loadAdmins} />
+				{:else if activeTab === 'setup'}
+					<SetupTab
+						instance={data.instance}
+						{organizations}
+						{platformAdmins}
+						onselectTab={(tab) => (activeTab = tab)}
+					/>
 				{/if}
 			</div>
 		</main>

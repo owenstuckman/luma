@@ -143,7 +143,7 @@ analytics off because every helper no-ops. This exact mistake was live in this r
 Restart `npm run dev` after editing `.env.local`; Vite only reads it at boot.
 
 **Key format.** The client key starts `phc_` and is a public, write-only ingest key —
-safe in the browser bundle and in `env.example`. A `phx_` key is a _personal_ API key
+safe in the browser bundle and in `.env.local.example`. A `phx_` key is a _personal_ API key
 with read access; it must never appear in client code.
 
 **Host.** `https://us.i.posthog.com` (US) or `https://eu.i.posthog.com` (EU). It must

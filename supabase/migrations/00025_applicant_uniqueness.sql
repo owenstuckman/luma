@@ -10,7 +10,7 @@
 --   applicants_email_key UNIQUE (email)
 --     Globally unique email meant one application per person for all time —
 --     across teams, jobs and recruitment cycles. Migration 00024 makes an
---     application per-team, so an applicant to Astra and Terra legitimately has
+--     application per-team, so an applicant to two teams legitimately has
 --     two rows sharing an address, and this constraint blocked the second one.
 --
 -- What replaces them is the uniqueness that is actually meaningful: one
@@ -26,13 +26,13 @@ ALTER TABLE public.applicants DROP CONSTRAINT IF EXISTS applicants_email_key;
 -- such row as unique and let duplicates straight through.
 --
 -- lower(email) because addresses are case-insensitive in practice and
--- 'A@vt.edu' vs 'a@vt.edu' is the same person submitting twice.
+-- 'A@example.edu' vs 'a@example.edu' is the same person submitting twice.
 --
 -- CAUTION on `IF NOT EXISTS` here. When this first ran, an index of this NAME
 -- already existed with a DIFFERENT definition — on raw `email` — and
 -- `IF NOT EXISTS` matches on the name alone, so this statement silently did
--- nothing and left the wrong index in place. 'SPLIT-TEST@vt.edu' then inserted
--- happily alongside 'split-test@vt.edu'. The clause makes a migration
+-- nothing and left the wrong index in place. 'SPLIT-TEST@example.edu' then inserted
+-- happily alongside 'split-test@example.edu'. The clause makes a migration
 -- re-runnable; it does NOT make it corrective. If you change the definition of
 -- an existing index, drop it explicitly first.
 CREATE UNIQUE INDEX IF NOT EXISTS applicants_job_email_team_uniq

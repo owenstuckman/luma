@@ -13,7 +13,7 @@
 --
 --     team_scope?: 'shared' | { teams: string[] },
 --       -- 'shared' (default) = always visible.
---       -- { teams: ['infinitum', 'astra'] } = only shown when applicant
+--       -- { teams: ['team-a', 'team-b'] } = only shown when applicant
 --       --   selected one of these team slugs in the team picker.
 --
 --     reject_if?: {

@@ -189,7 +189,7 @@ If you need a variant, add a **second** class next to the shared one
 - `src/lib/components/applicant/` now contains only `AvailabilityGrid.svelte`. The old
   `Navbar` / `Sidebar` / `Footer` / `NextButton` / `Warning` were deleted on 2026-08-31 —
   orphans of the removed `/applicant/*` step routes, imported nowhere, and the `Navbar`
-  hardcoded "2025-2026 Archimedes Application" for every org. The
+  hardcoded one org's application title for every org. The
   applicant sidebar that renders is inline in `apply/[slug]/[job_id]/+page.svelte`. Check
   what's actually mounted before styling a component.
 

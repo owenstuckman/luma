@@ -490,7 +490,7 @@ export function formatRange(start: string, end: string): string {
 	return `${clock(start, !sameHalf)} – ${clock(end, true)}`;
 }
 
-/** "kaeli74@vt.edu" → "kaeli74" — how the team refers to each other. */
+/** "jdoe@example.edu" → "jdoe" — how the team refers to each other. */
 export const handle = (email: string) => email.split('@')[0];
 
 /** Plain-text summary for pasting into a message or an email to the candidate. */

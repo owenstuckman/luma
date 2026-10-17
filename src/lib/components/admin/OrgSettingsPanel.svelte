@@ -42,6 +42,9 @@
 		inviteStatus
 	} from '$lib/utils/invites';
 	import { capture, EVENTS } from '$lib/analytics/posthog';
+	import RecruitingRulesCard from './RecruitingRulesCard.svelte';
+	import TeamsCard from './TeamsCard.svelte';
+	import InterviewFormsCard from './InterviewFormsCard.svelte';
 
 	import type { InviteRedemption, Organization, OrgInvite, OrgMember } from '$lib/types';
 
@@ -523,6 +526,14 @@
 			<span class="ok-msg">{logoMessage}</span>
 		{/if}
 	</div>
+
+	<!-- Per-org configuration. Keyed on org.id so switching orgs in /admin remounts
+	     them with fresh state rather than showing the previous org's edits. -->
+	{#key org.id}
+		<TeamsCard {org} />
+		<RecruitingRulesCard {org} />
+		<InterviewFormsCard {org} />
+	{/key}
 
 	<!-- Operational pages, still org-scoped -->
 	<div class="card">

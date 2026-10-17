@@ -179,12 +179,12 @@ const INTERVIEW_COLUMNS =
 /**
  * Which interviews belong to a candidate: the PERSON, not one application.
  *
- * Since migration 00024 an application is per team, so someone who picked Juvo
- * and Terra has two applications. But they sit ONE interview round — the
+ * Since migration 00024 an application is per team, so someone who picked Ops
+ * and Build has two applications. But they sit ONE interview round — the
  * schedule interviews each person once — and the rows are linked (via
  * `interviews.applicant_id`, 00026) to whichever application was scheduled.
  * Scoping interviews to that single application left the sibling looking
- * un-interviewed: Terra's reviewers saw no scores for a candidate who had four.
+ * un-interviewed: Build's reviewers saw no scores for a candidate who had four.
  *
  * So a candidate's interviews are those linked to ANY of their applications
  * for the same posting (same org, same job, same email). The job bound keeps a

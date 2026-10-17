@@ -1,0 +1,137 @@
+{
+	"format": "luma-tenant",
+	"version": 1,
+	"organization": {
+		"slug": "acme-robotics",
+		"name": "Acme Robotics",
+		"primary_color": "#1f2937",
+		"secondary_color": "#ffc800",
+		"settings": {
+			"review_thresholds": {
+				"approve_to_advance": 3,
+				"reject_to_deny": 2,
+				"blinded_review": true,
+				"weighted_scoring": false
+			},
+			"scheduling": {
+				"default_algorithm": "greedy-first-available",
+				"buffer_minutes": 5,
+				"exclude_advisors_from_r1": true
+			},
+			"application": { "email_domain": null }
+		}
+	},
+	"teams": [
+		{
+			"slug": "design",
+			"name": "Design",
+			"description": "CAD, prototyping and industrial design",
+			"display_order": 1,
+			"active": true,
+			"image": null
+		},
+		{
+			"slug": "build",
+			"name": "Build",
+			"description": "Fabrication, electronics and testing",
+			"display_order": 2,
+			"active": true,
+			"image": null
+		}
+	],
+	"jobs": [
+		{
+			"name": "Fall Recruitment",
+			"description": "Apply to one or both teams — each team reviews its own application.",
+			"active": true,
+			"applications_closed": false,
+			"scheduled": false,
+			"schedule": {},
+			"image": null,
+			"questions": {
+				"team_selection": { "min": 1, "max": 2, "ranked": true },
+				"steps": [
+					{
+						"title": "Academics",
+						"icon": "fi-br-graduation-cap",
+						"questions": [
+							{
+								"id": "major",
+								"type": "input",
+								"title": "What is your major?",
+								"placeholder": "e.g. Mechanical Engineering",
+								"required": true,
+								"maxLength": 120
+							},
+							{
+								"id": "graduation_year",
+								"type": "dropdown",
+								"title": "Expected graduation year",
+								"options": ["2027", "2028", "2029", "2030", "Other"],
+								"required": true,
+								"blinded": true
+							}
+						]
+					},
+					{
+						"title": "Eligibility",
+						"icon": "fi-br-shield-check",
+						"questions": [
+							{
+								"id": "build_shop_training",
+								"type": "radio",
+								"title": "Are you willing to complete shop safety training?",
+								"subtitle": "Asked only for Build, and only affects your Build application.",
+								"options": ["Yes", "No"],
+								"required": true,
+								"team_scope": { "teams": ["build"] },
+								"reject_if": { "op": "eq", "value": "No" }
+							}
+						]
+					},
+					{
+						"title": "Your Interest",
+						"icon": "fi-br-comment-heart",
+						"questions": [
+							{
+								"id": "why_org",
+								"type": "textarea",
+								"title": "What would make you a valuable member of Acme Robotics?",
+								"required": true,
+								"maxWords": 250
+							},
+							{
+								"id": "why_team",
+								"type": "textarea",
+								"title": "Why are you interested in {team}?",
+								"subtitle": "You answer this separately for every team you apply to.",
+								"required": true,
+								"maxWords": 250,
+								"team_scope": { "per_team": true }
+							}
+						]
+					},
+					{
+						"title": "Interview Availability",
+						"icon": "fi-br-calendar",
+						"questions": [
+							{
+								"id": "interview_availability",
+								"type": "availability",
+								"title": "When are you available for an interview?",
+								"subtitle": "Select every one-hour block that works for you.",
+								"required": true,
+								"stepMinutes": 60,
+								"days": [
+									{ "date": "2027-09-08", "dayStart": "17:00", "dayEnd": "21:00" },
+									{ "date": "2027-09-09", "dayStart": "17:00", "dayEnd": "21:00" },
+									{ "date": "2027-09-12", "dayStart": "10:00", "dayEnd": "17:00" }
+								]
+							}
+						]
+					}
+				]
+			}
+		}
+	]
+}

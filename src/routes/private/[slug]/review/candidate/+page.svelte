@@ -27,7 +27,11 @@
 		InterviewLite,
 		InterviewSession
 	} from '$lib/utils/candidates';
-	import { averageScore } from '$lib/utils/interviewForms';
+	import {
+		averageScore,
+		resolveInterviewForms,
+		FALLBACK_INTERVIEW_FORMS
+	} from '$lib/utils/interviewForms';
 	import { adjustedAverage } from '$lib/utils/scoreModel';
 	import { blindMode } from '$lib/stores/blindMode';
 	import { blindName, buildNameScrubber, candidateNumber } from '$lib/utils/blind';
@@ -77,6 +81,7 @@
 
 	// --- Review voting ---
 	let orgSettings: OrgSettings = DEFAULT_ORG_SETTINGS;
+	let interviewForms = FALLBACK_INTERVIEW_FORMS;
 	let reviewerWeights: Record<string, number> = {};
 	let viewerRoles: string[] = [];
 	let jobSchema: QuestionSchema | null = null;
@@ -279,7 +284,7 @@
 				console.error('Failed to load applicant data:', error);
 				return [] as Applicant[];
 			}),
-			supabase.from('organizations').select('id, settings').eq('slug', slug).single(),
+			supabase.from('organizations').select('id, name, settings').eq('slug', slug).single(),
 			supabase.auth.getSession()
 		]);
 
@@ -296,6 +301,7 @@
 		const org = orgData.id as number;
 		orgId = org;
 		orgSettings = readOrgSettings(orgData.settings);
+		interviewForms = resolveInterviewForms(orgData.settings, orgData.name);
 		const user = sessionRes.data.session?.user;
 		myEmail = user?.email ?? '';
 		myUserId = user?.id ?? null;
@@ -647,7 +653,12 @@
 							{/if}
 						</div>
 
-						<InterviewSessions {sessions} model={scoring?.model ?? null} {scrub} />
+						<InterviewSessions
+							{sessions}
+							model={scoring?.model ?? null}
+							{scrub}
+							forms={interviewForms}
+						/>
 					</div>
 				{/if}
 

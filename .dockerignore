@@ -1,6 +1,10 @@
 node_modules
 .svelte-kit
 build
-.env*
-!env.example
 .git
+instance
+# Real env files stay out of the image. PUBLIC_* values the build inlines come in
+# as build args (see Dockerfile / docker-compose.yml); secrets come in at runtime.
+.env*
+!.env.example
+!.env.local.example

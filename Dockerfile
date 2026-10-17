@@ -7,6 +7,14 @@ RUN npm ci
 
 COPY . .
 
+# PUBLIC_* values are inlined into the bundle at build time, so they arrive as
+# build args (docker-compose.yml passes them from your env files).
+ARG PUBLIC_SUPABASE_URL
+ARG PUBLIC_SUPABASE_ANON_KEY
+ARG PUBLIC_POSTHOG_KEY=
+ARG PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
+ENV PUBLIC_SUPABASE_URL=$PUBLIC_SUPABASE_URL     PUBLIC_SUPABASE_ANON_KEY=$PUBLIC_SUPABASE_ANON_KEY     PUBLIC_POSTHOG_KEY=$PUBLIC_POSTHOG_KEY     PUBLIC_POSTHOG_HOST=$PUBLIC_POSTHOG_HOST
+
 ENV ADAPTER=node
 RUN npm run build
 

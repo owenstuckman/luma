@@ -3,8 +3,8 @@
 -- `interviews.applicant` is the applicant's EMAIL as text. That was unambiguous
 -- while an address owned exactly one application, but migration 00024 makes an
 -- application per-team, so joining on the address hands every sibling row the
--- same interviews: the Astra application would display Terra's interview and
--- count it toward Astra's evaluation progress. That is precisely the conflation
+-- same interviews: one team's application would display another team's interview and
+-- count it toward its own evaluation progress. That is precisely the conflation
 -- the per-team model exists to prevent.
 --
 -- The `applicant` email column STAYS. The scheduler, the .ics builder and the

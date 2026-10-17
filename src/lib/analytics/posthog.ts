@@ -61,7 +61,7 @@ export const getAnalytics = () => client;
 export const capturePageview = (url: URL): void => {
 	client?.capture('$pageview', {
 		$current_url: url.href,
-		// Grouping by route id rather than href keeps `/apply/archimedes/12` and
+		// Grouping by route id rather than href keeps `/apply/acme/12` and
 		// `/apply/vt/47` in the same funnel step.
 		route: url.pathname
 	});

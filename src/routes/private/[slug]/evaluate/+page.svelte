@@ -7,25 +7,21 @@
 	import { selectedJob } from '$lib/stores/jobFilter';
 	import {
 		RATING_SCALE,
-		SUCCESS_QUESTIONS,
-		FAILURE_QUESTIONS,
-		INDIVIDUAL_RATINGS,
-		GROUP_RATINGS,
-		UNIVERSAL_Q1,
-		UNIVERSAL_Q1_TIME,
-		UNIVERSAL_Q2,
-		UNIVERSAL_Q2_TIME,
+		FALLBACK_INTERVIEW_FORMS,
+		resolveInterviewForms,
 		readEvaluation,
 		evaluationScore,
 		isComplete
 	} from '$lib/utils/interviewForms';
-	import type { RatingMap } from '$lib/utils/interviewForms';
+	import type { InterviewForms, RatingMap } from '$lib/utils/interviewForms';
 	import type { Interview, Applicant } from '$lib/types';
 
 	let orgId: number | null = null;
+	/** This org's question bank and scored prompts (org settings → Interview forms). */
+	let forms: InterviewForms = FALLBACK_INTERVIEW_FORMS;
 	let interviews: Interview[] = [];
 	let applicantMap: Record<string, Applicant> = {};
-	/** Ranked team choices per applicant email, e.g. ['Juvo', 'Terra']. */
+	/** Ranked team choices per applicant email, e.g. ['Ops', 'Build']. */
 	let teamChoices: Record<string, string[]> = {};
 	let interviewerNames: Record<string, string> = {};
 	let loading = true;
@@ -51,14 +47,14 @@
 
 	$: slug = $page.params.slug;
 	$: isGroup = activeInterview?.type === 'group';
-	$: prompts = isGroup ? GROUP_RATINGS : INDIVIDUAL_RATINGS;
+	$: prompts = isGroup ? forms.group_ratings : forms.individual_ratings;
 	$: unscored = prompts.filter((p) => !(ratings[p.key] > 0)).length;
 
 	$: filteredInterviews = interviews
 		.filter((iv) => !$selectedJob || iv.job === $selectedJob.id)
 		.filter((iv) => {
 			if (filterStatus === 'all') return true;
-			const done = isComplete(evalOf(iv));
+			const done = isComplete(evalOf(iv), forms);
 			return filterStatus === 'completed' ? done : !done;
 		});
 
@@ -74,7 +70,7 @@
 	onMount(async () => {
 		const { data: orgData } = await supabase
 			.from('organizations')
-			.select('id')
+			.select('id, name, settings')
 			.eq('slug', slug)
 			.single();
 		if (!orgData) {
@@ -82,6 +78,7 @@
 			return;
 		}
 		orgId = orgData.id;
+		forms = resolveInterviewForms(orgData.settings, orgData.name);
 		userEmail = (await getCurrentUserEmail()) || '';
 
 		let query = supabase
@@ -250,7 +247,7 @@
 					{@const score = evaluationScore(ev)}
 					<div
 						class="interview-card"
-						class:evaluated={isComplete(ev)}
+						class:evaluated={isComplete(ev, forms)}
 						on:click={() => openEvaluation(iv)}
 						on:keydown={(e) => e.key === 'Enter' && openEvaluation(iv)}
 						role="button"
@@ -258,7 +255,7 @@
 					>
 						<div class="card-top">
 							<span class="applicant-name">{applicant?.name || iv.applicant || 'Unknown'}</span>
-							{#if isComplete(ev)}
+							{#if isComplete(ev, forms)}
 								<span class="eval-badge done">Done</span>
 							{:else if ev}
 								<span class="eval-badge partial">In progress</span>
@@ -339,14 +336,14 @@
 			{#if !isGroup}
 				<div class="qblock">
 					<p class="q-universal">
-						<span class="q-tag">Universal 1</span>{UNIVERSAL_Q1}
-						<span class="q-time">({UNIVERSAL_Q1_TIME})</span>
+						<span class="q-tag">Universal 1</span>{forms.universal_1.text}
+						{#if forms.universal_1.time}<span class="q-time">({forms.universal_1.time})</span>{/if}
 					</p>
 				</div>
 
 				<div class="field">
 					<span class="field-label">Behavioural — success <em>(tick the ones you asked)</em></span>
-					{#each SUCCESS_QUESTIONS as q (q.id)}
+					{#each forms.success_questions as q (q.id)}
 						<label class="check-row">
 							<input
 								type="checkbox"
@@ -360,14 +357,14 @@
 
 				<div class="qblock">
 					<p class="q-universal">
-						<span class="q-tag">Universal 2</span>{UNIVERSAL_Q2}
-						<span class="q-time">({UNIVERSAL_Q2_TIME})</span>
+						<span class="q-tag">Universal 2</span>{forms.universal_2.text}
+						{#if forms.universal_2.time}<span class="q-time">({forms.universal_2.time})</span>{/if}
 					</p>
 				</div>
 
 				<div class="field">
 					<span class="field-label">Behavioural — failure <em>(tick the ones you asked)</em></span>
-					{#each FAILURE_QUESTIONS as q (q.id)}
+					{#each forms.failure_questions as q (q.id)}
 						<label class="check-row">
 							<input
 								type="checkbox"

@@ -32,9 +32,11 @@
 	import Sidebar from '$lib/components/recruiter/Sidebar.svelte';
 	import Navbar from '$lib/components/recruiter/Navbar.svelte';
 	import InterviewSessions from '$lib/components/recruiter/InterviewSessions.svelte';
+	import { resolveInterviewForms, FALLBACK_INTERVIEW_FORMS } from '$lib/utils/interviewForms';
 	import BlindToggle from '$lib/components/recruiter/BlindToggle.svelte';
 
 	const slug = $page.params.slug ?? '';
+	let interviewForms = FALLBACK_INTERVIEW_FORMS;
 	const params = $page.url.searchParams;
 	const jobId = Number(params.get('job')) || null;
 	const teamId = Number(params.get('team')) || null;
@@ -118,6 +120,7 @@
 				return;
 			}
 			orgId = org.id;
+			interviewForms = resolveInterviewForms(org.settings, org.name);
 			const [sessionRes, roster, teamList, scores] = await Promise.all([
 				supabase.auth.getSession(),
 				peekCandidates(org.id) ?? getCandidates(org.id),
@@ -291,6 +294,7 @@
 						showScores={pass === 'informed'}
 						model={pass === 'informed' ? (scoring?.model ?? null) : null}
 						{scrub}
+						forms={interviewForms}
 					/>
 				{/if}
 			</div>

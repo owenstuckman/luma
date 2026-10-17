@@ -1,5 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 
+import { getInstanceStatus } from '$lib/server/instance';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -24,9 +25,15 @@ export const load: PageServerLoad = async ({ locals: { supabase, safeGetSession 
 	// two collapsing into one message is the misdiagnosis that cost real time on
 	// the old settings page.
 	if (error) {
-		return { isPlatformAdmin: false, checkFailed: true };
+		return { isPlatformAdmin: false, checkFailed: true, instance: null };
 	}
 	if (!data) redirect(303, '/private');
 
-	return { isPlatformAdmin: true, checkFailed: false };
+	// Deployment status for the Setup tab. Computed here, server-side, because
+	// it reads server-only env (and reports secrets only as present/absent).
+	return {
+		isPlatformAdmin: true,
+		checkFailed: false,
+		instance: await getInstanceStatus(supabase)
+	};
 };
