@@ -13,11 +13,24 @@ node_modules
 .DS_Store
 Thumbs.db
 
-# Env
+# Env — real values never get committed. The two *.example files are the templates
+# (`npm run setup` writes the real ones).
 .env
 .env.*
 !.env.example
+!.env.local.example
 !.env.test
+
+# Deployment-specific material: an operator's org data exports, internal docs,
+# screenshots with real applicant data, and local tool config. See docs/INSTANCE.md.
+/instance/
+/.mcp.json
+
+# Local Supabase CLI state (`supabase init` / `supabase start`) — per machine.
+supabase/config.toml
+supabase/.temp/
+supabase/.branches/
+supabase/seed.sql
 
 # Vite
 vite.config.js.timestamp-*

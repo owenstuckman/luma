@@ -9,8 +9,8 @@
 	import {
 		averageByPrompt,
 		questionText,
-		UNIVERSAL_Q1,
-		UNIVERSAL_Q2
+		FALLBACK_INTERVIEW_FORMS,
+		type InterviewForms
 	} from '$lib/utils/interviewForms';
 	import type { ScoreModel } from '$lib/utils/scoreModel';
 
@@ -19,6 +19,8 @@
 	/** Interviewer-lean model for this posting; adds the adjusted score per evaluation. */
 	export let model: ScoreModel | null = null;
 	export let scrub: (text: string) => string = (text) => text;
+	/** The org's interview forms, for prompt labels and question text. */
+	export let forms: InterviewForms = FALLBACK_INTERVIEW_FORMS;
 
 	const fmtScore = (n: number | null) => (n === null ? '—' : n.toFixed(1));
 	/** Tone for a 1-10 value: the form's scale is 1/3/5/7/10. */
@@ -65,7 +67,8 @@
 	{@const form = session.type === 'group' ? 'group' : 'individual'}
 	{@const panel = averageByPrompt(
 		session.entries.map((e) => e.evaluation),
-		form
+		form,
+		forms
 	)}
 	<div class="session">
 		<div class="session-head">
@@ -116,7 +119,7 @@
 				{#if ev && ev.form !== 'legacy'}
 					{#if showScores}
 						<div class="rating-list">
-							{#each averageByPrompt([ev], ev.form) as q (q.key)}
+							{#each averageByPrompt([ev], ev.form, forms) as q (q.key)}
 								<div class="rating-row">
 									<span class="rating-label">{q.label}</span>
 									<span class="pill {scoreTone(q.average)}"
@@ -131,10 +134,10 @@
 						<div class="asked">
 							<span class="eval-label">Questions asked</span>
 							<ul class="asked-list">
-								<li>{UNIVERSAL_Q1}</li>
-								<li>{UNIVERSAL_Q2}</li>
+								<li>{forms.universal_1.text}</li>
+								<li>{forms.universal_2.text}</li>
 								{#each [...ev.successQuestions, ...ev.failureQuestions] as id (id)}
-									<li>{questionText(id)}</li>
+									<li>{questionText(id, forms)}</li>
 								{/each}
 							</ul>
 							{#if ev.otherQuestions.trim()}

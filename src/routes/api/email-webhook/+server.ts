@@ -1,6 +1,7 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
 import { createClient } from '@supabase/supabase-js';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
+import { serviceRoleKey } from '$lib/server/instance';
 
 /**
  * Resend webhook endpoint — receives delivery events and updates email_log status.
@@ -21,10 +22,9 @@ interface ResendWebhookEvent {
 	};
 }
 
-// Use service-role key if available (set via PRIVATE_SUPABASE_SERVICE_KEY env var),
-// otherwise fall back to anon key (will rely on RLS).
-const SERVICE_KEY =
-	(typeof process !== 'undefined' && process.env?.PRIVATE_SUPABASE_SERVICE_KEY) || '';
+// Use the service-role key if one is configured, otherwise fall back to the anon
+// key (and rely on RLS). See `serviceRoleKey()` for the accepted variable names.
+const SERVICE_KEY = serviceRoleKey();
 
 export const POST: RequestHandler = async ({ request }) => {
 	try {

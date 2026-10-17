@@ -4,34 +4,37 @@ Start here. Files are grouped by what they're for, not by when they were written
 
 ## Working context (read these first)
 
-| File                                                         | What it's for                                                                     |
-| ------------------------------------------------------------ | --------------------------------------------------------------------------------- |
-| [CLAUDE.md](CLAUDE.md)                                       | V1 decisions, scope, and conventions. **Overrides the root `/CLAUDE.md`** for V1. |
-| [FEATURES.md](FEATURES.md)                                   | Authoritative feature inventory with per-feature status.                          |
-| [TODO.md](TODO.md)                                           | Phase-by-phase engineering tracker. What is done, what is left, and why.          |
-| [HUMAN-TODO.md](HUMAN-TODO.md)                               | Owner-only actions: accounts, DNS, secrets, decisions.                            |
-| [DEPLOYMENT.md](DEPLOYMENT.md)                               | How V1 gets to production.                                                        |
-| [SUPABASE-AUTH-HANDOFF.md](SUPABASE-AUTH-HANDOFF.md)         | Dashboard-only auth fixes (SMTP, redirect URLs, email templates). Hand-off doc.   |
-| [FALL-2026-INTERVIEW-ROOMS.md](FALL-2026-INTERVIEW-ROOMS.md) | Archimedes Fall 2026 room bookings, capacity, and per-day scheduler room lists.   |
-| [ANALYTICS.md](ANALYTICS.md)                                 | PostHog wiring, how to add a new event, privacy posture, troubleshooting.         |
-| [DESIGN-SYSTEM.md](DESIGN-SYSTEM.md)                         | Tokens, shared classes, and UI conventions. **Read before writing any UI.**       |
-| [DESIGN-ADMIN.md](DESIGN-ADMIN.md)                           | Design for expanding the platform admin panel (`/admin`). Not yet built.          |
+| File                                 | What it's for                                                                     |
+| ------------------------------------ | --------------------------------------------------------------------------------- |
+| [CLAUDE.md](CLAUDE.md)               | V1 decisions, scope, and conventions. **Overrides the root `/CLAUDE.md`** for V1. |
+| [FEATURES.md](FEATURES.md)           | Authoritative feature inventory with per-feature status.                          |
+| [TODO.md](TODO.md)                   | Phase-by-phase engineering tracker. What is done, what is left, and why.          |
+| [INSTANCE.md](INSTANCE.md)           | `npm run setup`, the four config layers, and the untracked `instance/` folder.    |
+| [DEPLOYMENT.md](DEPLOYMENT.md)       | How a deployment gets to production (any org, any host).                          |
+| [ANALYTICS.md](ANALYTICS.md)         | PostHog wiring, how to add a new event, privacy posture, troubleshooting.         |
+| [DESIGN-SYSTEM.md](DESIGN-SYSTEM.md) | Tokens, shared classes, and UI conventions. **Read before writing any UI.**       |
+| [DESIGN-ADMIN.md](DESIGN-ADMIN.md)   | Design for expanding the platform admin panel (`/admin`). Not yet built.          |
 
 The root [`/README.md`](../README.md) covers setup, prerequisites, and local development.
 The root [`/CLAUDE.md`](../CLAUDE.md) is the general architecture guide.
 
 ## Source material
 
-| Path         | What it is                                                                                                            |
-| ------------ | --------------------------------------------------------------------------------------------------------------------- |
-| [`v1/`](v1/) | V1 inputs: `background.md`, `Questions.md` (the Q&A that set scope), last cycle's interview CSVs, and reference PDFs. |
-| [`v0/`](v0/) | Documentation for the pre-rebuild app. Historical reference only — do not treat as current.                           |
+| Path         | What it is                                                                                  |
+| ------------ | ------------------------------------------------------------------------------------------- |
+| [`v0/`](v0/) | Documentation for the pre-rebuild app. Historical reference only — do not treat as current. |
+
+The V1 scoping inputs (the first tenant's background notes, scoping Q&A, interview
+responses and process PDFs) were organization-specific and now live in that deployment's
+untracked `instance/` folder. The decisions they produced are recorded in
+[CLAUDE.md](CLAUDE.md).
 
 ## Conventions
 
 - `FEATURES.md` says **what** exists; `TODO.md` says **what's next and why**. When they
   disagree, `FEATURES.md` is the one to trust about current state.
-- Anything requiring Owen (a key, a DNS record, a decision) belongs in `HUMAN-TODO.md`,
-  not buried in `TODO.md`.
-- `v0/` and `v1/` are archives of inputs. Don't edit them to reflect new decisions —
-  record those in `CLAUDE.md` or `TODO.md` instead.
+- Anything requiring a deployment's owner (a key, a DNS record, a decision) belongs in that
+  deployment's `instance/<name>/docs/HUMAN-TODO.md`, not in the repo.
+- Nothing org-specific is committed — see [INSTANCE.md](INSTANCE.md).
+- `v0/` is an archive. Don't edit it to reflect new decisions — record those in
+  `CLAUDE.md` or `TODO.md` instead.

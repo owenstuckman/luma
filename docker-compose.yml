@@ -1,10 +1,28 @@
+# Self-hosted LUMA (Node server). `npm run setup` → Hosting → Docker writes the
+# env files this reads. Compose only auto-loads `.env` for ${...} interpolation,
+# so pass both files explicitly:
+#
+#   docker compose --env-file .env --env-file .env.local up -d --build
+#
+# This runs the app only. Supabase itself is separate: Supabase Cloud, or your
+# own stack (https://supabase.com/docs/guides/self-hosting/docker).
 services:
   luma:
-    build: .
+    build:
+      context: .
+      # SvelteKit inlines PUBLIC_* at build time ($env/static/public).
+      args:
+        PUBLIC_SUPABASE_URL: ${PUBLIC_SUPABASE_URL}
+        PUBLIC_SUPABASE_ANON_KEY: ${PUBLIC_SUPABASE_ANON_KEY}
+        PUBLIC_POSTHOG_KEY: ${PUBLIC_POSTHOG_KEY:-}
+        PUBLIC_POSTHOG_HOST: ${PUBLIC_POSTHOG_HOST:-https://us.i.posthog.com}
     ports:
       - '3000:3000'
     env_file:
-      - .env.local
+      - path: .env
+        required: false
+      - path: .env.local
+        required: false
     environment:
       - NODE_ENV=production
     restart: unless-stopped

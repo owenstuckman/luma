@@ -1,6 +1,6 @@
 # CLAUDE.md — V1 Context
 
-This file is the working context for V1 development. The root `/CLAUDE.md` is the general project guide; this one captures **decisions, scope, and conventions specific to the V1 rebuild** (driven by `docs/v1/background.md` and `docs/v1/Questions.md`).
+This file is the working context for V1 development. The root `/CLAUDE.md` is the general project guide; this one captures **decisions, scope, and conventions specific to the V1 rebuild** (driven by the first tenant's background notes and scoping Q&A, now kept in its untracked `instance/` folder — see [INSTANCE.md](INSTANCE.md)).
 
 If anything here contradicts the root `CLAUDE.md`, this file wins for V1 work. When V1 ships, fold relevant pieces back into root `CLAUDE.md` and delete this file.
 
@@ -8,19 +8,24 @@ If anything here contradicts the root `CLAUDE.md`, this file wins for V1 work. W
 
 ## V1 Mission
 
-Rebuild LUMA into a **generalized, multi-tenant ATS** that handles Archimedes' four-subteam recruitment flow end-to-end: application → auto-reject → manual review → R1 interviews (auto-scheduled) → per-team R1 reject → R2 (per-team) → optional R3 follow-ups → team selection → automated decision emails.
+Rebuild LUMA into a **generalized, multi-tenant ATS** that handles a multi-team recruitment flow end-to-end (first tenant: Archimedes, four subteams): application → auto-reject → manual review → R1 interviews (auto-scheduled) → per-team R1 reject → R2 (per-team) → optional R3 follow-ups → team selection → automated decision emails.
 
-**Target deployment:** `luma.archimedesvt.org` on Vercel + existing Supabase project. Live ASAP, quality bar high.
+**Deployments:** any org, any host. `npm run setup` configures one; deployment-specific
+values (domains, project refs, sending addresses) live in that deployment's untracked
+`.env` / `.env.local` / `instance/`, never in the repo. See [INSTANCE.md](INSTANCE.md).
 
 ---
 
-## Non-negotiables (from `docs/v1/Questions.md` answers)
+## Non-negotiables (from the V1 scoping Q&A)
 
 1. **Multi-tenant stays.** Do not collapse `organizations` / `org_members` / `slug` routing. Generalize anything Archimedes-specific behind org settings — no hardcoded team names, no hardcoded counts.
 2. **Archimedes is just the first tenant.** Teams (Infinitum, Astra, Terra, Juvo) are seed data for the Archimedes org, _not_ schema constants.
 3. **Everything configurable per-org** by an admin: review thresholds (approves + rejects), auto-reject rules, scheduling algorithm, buffer time, email-on-decision toggles, blinded-review toggle.
-4. **Scrap the cohort scheduler** from `docs/v1/LUMA Auto-Scheduler Problem.pdf`. R1 is simple: 1 applicant per interview slot, scheduled against interviewer availability.
+4. **Scrap the cohort scheduler** from the original auto-scheduler problem write-up. R1 is simple: 1 applicant per interview slot, scheduled against interviewer availability.
 5. **Quality > velocity if forced to choose**, but velocity is preferred. No half-finished features merged.
+6. **Nothing org-specific in the repo.** Org data, domains, screenshots of real applicants and
+   runbooks go in `instance/` (gitignored). Every per-org knob has a UI editor in
+   `OrgSettingsPanel` — Teams, Recruiting Rules, Interview Forms — not SQL.
 
 ---
 
@@ -213,12 +218,12 @@ Resend and no EmailJS package was ever installed. Keeping Resend meant zero rewr
   action on the review page (via `/private/[slug]/schedule/notify`).
 - Secrets are Supabase Edge Function secrets, not `.env.local`:
   - `supabase secrets set RESEND_API_KEY=re_...`
-  - `supabase secrets set LUMA_FROM_EMAIL="Archimedes Society <noreply@archimedesvt.org>"`
+  - `supabase secrets set LUMA_FROM_EMAIL="Org Recruiting <noreply@yourdomain.org>"`
   - Without `RESEND_API_KEY` the functions run in **dry-run mode** and return a count of
     emails that would have been sent — useful for testing, and the reason a "successful"
     send may deliver nothing.
-- Sending address: `noreply@archimedesvt.org`. The domain must be verified in Resend
-  (SPF/DKIM records) before real delivery works.
+- Sending address: set per deployment via `LUMA_FROM_EMAIL` (`npm run setup` can set it).
+  The domain must be verified in Resend (SPF/DKIM records) before real delivery works.
 - `src/lib/email/templates.ts` holds the templates in-repo (not in a vendor dashboard), so
   they are code-reviewed and versioned like everything else.
 - Outbound events: application received, auto-rejected (optional), advanced to interview,
@@ -249,7 +254,7 @@ Resend and no EmailJS package was ever installed. Keeping Resend meant zero rewr
 - New code uses **Svelte 5 runes** (`$state`, `$derived`, `$props`). Don't migrate existing Svelte 4 components unless touching them for V1 reasons. **Exception:** a new _shared_ component that must interop with a Svelte 4 host (slots + `createEventDispatcher`) should match the host — `CandidateList.svelte` is Svelte 4 because `/review` is.
 - All new DB access goes through `src/lib/utils/*.ts`. No inline `supabase.from(...)` in components. `supabase.ts` holds single-table helpers; `candidates.ts` holds cross-table aggregation (roster rows, candidate timeline). Add a new module rather than growing `supabase.ts` without bound.
 - Org-scoping is **mandatory** — every new query filters by `org_id` (or relies on RLS). When in doubt, verify with `is_org_member()`.
-- Settings are stored on `organizations.settings` JSONB. The canonical `OrgSettings` type and its `readOrgSettings(raw)` normalizer live in **`src/lib/types/orgSettings.ts`** (not `index.ts`). Always read settings through the normalizer — never touch `org.settings.foo` directly.
+- Settings are stored on `organizations.settings` JSONB. The canonical `OrgSettings` type and its `readOrgSettings(raw)` normalizer live in **`src/lib/types/orgSettings.ts`** (not `index.ts`). Always read settings through the normalizer — never touch `org.settings.foo` directly. Interview forms are the one section with their own normalizer: `resolveInterviewForms(settings, orgName)` in `src/lib/utils/interviewForms.ts`. Write a section with `saveOrgSettingsSection()` (`src/lib/utils/orgConfig.ts`), which re-reads the row and replaces only that key.
 - Migrations are forward-only and additive. `00001`–`00026` exist; add `00027+` for new V1 changes. Don't consolidate.
 - **Check applied migrations against the repo before trusting the DB.** Two files (`00012`,
   `00013`) sat unapplied on prod for weeks without erroring, because `candidates.ts` reads
@@ -281,10 +286,10 @@ Resend and no EmailJS package was ever installed. Keeping Resend meant zero rewr
 ## Out of scope for V1 (explicit)
 
 - Cohort-based group/individual interview pairing (the deck's model)
-- Custom rubrics per round
+- Custom rubrics per round (the interview forms are per-org, not per-round)
 - Modeling eboard↔advisor coordination assignments (offline)
 - Video/artifact upload as a _required_ field (URL link is fine)
-- Self-hosted Docker path (Dockerfile stays in repo, untested)
+- Self-hosted Docker path is offered by `npm run setup` but not yet exercised in production
 - Migration consolidation
 
 ## Auth conventions (2026-08-31)

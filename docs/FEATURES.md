@@ -19,8 +19,11 @@ Authoritative feature inventory for LUMA V1. Status legend:
 | RLS-enforced data isolation                        | ✅     | `is_org_member`, `has_org_role` helpers in migration 00003         |
 | Platform admin panel                               | 🔧     | Exists at `/admin` — confirm it covers org provisioning            |
 | Org branding (logo, colors)                        | ✅     | `organizations` has `logo_url`, `primary_color`, `secondary_color` |
-| Org settings (JSONB)                               | 🔧     | Column exists; need typed `OrgSettings` interface + admin UI       |
-| Custom domain per org                              | ⏭️     | V1 ships single domain (`luma.archimedesvt.org`)                   |
+| Org settings (JSONB)                               | ✅     | Typed `OrgSettings`; edited in Org Settings → Recruiting Rules     |
+| Custom domain per org                              | ⏭️     | One domain per deployment (`PUBLIC_APP_URL`)                       |
+| Interactive instance setup (`npm run setup`)       | ✅     | DB/auth provider, keys, hosting, schema, email, first admin        |
+| Instance status board (`/admin/?tab=setup`)        | ✅     | Where setup lands; `getInstanceStatus()`, no secrets               |
+| Org-specific material out of the repo              | ✅     | Untracked `instance/`; see [INSTANCE.md](INSTANCE.md)              |
 
 ## Auth & Roles
 
@@ -96,7 +99,7 @@ Authoritative feature inventory for LUMA V1. Status legend:
 | Interviewer availability collection                            | ✅     | Job-scoped: `/availability` builds its grid from the posting's own availability question (`00032`) |
 | Scheduling algorithms: greedy / round-robin / balanced / batch | ✅     | All four in `src/lib/scheduling/algorithms/`; all take a room list and never double-book one       |
 | Algorithm picker per job                                       | 🔧     | Registry exists; verify admin UI exposes it                                                        |
-| Configurable buffer time (default 5min)                        | 🆕     | Setting at job or org level                                                                        |
+| Configurable buffer time (default 5min)                        | 🔧     | Org default editable in Recruiting Rules; per-job override + scheduler wiring still to verify      |
 | Exclude advisors from R1 pool                                  | 🆕     | Auto-flag based on role                                                                            |
 | `prior_team` manual override                                   | 🆕     | Field on applicant; soft preference in scheduler                                                   |
 | Round 2: per-team auto-scheduling                              | 🆕     | Triggered from candidate page                                                                      |
@@ -145,6 +148,9 @@ Authoritative feature inventory for LUMA V1. Status legend:
 | Form builder UI (visual question editor)        | ✅     | `/settings/jobs/[job_id]` — steps, questions, live preview                                                        |
 | Per-question `team_scope`/`reject_if`/`blinded` | ✅     | Edited in the form builder; unset keys omitted from JSON                                                          |
 | Scheduling settings page                        | ✅     | `/settings/scheduling`                                                                                            |
+| Teams editor                                    | ✅     | Org Settings → Teams: add, rename, reorder, retire (never delete)                                                 |
+| Recruiting rules editor                         | ✅     | Org Settings → Recruiting Rules: thresholds, blinded/weighted review, scheduling defaults, email toggles, domain  |
+| Interview forms editor                          | ✅     | Org Settings → Interview Forms: question bank + scored prompts, `{org}` placeholder                               |
 | Email template editor                           | 🆕     | Per-event templates                                                                                               |
 | Member management UI                            | 🔧     | Add/remove/singular-role + invite links work; `roles[]` editor and `review_weight` still missing (Ph. 3.5)        |
 | Invite link management UI                       | ✅     | Settings → Invite Links (either surface): create, copy, revoke, status, and who redeemed each link                |

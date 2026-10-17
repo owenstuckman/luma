@@ -13,10 +13,11 @@ Originally built for Virginia Tech's Archimedes Society, where it processed **40
 - **Interview scheduling** — manual creation with conflict detection, plus auto-scheduling algorithms (greedy, balanced-load, round-robin, batch)
 - **Email notifications** — interview confirmations with ICS calendar invites via Resend API, bulk email, copy-paste fallback
 - **Realtime updates** — live dashboard counts, new applicant toasts, schedule change notifications
-- **Post-interview evaluations** — star ratings, recommendations, strengths/weaknesses notes
+- **Post-interview evaluations** — per-org interview forms: question bank and scored prompts for individual and group interviews
 - **Team management** — invite members by email, assign roles (Owner, Admin, Recruiter, Viewer)
 - **Role-based access** — RLS policies enforce org-scoped data isolation at the database level
-- **Admin panel** — platform-wide org/user/job management, analytics, auto-scheduling, platform settings
+- **Admin panel** — platform-wide org/user/job management, analytics, auto-scheduling, platform settings, and an instance **Setup** status board
+- **Fully configurable per org** — teams, review thresholds, blinded review, scheduling defaults, email toggles, applicant email domain and interview forms are all edited in the UI; nothing is hardcoded for any one organization
 
 ## Quick Start
 
@@ -24,21 +25,30 @@ Originally built for Virginia Tech's Archimedes Society, where it processed **40
 git clone https://github.com/your-repo/luma.git
 cd luma
 npm install
-npm run setup          # guided configuration
-npm run dev            # start at localhost:5173
+npm run setup          # interactive: database, auth, keys, hosting, schema, first admin
 ```
+
+`npm run setup` asks where the database and auth live (Supabase Cloud by default; also
+self-hosted Supabase or a local Supabase via the CLI), checks the connection, writes `.env`
+and `.env.local`, applies the migrations, can configure email, creates the first platform
+admin, and then opens the app on **`/admin/?tab=setup`**. That page shows what is
+configured and links to everything else. Re-run it any time. Details:
+[docs/INSTANCE.md](docs/INSTANCE.md).
 
 Or manually:
 
-1. Copy `env.example` to `.env.local` and fill in your [Supabase](https://supabase.com) project credentials
-2. Run the SQL migrations from `supabase/migrations/` in your Supabase SQL Editor (in order)
+1. `cp .env.example .env` and `cp .env.local.example .env.local`, then fill in your
+   [Supabase](https://supabase.com) project credentials
+2. Apply `supabase/migrations/` (`supabase link --project-ref <ref> && supabase db push`, or
+   run them in order in the SQL editor)
 3. Configure auth redirect URLs in Supabase dashboard (Authentication → URL Configuration)
 4. `npm run dev`
 
 Then:
 
 1. Go to `/auth` and create an account
-2. Go to `/register` and create your organization
+2. Go to `/register` and create your organization, then Settings → **Teams**, **Recruiting
+   Rules** and **Interview Forms**
 3. Go to Settings → Manage Postings → create a job → build the form
 4. Share `/apply/your-slug` with applicants
 5. Invite your team: Settings → **Invite Links**. Create a link, send it, and they sign up
@@ -75,8 +85,9 @@ src/
 │   ├── scheduling/       # Auto-scheduling algorithms + registry
 │   ├── stores/           # jobFilter, mobileMenu
 │   ├── types/            # Shared interfaces + OrgSettings normalizer
+│   ├── server/           # Server-only: rate limiting, instance status (Setup tab)
 │   └── utils/            # supabase.ts (queries), candidates.ts (roster + timeline),
-│                         #   invites.ts (org invite links)
+│                         #   invites.ts (org invite links), orgConfig.ts (settings + teams writes)
 ├── routes/
 │   ├── apply/[slug]/     # Public application forms
 │   ├── auth/             # Login / signup
@@ -220,12 +231,17 @@ Or manually:
 
 1. Push to GitHub
 2. Import in Vercel
-3. Set environment variables (`PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY`)
+3. Set the environment variables from your `.env` and `.env.local`
 4. Deploy
 
 ### Self-hosted
 
-Any Node.js host works. Build with `npm run build`, then serve the output. Set the same environment variables.
+Choose **Node server** or **Docker** in `npm run setup` (it sets `ADAPTER=node`), then
+either `npm run build && node build`, or
+`docker compose --env-file .env --env-file .env.local up -d --build`. The database is
+Supabase either way — Supabase Cloud or your own
+[self-hosted Supabase](https://supabase.com/docs/guides/self-hosting/docker).
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Migrating Existing Data
 
@@ -237,15 +253,15 @@ All docs live in [`docs/`](docs/); [`docs/README.md`](docs/README.md) indexes th
 
 **Current (V1):**
 
-| Doc                                        | Contents                                                     |
-| ------------------------------------------ | ------------------------------------------------------------ |
-| [Features](docs/FEATURES.md)               | Authoritative feature inventory with per-feature status      |
-| [TODO](docs/TODO.md)                       | Phase-by-phase build plan; what's done, what's left, and why |
-| [Human TODO](docs/HUMAN-TODO.md)           | Owner-only actions: accounts, DNS, secrets, decisions        |
-| [V1 Context](docs/CLAUDE.md)               | V1 decisions, scope, and conventions                         |
-| [Deployment](docs/DEPLOYMENT.md)           | Getting V1 to production                                     |
-| [Analytics](docs/ANALYTICS.md)             | PostHog setup, adding events, privacy posture                |
-| [Admin Panel Design](docs/DESIGN-ADMIN.md) | Planned expansion of `/admin` (not yet built)                |
+| Doc                                        | Contents                                                         |
+| ------------------------------------------ | ---------------------------------------------------------------- |
+| [Features](docs/FEATURES.md)               | Authoritative feature inventory with per-feature status          |
+| [TODO](docs/TODO.md)                       | Phase-by-phase build plan; what's done, what's left, and why     |
+| [Instance config](docs/INSTANCE.md)        | `npm run setup`, config layers, the untracked `instance/` folder |
+| [V1 Context](docs/CLAUDE.md)               | V1 decisions, scope, and conventions                             |
+| [Deployment](docs/DEPLOYMENT.md)           | Getting a deployment to production                               |
+| [Analytics](docs/ANALYTICS.md)             | PostHog setup, adding events, privacy posture                    |
+| [Admin Panel Design](docs/DESIGN-ADMIN.md) | Planned expansion of `/admin` (not yet built)                    |
 
 **Pre-rebuild (`docs/v0/`) — historical reference, describes the old app:**
 

@@ -36,38 +36,52 @@ the tree, including nested ones, since each copy rejects a version-mismatched bi
 
 ## Environment Variables
 
-Requires a `.env.local` with:
+Two untracked files, both written by `npm run setup` (templates: `.env.example`,
+`.env.local.example`). Vite loads `.env` then `.env.local` on top.
 
-- `PUBLIC_SUPABASE_URL` — Supabase project URL
-- `PUBLIC_SUPABASE_ANON_KEY` — Supabase public anon key
+`.env` — instance settings, non-secret:
 
-Optional:
+- `LUMA_DB_PROVIDER` (`supabase-cloud` | `supabase-self-hosted` | `supabase-local`),
+  `LUMA_AUTH_PROVIDER` (`supabase`), `ADAPTER` (`vercel` | `node`, read by
+  `svelte.config.js`), `PUBLIC_APP_URL`, `PUBLIC_POSTHOG_HOST`
 
-- `PUBLIC_POSTHOG_KEY`, `PUBLIC_POSTHOG_HOST` — analytics + error tracking. Unset means
-  analytics silently no-ops; nothing else changes. See `docs/ANALYTICS.md`.
+`.env.local` — keys:
 
-`env.example` is the template. Note that a variable name wrapped in backticks or quotes is
-not exported by Vite at all — and because analytics fails soft, that mistake looks exactly
-like "no events yet".
+- `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY` — required
+- `SUPABASE_SERVICE_ROLE_KEY` — optional, server-only (email webhook; setup's admin
+  bootstrap). Read via `serviceRoleKey()` in `src/lib/server/instance.ts`, which also
+  accepts the older `PRIVATE_SUPABASE_SERVICE_KEY`
+- `PUBLIC_POSTHOG_KEY` — optional; unset means analytics silently no-ops. See
+  `docs/ANALYTICS.md`
+
+Note that a variable name wrapped in backticks or quotes is not exported by Vite at all —
+and because analytics fails soft, that mistake looks exactly like "no events yet".
+
+**Nothing org-specific is committed.** An org's name, domain, data, screenshots and
+runbooks go in the gitignored `instance/` folder; per-org behaviour goes in org settings.
+See `docs/INSTANCE.md`.
 
 ## Repo layout
 
 Root stays deliberately thin, but most config files there **cannot** move — the tools look
 for them in the project root and moving them costs a flag on every invocation:
 
-| File(s)                                             | Why it's at the root                                                                                                                                                                                       |
-| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `svelte.config.js`, `vite.config.ts`                | SvelteKit and Vite resolve these from the project root only                                                                                                                                                |
-| `tsconfig.json`                                     | Extends `.svelte-kit/tsconfig.json`; `svelte-check` points at it                                                                                                                                           |
-| `eslint.config.js`                                  | Flat-config discovery walks up to the root                                                                                                                                                                 |
-| `package.json`, `package-lock.json`, `.npmrc`       | npm                                                                                                                                                                                                        |
-| `.prettierrc`, `.prettierignore`                    | Prettier discovery; the ignore file must be a real file                                                                                                                                                    |
-| `.gitattributes`, `.gitignore`                      | git                                                                                                                                                                                                        |
-| `.nvmrc`                                            | Node version pin (see the Node requirement above)                                                                                                                                                          |
-| `Dockerfile`, `docker-compose.yml`, `.dockerignore` | Conventional root placement — `docker build .` and `docker compose up` work with no flags. The self-hosted path is out of scope for V1 and untested; leaving it conventional is cheaper than relocating it |
+| File(s)                                             | Why it's at the root                                                                                                                                   |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `svelte.config.js`, `vite.config.ts`                | SvelteKit and Vite resolve these from the project root only                                                                                            |
+| `tsconfig.json`                                     | Extends `.svelte-kit/tsconfig.json`; `svelte-check` points at it                                                                                       |
+| `eslint.config.js`                                  | Flat-config discovery walks up to the root                                                                                                             |
+| `package.json`, `package-lock.json`, `.npmrc`       | npm                                                                                                                                                    |
+| `.prettierrc`, `.prettierignore`                    | Prettier discovery; the ignore file must be a real file                                                                                                |
+| `.gitattributes`, `.gitignore`                      | git                                                                                                                                                    |
+| `.nvmrc`                                            | Node version pin (see the Node requirement above)                                                                                                      |
+| `Dockerfile`, `docker-compose.yml`, `.dockerignore` | Conventional root placement. `npm run setup` → Docker targets them; `PUBLIC_*` values go in as build args because SvelteKit inlines them at build time |
+| `.env.example`, `.env.local.example`                | Templates for the two untracked env files `npm run setup` writes                                                                                       |
+| `.mcp.example.json`                                 | Template for the untracked `.mcp.json` (holds a Supabase project ref)                                                                                  |
 
 Everything that _can_ live elsewhere already does: docs in `docs/`, E2E specs in `e2e/`,
-one-off scripts in `scripts/`, SQL in `supabase/migrations/`.
+one-off scripts in `scripts/`, SQL in `supabase/migrations/`, and deployment-specific
+material in the untracked `instance/`.
 
 ## Architecture
 
@@ -93,7 +107,8 @@ route trees are scoped by it.
   `schedule/full`, `evaluate`, `availability`, `settings`, `settings/jobs`,
   `settings/scheduling`
 - `/admin` — Platform admin view (cross-org), gated on `is_platform_admin()`. The
-  **Orgs** tab has a per-org **Settings** drawer; **Admins** manages platform admins
+  **Orgs** tab has a per-org **Settings** drawer; **Admins** manages platform admins;
+  **Setup** (`/admin/?tab=setup`, where `npm run setup` lands) shows instance status
 - `/api/health`, `/api/email-webhook` — Server endpoints
 
 Auth guard in `src/hooks.server.ts` redirects unauthenticated users from `/private/*` to `/auth` and authenticated users from `/auth` to `/private`.
@@ -205,13 +220,21 @@ schema rather than from hand-written step pages.
 - `src/lib/email/` — Templates (`templates.ts`, provider-agnostic `EmailDraft` objects) and `.ics` generation
 - `src/lib/analytics/` — `posthog.ts`: init, `EVENTS` constants, capture helpers. No-ops
   when `PUBLIC_POSTHOG_KEY` is unset
-- `src/lib/types/` — `index.ts` (shared types), `orgSettings.ts` (`readOrgSettings()` normalizer)
+- `src/lib/types/` — `index.ts` (shared types), `orgSettings.ts` (`readOrgSettings()` normalizer),
+  `instance.ts` (Setup tab status types)
+- `src/lib/utils/interviewForms.ts` — interview evaluation forms. Per-org via
+  `settings.interview_forms`; read with `resolveInterviewForms(settings, orgName)`
+- `src/lib/utils/orgConfig.ts` — writes for org settings sections (`saveOrgSettingsSection`)
+  and teams
+- `src/lib/server/instance.ts` — `getInstanceStatus()` for `/admin` → Setup (no secrets)
 - `src/styles/` — SCSS files (Bootstrap theme + color tokens)
 - `supabase/migrations/` — Forward-only SQL migrations
-- `scripts/` — `setup.mjs` (first-run setup), `cross-platform-deps.mjs` (Windows/WSL deps)
-- `docs/` — all project documentation; start at `docs/README.md`. `v1/` holds the inputs
-  that set V1 scope (`background.md`, `Questions.md`, last cycle's CSVs); `v0/` is the
+- `scripts/` — `setup.mjs` (interactive instance setup: DB/auth provider, keys, hosting,
+  schema, email, first admin; then opens `/admin/?tab=setup`), `cross-platform-deps.mjs`
+  (Windows/WSL deps)
+- `docs/` — all project documentation; start at `docs/README.md`. `v0/` is the
   pre-rebuild app's docs, kept as history only
+- `instance/` — **untracked**: per-deployment data exports, internal docs, one-off SQL
 - `e2e/` — Playwright E2E tests
 
 (`archive/` was deleted in Phase 0 — don't expect it.)

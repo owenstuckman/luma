@@ -932,3 +932,44 @@ not an SMTP fault — no confirmation mail is expected, generated, or sent.
       hard blocker at recruiting volume, so it needs custom SMTP first (see `HUMAN-TODO.md`).
 - The signup action no longer claims "Check your email" unconditionally — it branches on
   whether `signUp` returned a session, so the message is truthful under either setting.
+
+## Phase 2.9 — Generalization + instance setup (2026-10-17)
+
+Owner ask: do the generalization the V1 docs call for so any team or organization can run
+LUMA, add a terminal setup that hands off to an in-app config dashboard, and move
+everything Archimedes-specific out of the repo. See [INSTANCE.md](INSTANCE.md).
+
+- [x] **Interview forms are per-org.** The rubric in `interviewForms.ts` (questions, scored
+      prompts, including the hardcoded "succeed in Archimedes") is now
+      `DEFAULT_INTERVIEW_FORMS`, overridable via `settings.interview_forms` and edited in
+      Org Settings → Interview Forms. `{org}` fills in the org's name. Prompt keys are
+      unchanged, so every stored score still lines up. The evaluate page, candidate profile
+      and readiness review read the org's forms.
+- [x] **Recruiting Rules editor** for the `OrgSettings` sections that existed but could only
+      be set by SQL: review thresholds, blinded/weighted review, scheduling defaults,
+      email toggles, applicant email domain.
+- [x] **Teams editor** — add, rename, reorder, retire. No delete (applications reference
+      `team_id`); slugs fixed once created (question rules reference them).
+- [x] **`npm run setup`** rewritten: DB provider (Supabase Cloud / self-hosted / local CLI),
+      auth (Supabase Auth), keys, connection check, hosting (Vercel / Node / Docker), public
+      URL, PostHog, `supabase db push`, optional Resend secrets + function deploy, first
+      platform admin (service key) or the SQL to do it. Writes `.env` + `.env.local` in
+      place, keeping unknown keys. Ends on `/admin/?tab=setup`.
+- [x] **`/admin` → Setup tab** — instance status board (database, schema freshness via table
+      probes, auth URLs, hosting, keys present, analytics, admins, orgs) + links.
+- [x] **Env split** — `.env` (instance, non-secret) / `.env.local` (keys), templates
+      `.env.example` / `.env.local.example`. `svelte.config.js` reads `ADAPTER` from `.env`.
+      The webhook's service key accepts `SUPABASE_SERVICE_ROLE_KEY` (what `.env.local`
+      already used) as well as the old `PRIVATE_SUPABASE_SERVICE_KEY`.
+- [x] **Docker** builds now receive `PUBLIC_*` as build args (they're inlined at build time;
+      previously the image could not build without them).
+- [x] **Archimedes material moved to untracked `instance/archimedes/`**: root applicant /
+      invite / rejection CSVs, `docs/v1/` (2025 interview responses, process PDFs, scoping
+      notes), `docs/images/` (screenshots with real applicant data), `HUMAN-TODO.md`,
+      `SUPABASE-AUTH-HANDOFF.md`, `FALL-2026-INTERVIEW-ROOMS.md`, the Archimedes deployment
+      plan, and `.mcp.json` (project ref; template `.mcp.example.json`). `DEPLOYMENT.md` is
+      now generic.
+- [ ] **Purge history** — the moved files are still in git history. If any of it must not be
+      public, rewrite history (`git filter-repo`) and force-push; that is the owner's call.
+- [ ] Older docs below this phase still name Archimedes as worked examples. They are
+      history, deliberately left as written.

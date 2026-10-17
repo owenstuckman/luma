@@ -1,182 +1,168 @@
 # DEPLOYMENT.md
 
-Concrete, step-by-step deployment plan for LUMA V1 → `luma.archimedesvt.org` on Vercel + Supabase + Resend + PostHog.
+How to take a LUMA deployment to production, for any organization. `npm run setup` does
+most of the mechanical work (env files, schema, first admin); this is the full picture and
+the checklist around it.
 
-Read top-to-bottom. Each step says **who** runs it (HUMAN = Owen, CLAUDE = me) and **how to verify** it.
+Placeholders: `<app-domain>` is where LUMA is served (e.g. `luma.example.org`),
+`<mail-domain>` is the domain emails are sent from, `<slug>` is an org's URL slug.
+Your deployment's real values, runbooks and owner to-dos belong in your untracked
+`instance/` folder — see [INSTANCE.md](INSTANCE.md).
 
 ---
 
 ## Stack snapshot
 
-| Layer              | Tool                   | Notes                                                                              |
-| ------------------ | ---------------------- | ---------------------------------------------------------------------------------- |
-| Frontend + SSR     | SvelteKit 2 / Svelte 5 | `@sveltejs/adapter-vercel`                                                         |
-| Hosting            | Vercel                 | Auto-deploys on push to `main`                                                     |
-| Database + Auth    | Supabase               | Postgres + RLS + Auth (email + magic link)                                         |
-| Email              | Resend                 | Server-side only, via Supabase Edge Functions; API key never reaches the browser   |
-| Analytics + errors | PostHog                | Single vendor, replaces Sentry. Wiring + event guide: [ANALYTICS.md](ANALYTICS.md) |
-| Calendar           | `.ics` attachments     | Google Calendar OAuth deferred                                                     |
-| Storage            | Supabase Storage       | `org_assets` bucket exists (migration 00012)                                       |
+| Layer              | Default                   | Alternatives                                                                               |
+| ------------------ | ------------------------- | ------------------------------------------------------------------------------------------ |
+| Frontend + SSR     | SvelteKit 2 / Svelte 5    | —                                                                                          |
+| Hosting            | Vercel (`adapter-vercel`) | Node server or Docker (`adapter-node`, `ADAPTER=node`)                                     |
+| Database + Auth    | Supabase Cloud            | Self-hosted Supabase; local Supabase CLI for development                                   |
+| Email              | Resend                    | Server-side only, via Supabase Edge Functions; API key never reaches the browser           |
+| Analytics + errors | PostHog (optional)        | Off when `PUBLIC_POSTHOG_KEY` is unset. Wiring + event guide: [ANALYTICS.md](ANALYTICS.md) |
+| Calendar           | `.ics` attachments        | Google Calendar OAuth deferred                                                             |
+| Storage            | Supabase Storage          | `org-assets` bucket (migration 00012)                                                      |
+
+LUMA needs a Supabase API (PostgREST + GoTrue + Storage), not just Postgres — every data
+call goes through `@supabase/supabase-js`. "Self-hosting the database" therefore means
+self-hosting Supabase: <https://supabase.com/docs/guides/self-hosting/docker>.
 
 ---
 
 ## Environments
 
-- **Production** — `luma.archimedesvt.org`, branch `main`, real Supabase project, real Resend domain, PostHog production project.
-- **Preview** — every PR / non-main branch, Vercel auto-generated `*.vercel.app` URL, separate Supabase project (or same prod with read-only intent — preferable to spin up a preview Supabase if you can afford it).
-- **Local dev** — `npm run dev`, `.env.local`, points at preview Supabase by default. Never at prod.
-
-For V1 with timeline pressure: it's acceptable to run with **one Supabase project** for prod + preview + dev, as long as you understand previews can dirty the data. Recommended once V1 is stable: split.
+- **Production** — `<app-domain>`, branch `main`, production Supabase project, verified
+  Resend domain, PostHog production project.
+- **Preview** — every PR on Vercel gets a `*.vercel.app` URL. Point previews at a separate
+  Supabase project if you can; sharing production means previews can dirty real data.
+- **Local dev** — `npm run dev` with `.env` + `.env.local`. Never point local dev at
+  production data you can't afford to change.
 
 ---
 
-## Phase A — One-time setup (HUMAN, ~1 hour)
+## 1. Accounts (once)
 
-Everything in `HUMAN-TODO.md` → "Before any code ships". The short version:
+1. **Supabase** — create a project (or stand up your own stack). Note the URL, anon key
+   and service role key.
+2. **Resend** — account, API key, and `<mail-domain>` verified via the SPF/DKIM records it
+   shows you. Until the domain shows "Verified", delivery fails or lands in spam.
+3. **PostHog** (optional) — project, `phc_` ingest key, host.
+4. **Hosting** — a Vercel project connected to the repo, or a server/container host.
 
-1. **Resend** — account, API key (set as a Supabase Edge Function secret, not in Vercel client env), sending domain `archimedesvt.org` verified via SPF/DKIM.
-2. **PostHog** — account, project, API key + host URL.
-3. **Supabase** — confirm prod project URL + anon key + service role key.
-4. **Vercel** — project exists, repo connected, env vars set, domain attached, SSL cert issued.
-
-Verify Phase A:
+## 2. Configure the instance
 
 ```bash
-# DNS
-dig luma.archimedesvt.org +short        # → Vercel IP or CNAME
-
-# Reachability
-curl -I https://luma.archimedesvt.org   # → 200 or 404 (404 is fine — means the domain works, just no content yet)
+npm run setup
 ```
 
-Resend domain verification is checked in the Resend dashboard (Domains → your domain → "Verified"). Until it verifies, sends fail or land in spam.
+It asks for the database/auth backend, keys, hosting target, public URL and analytics,
+writes `.env` and `.env.local`, applies migrations through the Supabase CLI, optionally
+sets the Resend secrets and deploys the email functions, and creates the first platform
+admin. It ends by opening `/admin/?tab=setup`, which shows what is configured and what
+still needs attention. Re-run it any time — every prompt defaults to the current value.
 
----
+Manual equivalent:
 
-## Phase B — Schema apply (CLAUDE, ~15 min)
+```bash
+cp .env.example .env && cp .env.local.example .env.local   # then fill them in
+supabase link --project-ref <ref> && supabase db push      # schema
+supabase secrets set RESEND_API_KEY=re_... LUMA_FROM_EMAIL="Org <noreply@<mail-domain>>"
+supabase functions deploy notify-interviews send-reminders
+```
 
-1. Apply all existing migrations (`00001` → `00013`) to the prod Supabase project if not already applied. Use Supabase CLI:
-   ```bash
-   supabase link --project-ref <prod-ref>
-   supabase db push
-   ```
-2. Apply V1 migrations (`00014` → `00020`) as they land in PRs.
-3. Seed the Archimedes org + four teams (Infinitum, Astra, Terra, Juvo) via a one-off SQL script or admin UI.
-
-Verify:
+and, after signing up once at `/auth`, in the SQL editor:
 
 ```sql
--- Run in Supabase SQL editor
-select * from organizations where slug = 'archimedes';
-select * from teams where org_id = (select id from organizations where slug = 'archimedes');
--- Should return 1 org + 4 teams
+insert into platform_admins (user_id)
+select id from auth.users where email = 'you@example.com'
+on conflict do nothing;
 ```
 
----
+## 3. Supabase Auth URLs
 
-## Phase C — Code deploy (CLAUDE → auto via Vercel)
+Authentication → URL Configuration:
 
-1. Build each phase from `TODO.md` on a feature branch (`v1/phase-1-schema`, `v1/phase-2-form-builder`, etc.).
-2. Open PR → Vercel auto-deploys preview → smoke test on preview URL → merge to `main`.
-3. Merge to `main` → Vercel auto-deploys production within ~2 min.
-4. **Never** push directly to `main` for V1 phases — always PR for the preview deploy.
+- Site URL: `https://<app-domain>`
+- Redirect URLs: `https://<app-domain>/auth/confirm`, `https://<app-domain>/auth/reset`,
+  `https://<app-domain>/invite/*`
 
-Verify each deploy:
+Supabase's built-in mailer is heavily rate limited; configure custom SMTP (Resend works)
+under Authentication → SMTP before real recruiting volume.
 
-```bash
-# Vercel CLI (optional)
-vercel ls                         # see recent deploys
-vercel logs <deployment-url>      # tail logs for errors
-```
+## 4. Deploy
 
-Or just check Vercel dashboard → Deployments tab.
+- **Vercel** — copy the variables from `.env` and `.env.local` into Project → Settings →
+  Environment Variables (`SUPABASE_SERVICE_ROLE_KEY` server-only). Pushes to `main` deploy
+  production; PRs get previews. Attach `<app-domain>` under Settings → Domains.
+- **Node** — `ADAPTER=node npm run build && node build` (port `3000`, `PORT` to change),
+  behind a reverse proxy that terminates TLS.
+- **Docker** — `docker compose --env-file .env --env-file .env.local up -d --build`.
+  `PUBLIC_*` values are passed as build args because SvelteKit inlines them at build time.
 
----
+## 5. Configure organizations (in the app)
 
-## Phase D — Cutover (joint, day-of go-live)
+From `/admin` (platform admins) or `/private/<slug>/settings` (org admins):
 
-Order matters. Don't reorder.
+1. **Create the org** — `/register`, or Admin → Organizations.
+2. **Teams** — the teams applicants choose between (none = single-team org).
+3. **Recruiting rules** — review thresholds, blinded review, scheduling defaults, email
+   toggles, applicant email domain.
+4. **Interview forms** — question bank and scored prompts for individual/group interviews.
+5. **Members & invite links**, branding and logo.
+6. **Job postings** — Settings → Manage Postings: the application form builder, team
+   selection rules, availability windows.
 
-1. **HUMAN** — confirm DNS, SSL, Resend domain, PostHog all green.
-2. **HUMAN** — confirm `luma.archimedesvt.org` is the production domain on the Vercel project (not the `.vercel.app` URL).
-3. **CLAUDE** — merge final V1 PR to `main`. Wait for Vercel deploy to succeed.
-4. **CLAUDE** — run smoke test on production:
-   - Visit `https://luma.archimedesvt.org` — landing loads.
-   - Visit `https://luma.archimedesvt.org/apply/archimedes/<job_id>` — application form renders.
-   - Sign in to `/private/archimedes/dashboard` as Owen — dashboard loads.
-5. **HUMAN** — submit a real test application end-to-end. Confirm:
-   - Confirmation email arrives.
-   - Application visible in `/review`.
-   - PostHog "application_submitted" event fires.
-6. **HUMAN** — delete the test row (or mark as test) via Supabase SQL.
-7. **HUMAN** — announce go-live to advisors and eboard with the apply URL.
+## 6. Smoke test
 
----
-
-## Phase E — Rollback plan
-
-If something is on fire after cutover:
-
-1. **Code rollback:** Vercel dashboard → Deployments → previous green deploy → "Promote to Production". Takes ~30 seconds.
-2. **Data rollback:** Supabase doesn't have one-click rollback. Mitigations:
-   - Daily PITR snapshots are on by default for paid plans — confirm yours is on.
-   - For schema migrations, every V1 migration in `TODO.md` is **additive** (no drops, no renames of populated columns) → safe to leave forward, code rollback is sufficient.
-3. **Email blast mistake:** Resend → Logs → identify recipients → manually email a correction. There is no recall; bounces arrive via the webhook at `/api/email-webhook`.
-4. **Auto-reject mis-firing:** flip the org setting `auto_reject_enabled = false` in Supabase SQL editor:
-   ```sql
-   update organizations
-   set settings = settings || '{"auto_reject_enabled": false}'::jsonb
-   where slug = 'archimedes';
-   ```
+- `https://<app-domain>` loads; `/apply/<slug>/<job_id>` renders the form.
+- Submit a test application end to end: confirmation email arrives (not in spam), the
+  application appears in `/private/<slug>/review`, PostHog records `application_submitted`.
+- Delete or mark the test row afterwards.
 
 ---
 
-## Phase F — Post-launch monitoring (week 1)
+## Rollback
 
-- **PostHog** — daily check of the apply funnel. Drop-off between "started" and "submitted" > 30% means a form bug.
-- **Resend** — daily check of the Logs tab, plus the `email_log` table (populated by the edge functions, `status = 'failed'` rows carry the error).
-- **Vercel** — function execution logs. Any 500s → fix same-day.
-- **Supabase** — query the `email_log` table for failed sends. Migration 00010 set this up.
+1. **Code:** Vercel → Deployments → a previous green deploy → "Promote to Production"
+   (or redeploy the previous image/tag when self-hosting).
+2. **Data:** every migration is additive, so a code rollback is normally enough. Confirm
+   point-in-time recovery is enabled on your Supabase plan.
+3. **Email mistakes:** Resend has no recall. Find recipients in Resend → Logs (or the
+   `email_log` table) and send a correction. Bounces arrive via `/api/email-webhook`.
+4. **A recruiting rule misfiring:** fix it in the org's Settings → Recruiting Rules, or
+   edit the job's question `reject_if` rules in the form builder.
 
----
+## Monitoring (first week)
 
-## Env var reference (final)
-
-Set in Vercel for Production. Mirror in `.env.local` (with non-prod values where applicable) for local dev. Never commit `.env.local`.
-
-| Variable                    | Where to get it                                                               | Used by                                     |
-| --------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------- |
-| `PUBLIC_SUPABASE_URL`       | Supabase → Project Settings → API → Project URL                               | Client + server                             |
-| `PUBLIC_SUPABASE_ANON_KEY`  | Supabase → API → anon public                                                  | Client + server                             |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → API → service_role (secret)                                        | Server only                                 |
-| `RESEND_API_KEY`            | Resend → API Keys. Set via `supabase secrets set`, NOT Vercel                 | Edge function secret                        |
-| `LUMA_FROM_EMAIL`           | `"Archimedes Society <noreply@archimedesvt.org>"`, via `supabase secrets set` | Edge function secret                        |
-| `PUBLIC_POSTHOG_KEY`        | PostHog → Project Settings → Project API Key (`phc_…`, public write-only key) | Client                                      |
-| `PUBLIC_POSTHOG_HOST`       | PostHog → Project Settings → API Host (usually `https://us.i.posthog.com`)    | Client                                      |
-| `PUBLIC_APP_URL`            | `https://luma.archimedesvt.org`                                               | Client + server (for magic links, ics URLs) |
+- **PostHog** — apply funnel; a >30% drop between started and submitted means a form bug.
+- **Resend / `email_log`** — failed sends carry the error on `status = 'failed'` rows.
+- **Hosting logs** — any 500 is a same-day fix.
 
 ---
 
-## Domain & DNS final layout
+## Environment variable reference
 
-At your DNS provider for `archimedesvt.org`:
+`.env` (instance settings, non-secret) and `.env.local` (keys). Templates:
+`.env.example`, `.env.local.example`. Neither real file is committed.
 
-| Record   | Type      | Value                                                               | Provided by                |
-| -------- | --------- | ------------------------------------------------------------------- | -------------------------- |
-| `luma`   | CNAME     | `cname.vercel-dns.com` (or A record Vercel shows)                   | Vercel                     |
-| (varies) | TXT/CNAME | SPF/DKIM records prescribed by the Resend dashboard (Domains → Add) | Resend                     |
-| `_dmarc` | TXT       | `v=DMARC1; p=quarantine; rua=mailto:dmarc@archimedesvt.org`         | (optional but recommended) |
+| Variable                    | File         | Purpose                                                               |
+| --------------------------- | ------------ | --------------------------------------------------------------------- |
+| `LUMA_DB_PROVIDER`          | `.env`       | `supabase-cloud` / `supabase-self-hosted` / `supabase-local`          |
+| `LUMA_AUTH_PROVIDER`        | `.env`       | `supabase` (only backend today)                                       |
+| `ADAPTER`                   | `.env`       | `vercel` (default) or `node`                                          |
+| `PUBLIC_APP_URL`            | `.env`       | Public URL; shown in Setup and used for auth redirect URLs            |
+| `PUBLIC_POSTHOG_HOST`       | `.env`       | PostHog ingest host                                                   |
+| `PUBLIC_SUPABASE_URL`       | `.env.local` | Supabase API URL                                                      |
+| `PUBLIC_SUPABASE_ANON_KEY`  | `.env.local` | Supabase anon key                                                     |
+| `SUPABASE_SERVICE_ROLE_KEY` | `.env.local` | Optional, server-only: email webhook, first-admin bootstrap in setup  |
+| `PUBLIC_POSTHOG_KEY`        | `.env.local` | Optional PostHog `phc_` ingest key                                    |
+| `RESEND_API_KEY`            | Supabase     | Edge Function secret (`supabase secrets set`)                         |
+| `LUMA_FROM_EMAIL`           | Supabase     | Edge Function secret, e.g. `"Org Recruiting <noreply@<mail-domain>>"` |
 
----
+## DNS
 
-## Done-criteria for "V1 is live"
-
-All true:
-
-- `https://luma.archimedesvt.org` serves the landing page over HTTPS.
-- A real applicant can complete the full Archimedes application from a fresh browser without errors.
-- Auto-reject fires correctly for at least one tested rule.
-- Confirmation email arrives in inbox (not spam) from the configured sending domain.
-- An admin (Owen) can log in, see the applicant in the review queue, vote, and watch them advance to scheduling.
-- An interviewer can submit availability and the auto-scheduler produces a valid R1 schedule.
-- PostHog shows the `application_submitted` event for the test applicant.
+| Record         | Type      | Value                                                    | For                  |
+| -------------- | --------- | -------------------------------------------------------- | -------------------- |
+| `<app-domain>` | CNAME / A | What Vercel (or your host) shows                         | The app              |
+| (varies)       | TXT/CNAME | SPF/DKIM records from Resend → Domains                   | Email deliverability |
+| `_dmarc`       | TXT       | `v=DMARC1; p=quarantine; rua=mailto:dmarc@<mail-domain>` | Recommended          |
